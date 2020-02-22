@@ -11,7 +11,9 @@ library("randomForestExplainer")
 library("raster")
 library("rgdal")
 library("sp")
+#install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
 library(data.table)
+library(plyr)
 library(ggplot2)
 library(sf)
 library(rprojroot)
@@ -20,7 +22,10 @@ require(parallel)
 require(doParallel)
 library(ranger)
 library(OOBCurve)
+#library(pdp) #https://bgreenwell.github.io/pdp/articles/pdp.html for partial dependence — but very slow
+library(edarf) 
 library(xlsx)
+library(ggpubr)
 
 #### -------------------------- Define directory structure --------------------------------
 #Get mDur and mFreq values for all stations 
@@ -32,7 +37,7 @@ resdir <- file.path(rootdir, 'results')
 outgdb <- file.path(resdir, 'spatialoutputs.gdb')
 
 #Import GRDC stations and only keep those < 200 m from a HydroSHEDS reach
-GRDCpjoin <- st_read(dsn=outgdb, layer='GRDCstations_riverjoin')%>%
+GRDCpjoin <- st_read(dsn=outgdb, layer='GRDCstations_riverjoin') %>%
   .[.$station_river_distance<200,]
 
 #Get data paths of daily records for GRDC stations
@@ -90,14 +95,14 @@ durfreq_indiv <- function(path, maxgap, monthsel=NULL) {
     monthlyfreq <- gaugetab[(missingdays < maxgap), 
                             .(GRDC_NO = unique(GRDC_NO),
                               monthrelfreq = length(unique(na.omit(prevflowdate)))/length(unique(year))), by='month'] %>% #Count proportion of years with zero flow occurrence per month
-    dcast(GRDC_NO~month, value.var='monthrelfreq') %>%
+      dcast(GRDC_NO~month, value.var='monthrelfreq') %>%
       setnames(as.character(seq(1,12)), c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
   } else {
     monthlyfreq <- data.table(GRDC_NO = gaugetab[, unique(GRDC_NO)], month=1:12, monthrelfreq=rep(NA,12)) %>%
       dcast(GRDC_NO~month, value.var='monthrelfreq') %>%
       setnames(as.character(seq(1,12)), c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
   }
-
+  
   #If analysis is only performed on a subset of months
   if (!is.null(monthsel)) {
     gaugetab <- gaugetab[month %in% monthsel, ]
@@ -119,13 +124,13 @@ durfreq_indiv <- function(path, maxgap, monthsel=NULL) {
                                             lastYear=max(year), 
                                             totalYears=length(unique(year)))],
                         gaugetab_yearly[missingdays <= maxgap, .(firstYear_kept=min(year), 
-                                                               lastYear_kept=max(year), 
-                                                               totalYears_kept=length(unique(year)),
-                                                               totaldays = sum(datadays), 
-                                                               sumDur = sum(dur),
-                                                               mDur = mean(dur),
-                                                               mFreq = mean(freq),
-                                                               intermittent = factor(ifelse(sum(dur)>0, 1, 0), levels=c('0','1')))]
+                                                                 lastYear_kept=max(year), 
+                                                                 totalYears_kept=length(unique(year)),
+                                                                 totaldays = sum(datadays), 
+                                                                 sumDur = sum(dur),
+                                                                 mDur = mean(dur),
+                                                                 mFreq = mean(freq),
+                                                                 intermittent = factor(ifelse(sum(dur)>0, 1, 0), levels=c('0','1')))]
   )
   return(gaugetab_all)
 }
@@ -141,27 +146,70 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, reverse=FALSE
   doParallel::registerDoParallel(cl)
   
   return(as.data.table(rbindlist(foreach(j=pathlist, 
-                                           .packages = c("data.table", "magrittr"), 
-                                           .export=c('durfreq_indiv', 'zero.lomf', 'diny')) 
-                                   %dopar% {
-                                     if (is.null(monthsel_list)) {
-                                      return(durfreq_indiv(j, maxgap = 20))
-                                     } else {
-                                       monthsublist = monthsel_list[[strsplit(basename(j), '[.]')[[1]][1]]]
-
-                                       #Run duration and frequency computation for subset of months
-                                       return(durfreq_indiv(j, maxgap = maxgap, 
-                                                            monthsel= if (reverse) setdiff(1:12, monthsublist) else monthsublist)
-                                       )
-                                     }
+                                         .packages = c("data.table", "magrittr"), 
+                                         .export=c('durfreq_indiv', 'zero.lomf', 'diny')) 
+                                 %dopar% {
+                                   if (is.null(monthsel_list)) {
+                                     return(durfreq_indiv(j, maxgap = 20))
+                                   } else {
+                                     monthsublist = monthsel_list[[strsplit(basename(j), '[.]')[[1]][1]]]
+                                     
+                                     #Run duration and frequency computation for subset of months
+                                     return(durfreq_indiv(j, maxgap = maxgap, 
+                                                          monthsel= if (reverse) setdiff(1:12, monthsublist) else monthsublist)
+                                     )
                                    }
+                                 }
   )))
 }
 
+pdtiles_grid <- function(mod, dt, colnums) {
+  "Create a plot matrix of partial dependence interactions"
+
+  allvar <- mod$variable.importance[order(-mod$variable.importance)]
+  selcols <- names(allvar)[1:colnums]
+  pdout <- edarf::partial_dependence(mod, vars= selcols, 
+                                     n=c(10,10), interaction=TRUE, data=as.data.frame(dt)) %>% #Warning: doe snot work with data_table
+    setDT 
+  
+  #Iterate over every pair of PCs
+  tileplots_l <- sapply(seq_len(length(selcols)-1), function(i) {
+    sapply(seq(2, length(selcols)), function(j) {
+      print(paste0('Generating plot', i , j))
+      xvar <- selcols[i]
+      yvar <- selcols[j]
+      
+      if (i != j) {
+        ggplotGrob(
+          ggplot(edarf_outdt,  aes_string(x=xvar, y=yvar)) +
+            geom_tile(aes(fill = `1`)) + 
+            scale_fill_distiller(palette='Spectral') + 
+            geom_jitter(data=pointdt, aes(color=intermittent)) +
+            theme_bw()
+        )
+      } else {
+        #Write proportion of variance explained by PC
+        text_grob(round(allvar[1:colnums]), 3)
+      }
+    })
+  })
+  #Plot, only keeping unique combinations by grabbing lower triangle of plot matrix
+  do.call("grid.arrange", list(grobs=tileplots_l[lower.tri(tileplots_l, diag=T)], ncol=colnums-1)) 
+}
+
+fread_cols <- function(file_name, colsToKeep) {
+  header <- fread(file_name, nrows = 1, header = FALSE)
+  keptcols <- colsToKeep[colsToKeep %chin% unlist(header)]
+  missingcols <- colsToKeep[!(colsToKeep %chin% unlist(header))]
+  paste('Importing', file_name, 'with ', length(keptcols), 'columns out of ', length(colsToKeep), 'supplied column names')
+  fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
+}
 
 #### -------------------------- Format and inspect data -------------------------------------------------
 #---- Get mean drying duration and frequency per year ----
+tic()
 gaugestats <- durfreq_parallel(pathlist=fileNames, maxgap=20) 
+toc()
 
 #Join intermittency statistics to predictor variables and subset to only include those gauges with at least
 gaugestats_join <- gaugestats[as.data.table(GRDCpjoin), on='GRDC_NO'] %>%
@@ -170,7 +218,7 @@ gaugestats_join <- gaugestats[as.data.table(GRDCpjoin), on='GRDC_NO'] %>%
 #---- Compute derived predictor variables ----
 gaugestats_join[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), 
                        pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
-                       .SDcols= paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum and maximum catchment precipitation
+                .SDcols= paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum and maximum catchment precipitation
   .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, #min/max monthly catchment precip
            dis_mm_pvar=ifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
            dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr))] #min monthly/average yearly watershed discharge
@@ -182,6 +230,9 @@ addedvars <- data.table(varname=c('catchment Precipitation Annual minimum', 'cat
                         varcode=c('pre_mm_cmn', 'pre_mm_cmx', 'pre_mm_cvar', 
                                   'dis_mm_pvar', 'dis_mm_pvaryr'))
 
+#---- Convert -9999 values to NA ----
+for (j in which(sapply(gaugestats_join,is.numeric))) { #Iterate through numeric column indices
+  set(gaugestats_join,which(gaugestats_join[[j]]==-9999),j, NA)} #Set those to 0 if -9999
 
 #### -------------------------- Run RF model -------------------------------------------------
 #Select predictor variables
@@ -243,14 +294,14 @@ rf_formula <- as.formula(paste0('intermittent~',
                                 paste(rfpredcols, collapse="+"), 
                                 collapse=""))
 
-intermittent.task <- makeClassifTask(id ='inter',
-                                     data = as.data.frame(gaugestats_join[,c('intermittent', rfpredcols),with=F]),
-                                     target = "intermittent")
+intermittent.task <- mlr::makeClassifTask(id ='inter',
+                                          data = as.data.frame(gaugestats_join[,c('intermittent', rfpredcols),with=F]),
+                                          target = "intermittent")
 mod_basic <- ranger(rf_formula, data = gaugestats_join, num.trees = 1000, keep.inbag = TRUE) #Run basic model with 100 trees
 OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_join) %>%
   setDT %>%
-  .[, numtrees := seq_along(mmce)]
-  
+  .[, numtrees := .I]
+
 #Plot it
 ggplot(melt(OOBfulldat, id.vars = 'numtrees'), aes(x=numtrees, y=value, color=variable)) + 
   geom_point(size=1, alpha=0.5) + 
@@ -261,24 +312,140 @@ ggplot(melt(OOBfulldat, id.vars = 'numtrees'), aes(x=numtrees, y=value, color=va
 
 #Run model with ntree=800
 mod_basic800 <- ranger(rf_formula, data = gaugestats_join, num.trees = 800, keep.inbag = FALSE, seed= set.seed(123),
+                       probability = TRUE,
                        write.forest=TRUE, importance='permutation', scale.permutation.importance = FALSE) #Run basic model with 100 trees
 mod_basic800
 
-### Variable importance
+#### -------------------------- Diagnose initial model -------------------------------------------------
+###---- Variable importance ----
 varimp_basic <- data.table(varcode=names(mod_basic800$variable.importance), 
                            importance=mod_basic800$variable.importance)[
                              rfpredcols_dt, on='varcode' ]%>%
-  .[, varname := factor(varname, levels=.[,varname[order(-importance)]])]
+  .[, varname := factor(varname, levels=.[,varname[order(-importance)]])] %>%
+  setorder(-importance)
 
 ggplot(varimp_basic,aes(x=varname, y=importance)) + 
   geom_bar(stat = 'identity') +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
+  theme_classic() +
   theme(axis.text.x = element_text(size=8))
 
+###---- Check misclassification rate with different threshold probabilities ----
+gaugestats_join[, intermittent_predprob := mod_basic800$predictions[,'1']]
 
-mis_class_rate <- 1 - sum(diag(mod_basic800$confusion.matrix))/sum(mod_basic800$confusion.matrix)
-  
-  
+threshold_misclass <- ldply(seq(0,1,0.01), function(i) {
+  gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
+  confumat <- gaugestats_join[, .N, by=c('intermittent', 'intermittent_predcat')]
+  outvec <- data.table(i, 
+              `Misclassification rate`=gaugestats_join[intermittent!=intermittent_predcat,.N]/gaugestats_join[,.N],
+              `True positive rate (sensitivity)` = confumat[intermittent=='1' & intermittent_predcat==1, N]/confumat[intermittent=='1', sum(N)],
+              `True negative rate (specificity)` = confumat[intermittent=='0' & intermittent_predcat==0, N]/confumat[intermittent=='0', sum(N)])
+  return(outvec)
+})
+
+ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable)) + 
+  geom_line(size=1.2) + 
+  scale_x_continuous(expand=c(0,0)) + 
+  scale_y_continuous(expand=c(0,0)) +
+  theme_bw()
+
+gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.5, 1, 0)]
+
+###---- Partial dependence plots ----
+pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
+
+###---- Output GRDC predictions as points ----
+st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(GRDCpjoin) != 'GRDC_NO']) , with=F], by='GRDC_NO'),
+         dsn=file.path(resdir, 'GRDCstations_predbasic800.gpkg'), driver = 'gpkg', delete_dsn=T)
+
+
+##---- Generate predictions to map on river network ----
+#Read in river network attribute table
+riveratlas <- fread_cols(file.path(resdir, 'RiverATLAS_v10tab.csv'), 
+                         colsToKeep = c("HYRIV_ID", rfpredcols, paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))))
+
+#Compute derived variables
+riveratlas[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), 
+                  pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
+           .SDcols= paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum and maximum catchment precipitation
+  .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, #min/max monthly catchment precip
+           dis_mm_pvar=ifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
+           dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr))] #min monthly/average yearly watershed discharge
+
+#Predict model (should take ~10-15 minutes for 9M rows x 40 cols)
+riveratlas[is.na(pre_mm_cvar),]
+
+tic()
+intermittent_predbasic800 <- predict(mod_basic800, type='response', data=riveratlas[, c("HYRIV_ID", rfpredcols), with=F])
+toc()
+
+
+
+
+#Generate predictions for all 
+
+
+## Map uncertainty in predictions for each gauge — relate to length of record and environmental characteristics
+
+## Compare gauge environmental characteristics compared to full river network, looking at confusion matrix results
+
+## Understand variable associations with gauges
+
+## 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+############# TO DO ##############
+######## Model improvements
+
+#Bootstrap without replacement to avoid bias
+#Hyper-parameter tuning
+#Implement conditional inference forest
+#Use CAST package for variable selection and Leave one location out CV
+#Use mlr3? (read mlr3 book) — test spatial and aspatial CV
+
+
+
+
+
+
+### Predictions 
+
+
+geospatial_analyst <- function(continent) {
+  setwd('D:/Charlotte/Reach_R_data')
+  newdata <- readRDS(paste(continent,  ".rds", sep=""))
+  continent_reaches <- readRDS(paste(continent, "_reaches.rds", sep = ""))
+  climate_zones <- continent_reaches$clz_cl_cmj
+  continent_predictions <- predict(RF_model, newdata =newdata, type="prob", progress= "window")
+  continent_preds <- as.data.frame(cbind(newdata[,1], ifelse(continent_predictions[,2]<0.4,0,1), continent_predictions[,2], climate_zones))
+  colnames(continent_preds) <- c("Reach_ID", "Class", "Prob_of_Intermittence", "Climate zone")
+  st_geometry(continent_preds) <- continent_reaches$geometry
+  setwd("D:/Charlotte/GIS")
+  #st_write(continent_preds, dsn = paste(continent,"_preds", sep =""), driver ='ESRI Shapefile')
+  percent_intermittent <- sum(continent_preds$Class)/length(continent_preds$Class)
+  return(percent_intermittent)
+}
+
+#Visualization
+
+
+
+
+
 
 ##################################################################################################################################################
 ############################ MORE ALREADY SPED UP/TRANSCRIBED ####################################################################################
@@ -310,10 +477,6 @@ ggplot(monthinter_melt, aes(x=variable, y=value, fill=GRDC_NO)) +
   geom_area(stat='identity')
 
 ############################## MORE CHARLOTTE ####################################################################################################
-### Partial dependence
-partialDependence <- CalcPartialDependence(Model = RF_model, MyPreds = predictors, Nvars = ncol(predictors), ImpType = 1)
-PlotPartialDependence(PP = partialDependence)
-
 ### Leave-one-out cross-validation (run overnight)
 jack_results <- jackRF(MyYVar = class, MyXPreds = predictors)
 Sys.time()
@@ -496,13 +659,13 @@ total_percent <- sum(sum(Africa_preds$Class), sum(Asia_preds$Class),sum(Australi
                      sum(Europe_preds$Class), sum(NorthAmerica_preds$Class), 
                      sum(Northern_preds$Class), sum(SouthAmerica_preds$Class), 
                      sum(Siberia_preds$Class))/sum(length(Africa_preds$Class), 
-                                               length(Asia_preds$Class),
-                                               length(Australia_preds$Class),
-                                               length(Europe_preds$Class), 
-                                               length(NorthAmerica_preds$Class), 
-                                               length(Northern_preds$Class), 
-                                               length(SouthAmerica_preds$Class), 
-                                               length(Siberia_preds$Class))
+                                                   length(Asia_preds$Class),
+                                                   length(Australia_preds$Class),
+                                                   length(Europe_preds$Class), 
+                                                   length(NorthAmerica_preds$Class), 
+                                                   length(Northern_preds$Class), 
+                                                   length(SouthAmerica_preds$Class), 
+                                                   length(Siberia_preds$Class))
 
 
 
@@ -540,13 +703,13 @@ Sa_zonal <- climate_zone_analyst("SouthAmerica")
 Sib_zonal <- climate_zone_analyst("Siberia")
 
 total_zonal <- (Af_zonal[2,]+Asia_zonal[2,]+Aus_zonal[2,]+Eur_zonal[2,]+
-                   Na_zonal[2,]+North_zonal[2,]+Sa_zonal[2,]+Sib_zonal[2,])
+                  Na_zonal[2,]+North_zonal[2,]+Sa_zonal[2,]+Sib_zonal[2,])
 
 
 zonal_percent_intermittent <- ((Af_zonal[1,]+Asia_zonal[1,]+Aus_zonal[1,]+Eur_zonal[1,]+
                                   Na_zonal[1,]+North_zonal[1,]+Sa_zonal[1,]+Sib_zonal[1,])/
-                              (Af_zonal[2,]+ Asia_zonal[2,]+Aus_zonal[2,]+Eur_zonal[2,]+
-                                  Na_zonal[2,]+North_zonal[2,]+Sa_zonal[2,]+Sib_zonal[2,]))*100
+                                 (Af_zonal[2,]+ Asia_zonal[2,]+Aus_zonal[2,]+Eur_zonal[2,]+
+                                    Na_zonal[2,]+North_zonal[2,]+Sa_zonal[2,]+Sib_zonal[2,]))*100
 par(mfrow=c(1,2)) 
 barplot(total_zonal,  
         xlab="Climate zone",
