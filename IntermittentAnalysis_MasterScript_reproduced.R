@@ -15,6 +15,7 @@ library("sp")
 library(data.table)
 library(plyr)
 library(ggplot2)
+library(gridExtra)
 library(sf)
 library(rprojroot)
 require(bigstatsr)
@@ -341,8 +342,8 @@ threshold_misclass <- ldply(seq(0,1,0.01), function(i) {
               `True positive rate (sensitivity)` = confumat[intermittent=='1' & intermittent_predcat==1, N]/confumat[intermittent=='1', sum(N)],
               `True negative rate (specificity)` = confumat[intermittent=='0' & intermittent_predcat==0, N]/confumat[intermittent=='0', sum(N)])
   return(outvec)
-})
-
+}) %>% setDT
+  
 ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable)) + 
   geom_line(size=1.2) + 
   scale_x_continuous(expand=c(0,0)) + 
@@ -352,7 +353,7 @@ ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable))
 gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.5, 1, 0)]
 
 ###---- Partial dependence plots ----
-pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
+#pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
 
 ###---- Output GRDC predictions as points ----
 st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(GRDCpjoin) != 'GRDC_NO']) , with=F], by='GRDC_NO'),
@@ -364,51 +365,36 @@ st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(G
 riveratlas <- fread_cols(file.path(resdir, 'RiverATLAS_v10tab.csv'), 
                          colsToKeep = c("HYRIV_ID", rfpredcols, paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))))
 
+#Convert -9999 values to NA
+colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+
+#Inspect -9999 values for cmi_ix_uyr
+check <- riveratlas[cmi_ix_uyr == -9999,] #All have precipitation = 0
+riveratlas[cmi_ix_uyr == -9999, cmi_ix_uyr := 0]
+
+for (j in which(sapply(riveratlas,is.numeric))) { #Iterate through numeric column indices
+  set(riveratlas,which(riveratlas[[j]]==-9999),j, NA)} #Set those to 0 if -9999
+
 #Compute derived variables
 riveratlas[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), 
                   pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
            .SDcols= paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum and maximum catchment precipitation
-  .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, #min/max monthly catchment precip
+  .[, `:=`(pre_mm_cvar=ifelse(pre_mm_cmx==0, 1, pre_mm_cmn/pre_mm_cmx), #min/max monthly catchment precip
            dis_mm_pvar=ifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
            dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr))] #min monthly/average yearly watershed discharge
 
 #Predict model (should take ~10-15 minutes for 9M rows x 40 cols)
-riveratlas[is.na(pre_mm_cvar),]
-
 tic()
-intermittent_predbasic800 <- predict(mod_basic800, type='response', data=riveratlas[, c("HYRIV_ID", rfpredcols), with=F])
+riveratlas[!is.na(cly_pc_uav), 
+           predbasic800 := predict(mod_basic800, type='response', data=.SD)$predictions[,'1'], 
+           .SDcols = c("HYRIV_ID", rfpredcols)]
 toc()
 
 
-
-
-#Generate predictions for all 
-
-
 ## Map uncertainty in predictions for each gauge — relate to length of record and environmental characteristics
-
 ## Compare gauge environmental characteristics compared to full river network, looking at confusion matrix results
-
 ## Understand variable associations with gauges
 
-## 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-############# TO DO ##############
 ######## Model improvements
 
 #Bootstrap without replacement to avoid bias
@@ -422,25 +408,12 @@ toc()
 
 
 
-### Predictions 
+############# TO DO ##############
 
 
-geospatial_analyst <- function(continent) {
-  setwd('D:/Charlotte/Reach_R_data')
-  newdata <- readRDS(paste(continent,  ".rds", sep=""))
-  continent_reaches <- readRDS(paste(continent, "_reaches.rds", sep = ""))
-  climate_zones <- continent_reaches$clz_cl_cmj
-  continent_predictions <- predict(RF_model, newdata =newdata, type="prob", progress= "window")
-  continent_preds <- as.data.frame(cbind(newdata[,1], ifelse(continent_predictions[,2]<0.4,0,1), continent_predictions[,2], climate_zones))
-  colnames(continent_preds) <- c("Reach_ID", "Class", "Prob_of_Intermittence", "Climate zone")
-  st_geometry(continent_preds) <- continent_reaches$geometry
-  setwd("D:/Charlotte/GIS")
-  #st_write(continent_preds, dsn = paste(continent,"_preds", sep =""), driver ='ESRI Shapefile')
-  percent_intermittent <- sum(continent_preds$Class)/length(continent_preds$Class)
-  return(percent_intermittent)
-}
 
-#Visualization
+
+
 
 
 
