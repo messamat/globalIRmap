@@ -222,14 +222,26 @@ gaugestats_join[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))),
                 .SDcols= paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum and maximum catchment precipitation
   .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, #min/max monthly catchment precip
            dis_mm_pvar=ifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
-           dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr))] #min monthly/average yearly watershed discharge
+           dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr),#min monthly/average yearly watershed discharge
+           ele_pc_rel = ifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))] #catchment average elv - watershec average elev
+
+gaugestats_join[, cmi_ix_cmn := do.call(pmin, c(.SD)),
+                .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>%
+  .[, swc_pc_cmn := do.call(pmin, c(.SD)),
+   .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))]
 
 #Add new variables to meta_format (variable labels)
-addedvars <- data.table(varname=c('catchment Precipitation Annual minimum', 'catchment Precipitation Annual maximum', 
-                                  'catchment Precipitation Annual min/max',
-                                  'watershed Discharge Annual min/max', 'watershed Discharge Annual min/average'), 
+addedvars <- data.table(varname=c('Precipitation catchment Annual minimum', 'Precipitation catchment Annual maximum', 
+                                  'Precipitation catchment Annual min/max', 
+                                  'Climate Moisture Index catchment Annual minimum',
+                                  'Discharge watershed Annual min/max', 'Discharge watershed Annual min/average',
+                                  'Elevation catchment average - watershed average',
+                                  'Soil Water Content catchment Annual minimum'), 
                         varcode=c('pre_mm_cmn', 'pre_mm_cmx', 'pre_mm_cvar', 
-                                  'dis_mm_pvar', 'dis_mm_pvaryr'))
+                                  'cmi_ix_cmn',
+                                  'dis_mm_pvar', 'dis_mm_pvaryr',
+                                  'ele_pc_rel',
+                                  'swc_pc_cmn'))
 
 #---- Convert -9999 values to NA ----
 for (j in which(sapply(gaugestats_join,is.numeric))) { #Iterate through numeric column indices
@@ -245,32 +257,57 @@ rfpredcols<- c('dis_m3_pyr',
                'run_mm_cyr',
                'inu_pc_umn',
                'inu_pc_umx',
+               'inu_pc_cmn',
+               'lka_pc_cse',
                'lka_pc_use',
                'dor_pc_pva',
                'gwt_cm_cav',
+               'ele_pc_rel',
+               # 'sgr_dk_rav', #Don't use stream gradient as data are missing for all of Greenland due to shitty DEM
                'clz_cl_cmj',
                'tmp_dc_cyr',
                'tmp_dc_cmn',
                'tmp_dc_cmx',
+               'tmp_dc_uyr',
                'pre_mm_uyr',
                'pre_mm_cvar',
+               'pre_mm_cmn',
                'pet_mm_uyr',
                'ari_ix_uav',
+               'ari_ix_cav',
                'cmi_ix_uyr',
+               'cmi_ix_cmn',
+               'snw_pc_uyr',
+               'snw_pc_cyr',
+               'snw_pc_cmx',
+               'glc_cl_cmj',
                'pnv_cl_cmj',
+               'wet_pc_cg1',
+               'wet_pc_cg2',
                'wet_pc_ug1',
                'wet_pc_ug2',
+               'for_pc_use',
+               'for_pc_cse',
                'ire_pc_use',
+               'ire_pc_cse',
+               'gla_pc_use',
+               'gla_pc_cse',
+               'prm_pc_use',
+               'prm_pc_cse',
                'cly_pc_uav',
+               'cly_pc_cav',
                'slt_pc_uav',
+               'slt_pc_cav',
                'snd_pc_uav',
+               'snd_pc_cav',
                'soc_th_uav',
+               'soc_th_cav',
+               'swc_pc_uyr',
                'swc_pc_cyr',
+               'swc_pc_cmn',
                'lit_cl_cmj',
-               'kar_pc_use')
-
-
-
+               'kar_pc_use',
+               'kar_pc_cse')
 
 #Check that all columns are in dt
 rfpredcols[!(rfpredcols %in% names(gaugestats_join))]
@@ -299,23 +336,24 @@ rf_formula <- as.formula(paste0('intermittent~',
                                 collapse=""))
 
 intermittent.task <- mlr::makeClassifTask(id ='inter',
-                                          data = as.data.frame(gaugestats_join[,c('intermittent', rfpredcols),with=F]),
+                                          data = as.data.frame(gaugestats_join[!is.na(cly_pc_cav), c('intermittent', rfpredcols),with=F]),
                                           target = "intermittent")
-mod_basic <- ranger(rf_formula, data = gaugestats_join, num.trees = 1000, keep.inbag = TRUE) #Run basic model with 100 trees
-OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_join) %>%
+mod_basic <- ranger(rf_formula, data = gaugestats_join[!is.na(cly_pc_cav),], num.trees = 1000, keep.inbag = TRUE) #Run basic model with 100 trees
+OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_join[!is.na(cly_pc_cav),]) %>%
   setDT %>%
   .[, numtrees := .I]
 
 #Plot it
 ggplot(melt(OOBfulldat, id.vars = 'numtrees'), aes(x=numtrees, y=value, color=variable)) + 
   geom_point(size=1, alpha=0.5) + 
-  scale_y_continuous(limits=c(0,0.2), expand=c(0,0), breaks=seq(0,1,0.1)) + 
+  scale_y_continuous(limits=c(0,1), expand=c(0,0), breaks=seq(0,1,0.1)) + 
   scale_x_continuous(expand=c(0,0), breaks = seq(0,1000,100)) + 
   theme_bw()
 
 
 #Run model with ntree=800
-mod_basic800 <- ranger(rf_formula, data = gaugestats_join, num.trees = 800, keep.inbag = FALSE, seed= set.seed(123),
+mod_basic800 <- ranger(rf_formula, data = gaugestats_join[!is.na(cly_pc_cav),],
+                       num.trees = 800, replace = F, keep.inbag = FALSE, seed= set.seed(123),
                        probability = TRUE,
                        write.forest=TRUE, importance='permutation', scale.permutation.importance = FALSE) #Run basic model with 100 trees
 mod_basic800
@@ -328,18 +366,18 @@ varimp_basic <- data.table(varcode=names(mod_basic800$variable.importance),
   .[, varname := factor(varname, levels=.[,varname[order(-importance)]])] %>%
   setorder(-importance)
 
-ggplot(varimp_basic,aes(x=varname, y=importance)) + 
+ggplot(varimp_basic[1:30,],aes(x=varname, y=importance)) + 
   geom_bar(stat = 'identity') +
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
   theme_classic() +
   theme(axis.text.x = element_text(size=8))
 
 ###---- Check misclassification rate with different threshold probabilities ----
-gaugestats_join[, intermittent_predprob := mod_basic800$predictions[,'1']]
+gaugestats_join[!is.na(cly_pc_cav), intermittent_predprob := mod_basic800$predictions[,'1']]
 
 threshold_misclass <- ldply(seq(0,1,0.01), function(i) {
-  gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
-  confumat <- gaugestats_join[, .N, by=c('intermittent', 'intermittent_predcat')]
+  gaugestats_join[!is.na(cly_pc_cav), intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
+  confumat <- gaugestats_join[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
   outvec <- data.table(i, 
               `Misclassification rate`=gaugestats_join[intermittent!=intermittent_predcat,.N]/gaugestats_join[,.N],
               `True positive rate (sensitivity)` = confumat[intermittent=='1' & intermittent_predcat==1, N]/confumat[intermittent=='1', sum(N)],
@@ -354,7 +392,7 @@ ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable))
   theme_bw()
 
 threshold_misclass[i==0.5,]
-gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.5, 1, 0)]
+gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.3, 1, 0)]
 
 ###---- Partial dependence plots ----
 pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
@@ -367,14 +405,26 @@ st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(G
 ##---- Generate predictions to map on river network ----
 #Read in river network attribute table
 riveratlas <- fread_cols(file.path(resdir, 'RiverATLAS_v10tab.csv'), 
-                         colsToKeep = c("HYRIV_ID", rfpredcols, paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))))
-
-#Convert -9999 values to NA
-colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+                         colsToKeep = c("HYRIV_ID", rfpredcols, 'ele_mt_cav', 'ele_mt_uav',
+                                        paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+                                        paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                                        paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))))
 
 #Inspect -9999 values for cmi_ix_uyr
 check <- riveratlas[cmi_ix_uyr == -9999,] #All have precipitation = 0
 riveratlas[cmi_ix_uyr == -9999, cmi_ix_uyr := 0]
+
+check <- riveratlas[snw_pc_cyr == -9999,] #One reach in the middle of the Pacific
+riveratlas[snw_pc_cyr == -9999, snw_pc_cyr:=0]
+riveratlas[snw_pc_cmx == -9999, snw_pc_cmx:=0]
+
+check <- riveratlas[is.na(sgr_dk_rav),]
+
+#Convert -9999 values to NA
+colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+
+
+
 
 for (j in which(sapply(riveratlas,is.numeric))) { #Iterate through numeric column indices
   set(riveratlas,which(riveratlas[[j]]==-9999),j, NA)} #Set those to 0 if -9999
@@ -385,13 +435,20 @@ riveratlas[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))),
            .SDcols= paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum and maximum catchment precipitation
   .[, `:=`(pre_mm_cvar=ifelse(pre_mm_cmx==0, 1, pre_mm_cmn/pre_mm_cmx), #min/max monthly catchment precip
            dis_mm_pvar=ifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
-           dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr))] #min monthly/average yearly watershed discharge
+           dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr),#min monthly/average yearly watershed discharge
+           ele_pc_rel = ifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))] #catchment average elv - watershec average elev
+
+riveratlas[, cmi_ix_cmn := do.call(pmin, c(.SD)),
+           .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Compute minimum catchment monthly moisture index
+  .[is.na(cmi_ix_cmn), cmi_ix_cmn := 0] %>% #if cmin_ix_cmn is na (because pre_cmn == 0, set it to 0)
+  .[, swc_pc_cmn := do.call(pmin, c(.SD)), #Compute catchment annual minimum soil water content
+    .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))]
 
 #Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up to avoid memory errors)
 for (clz in unique(riveratlas$clz_cl_cmj)) {
   print(clz)
   tic()
-  riveratlas[!is.na(cly_pc_uav) & clz_cl_cmj == clz, 
+  riveratlas[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz, 
              predbasic800 := predict(mod_basic800, type='response', data=.SD)$predictions[,'1'], 
              .SDcols = c("HYRIV_ID", rfpredcols)]
   toc()
