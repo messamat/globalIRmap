@@ -269,6 +269,9 @@ rfpredcols<- c('dis_m3_pyr',
                'lit_cl_cmj',
                'kar_pc_use')
 
+
+
+
 #Check that all columns are in dt
 rfpredcols[!(rfpredcols %in% names(gaugestats_join))]
 
@@ -350,10 +353,11 @@ ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable))
   scale_y_continuous(expand=c(0,0)) +
   theme_bw()
 
+threshold_misclass[i==0.5,]
 gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.5, 1, 0)]
 
 ###---- Partial dependence plots ----
-#pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
+pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
 
 ###---- Output GRDC predictions as points ----
 st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(GRDCpjoin) != 'GRDC_NO']) , with=F], by='GRDC_NO'),
@@ -383,13 +387,18 @@ riveratlas[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))),
            dis_mm_pvar=ifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
            dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr))] #min monthly/average yearly watershed discharge
 
-#Predict model (should take ~10-15 minutes for 9M rows x 40 cols)
-tic()
-riveratlas[!is.na(cly_pc_uav), 
-           predbasic800 := predict(mod_basic800, type='response', data=.SD)$predictions[,'1'], 
-           .SDcols = c("HYRIV_ID", rfpredcols)]
-toc()
+#Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up to avoid memory errors)
+for (clz in unique(riveratlas$clz_cl_cmj)) {
+  print(clz)
+  tic()
+  riveratlas[!is.na(cly_pc_uav) & clz_cl_cmj == clz, 
+             predbasic800 := predict(mod_basic800, type='response', data=.SD)$predictions[,'1'], 
+             .SDcols = c("HYRIV_ID", rfpredcols)]
+  toc()
+}
 
+riveratlas[, predbasic800cat := ifelse(predbasic800>=0.3, 1, 0)]
+fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800cat'), with=F], file.path(resdir, 'RiverATLAS_predbasic800.csv'))
 
 ## Map uncertainty in predictions for each gauge — relate to length of record and environmental characteristics
 ## Compare gauge environmental characteristics compared to full river network, looking at confusion matrix results
