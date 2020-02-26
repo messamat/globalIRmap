@@ -1,5 +1,11 @@
 #Intermittent river analysis master script 
+#Author: Mathis L. Messager
+#Contact info: mathis.messager@mail.mcgill.ca
+#Affiliation: 
+#Global HydroLAB, Department of Geography, McGill University
+#EcoFlows Lab, RiverLy Research Unit, INRAE Lyon
 
+#---- Import libraries ----
 library(tictoc)
 library(profvis)
 library(progress)
@@ -247,8 +253,8 @@ addedvars <- data.table(varname=c('Precipitation catchment Annual minimum', 'Pre
 for (j in which(sapply(gaugestats_join,is.numeric))) { #Iterate through numeric column indices
   set(gaugestats_join,which(gaugestats_join[[j]]==-9999),j, NA)} #Set those to 0 if -9999
 
-#### -------------------------- Run RF model -------------------------------------------------
-#Select predictor variables
+
+#---- Select predictor variables ----
 rfpredcols<- c('dis_m3_pyr',
                'dis_m3_pmn',
                'dis_m3_pmx',
@@ -312,7 +318,7 @@ rfpredcols<- c('dis_m3_pyr',
 #Check that all columns are in dt
 rfpredcols[!(rfpredcols %in% names(gaugestats_join))]
 
-#Associate column names with variables names
+#---- Associate column names with variables names ----
 
 #Get predictor variable names
 riveratlas_metapath <- file.path(datdir, 'HydroATLAS', 'HydroATLAS_metadata_MLM.xlsx')
@@ -330,7 +336,8 @@ meta_format[, `:=`(varcode = paste0(gsub('[-]{3}', '', Column.s.), Keyscale, Key
 
 rfpredcols_dt <- merge(data.table(varcode=rfpredcols), rbind(meta_format, addedvars, fill=T), by='varcode', all.y=F)
 
-###Find ideal number of trees
+#### -------------------------- Run RF model -------------------------------------------------
+#---- Find ideal number of trees ----
 rf_formula <- as.formula(paste0('intermittent~', 
                                 paste(rfpredcols, collapse="+"), 
                                 collapse=""))
@@ -351,7 +358,7 @@ ggplot(melt(OOBfulldat, id.vars = 'numtrees'), aes(x=numtrees, y=value, color=va
   theme_bw()
 
 
-#Run model with ntree=800
+#---- Run model with ntree=800 ----
 mod_basic800 <- ranger(rf_formula, data = gaugestats_join[!is.na(cly_pc_cav),],
                        num.trees = 800, replace = F, keep.inbag = FALSE, seed= set.seed(123),
                        probability = TRUE,
@@ -423,9 +430,6 @@ check <- riveratlas[is.na(sgr_dk_rav),]
 #Convert -9999 values to NA
 colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
 
-
-
-
 for (j in which(sapply(riveratlas,is.numeric))) { #Iterate through numeric column indices
   set(riveratlas,which(riveratlas[[j]]==-9999),j, NA)} #Set those to 0 if -9999
 
@@ -457,6 +461,14 @@ for (clz in unique(riveratlas$clz_cl_cmj)) {
 riveratlas[, predbasic800cat := ifelse(predbasic800>=0.3, 1, 0)]
 fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800cat'), with=F], file.path(resdir, 'RiverATLAS_predbasic800.csv'))
 
+
+
+
+
+
+
+
+############# TO DO ##############
 ## Map uncertainty in predictions for each gauge — relate to length of record and environmental characteristics
 ## Compare gauge environmental characteristics compared to full river network, looking at confusion matrix results
 ## Understand variable associations with gauges
@@ -468,15 +480,6 @@ fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800cat'), with=F], file.path(resdir,
 #Implement conditional inference forest
 #Use CAST package for variable selection and Leave one location out CV
 #Use mlr3? (read mlr3 book) — test spatial and aspatial CV
-
-
-
-
-
-
-############# TO DO ##############
-
-
 
 
 
