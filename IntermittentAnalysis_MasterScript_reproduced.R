@@ -1,18 +1,21 @@
 #Intermittent river analysis master script 
+#Author: Mathis L. Messager
+#Contact info: mathis.messager@mail.mcgill.ca
+#Affiliation: 
+#Global HydroLAB, Department of Geography, McGill University
+#EcoFlows Lab, RiverLy Research Unit, INRAE Lyon
+
+#---- Set up and import libraries ----
+#packrat::init()
+packrat::status()
+
 
 library(tictoc)
 library(profvis)
 library(progress)
 library(stringr)
-library("PresenceAbsence")
-library(irr)
-library("janitor")
-library("randomForestExplainer")
-library("raster")
-library("rgdal")
-library("sp")
-#install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
-library(data.table)
+# install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
+# packrat::snapshot()
 library(plyr)
 library(ggplot2)
 library(gridExtra)
@@ -21,6 +24,8 @@ library(rprojroot)
 require(bigstatsr)
 require(parallel)
 require(doParallel)
+require(mlr3verse)
+library(paradox)
 library(ranger)
 library(OOBCurve)
 #library(pdp) #https://bgreenwell.github.io/pdp/articles/pdp.html for partial dependence — but very slow
@@ -33,7 +38,6 @@ library(ggpubr)
 rootdir <- find_root(has_dir("src"))
 datdir <- file.path(rootdir, 'data')
 resdir <- file.path(rootdir, 'results')
-
 
 outgdb <- file.path(resdir, 'spatialoutputs.gdb')
 
@@ -166,7 +170,7 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, reverse=FALSE
 
 pdtiles_grid <- function(mod, dt, colnums) {
   "Create a plot matrix of partial dependence interactions"
-
+  
   allvar <- mod$variable.importance[order(-mod$variable.importance)]
   selcols <- names(allvar)[1:colnums]
   pdout <- edarf::partial_dependence(mod, vars= selcols, 
@@ -228,7 +232,7 @@ gaugestats_join[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))),
 gaugestats_join[, cmi_ix_cmn := do.call(pmin, c(.SD)),
                 .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>%
   .[, swc_pc_cmn := do.call(pmin, c(.SD)),
-   .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))]
+    .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))]
 
 #Add new variables to meta_format (variable labels)
 addedvars <- data.table(varname=c('Precipitation catchment Annual minimum', 'Precipitation catchment Annual maximum', 
@@ -247,8 +251,8 @@ addedvars <- data.table(varname=c('Precipitation catchment Annual minimum', 'Pre
 for (j in which(sapply(gaugestats_join,is.numeric))) { #Iterate through numeric column indices
   set(gaugestats_join,which(gaugestats_join[[j]]==-9999),j, NA)} #Set those to 0 if -9999
 
-#### -------------------------- Run RF model -------------------------------------------------
-#Select predictor variables
+
+#---- Select predictor variables ----
 rfpredcols<- c('dis_m3_pyr',
                'dis_m3_pmn',
                'dis_m3_pmx',
@@ -312,7 +316,7 @@ rfpredcols<- c('dis_m3_pyr',
 #Check that all columns are in dt
 rfpredcols[!(rfpredcols %in% names(gaugestats_join))]
 
-#Associate column names with variables names
+#---- Associate column names with variables names ----
 
 #Get predictor variable names
 riveratlas_metapath <- file.path(datdir, 'HydroATLAS', 'HydroATLAS_metadata_MLM.xlsx')
@@ -330,36 +334,56 @@ meta_format[, `:=`(varcode = paste0(gsub('[-]{3}', '', Column.s.), Keyscale, Key
 
 rfpredcols_dt <- merge(data.table(varcode=rfpredcols), rbind(meta_format, addedvars, fill=T), by='varcode', all.y=F)
 
-###Find ideal number of trees
+#### -------------------------- Run RF model -------------------------------------------------
+#---- Tune model ----
 rf_formula <- as.formula(paste0('intermittent~', 
                                 paste(rfpredcols, collapse="+"), 
                                 collapse=""))
 
-intermittent.task <- mlr::makeClassifTask(id ='inter',
-                                          data = as.data.frame(gaugestats_join[!is.na(cly_pc_cav), c('intermittent', rfpredcols),with=F]),
-                                          target = "intermittent")
-mod_basic <- ranger(rf_formula, data = gaugestats_join[!is.na(cly_pc_cav),], num.trees = 1000, keep.inbag = TRUE) #Run basic model with 100 trees
-OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_join[!is.na(cly_pc_cav),]) %>%
-  setDT %>%
-  .[, numtrees := .I]
+task_inter <- mlr3::TaskClassif$new(id ='inter_basic',
+                                    backend = gaugestats_join[!is.na(cly_pc_cav), c('intermittent', rfpredcols),with=F],
+                                    target = "intermittent")
 
-#Plot it
-ggplot(melt(OOBfulldat, id.vars = 'numtrees'), aes(x=numtrees, y=value, color=variable)) + 
-  geom_point(size=1, alpha=0.5) + 
-  scale_y_continuous(limits=c(0,1), expand=c(0,0), breaks=seq(0,1,0.1)) + 
-  scale_x_continuous(expand=c(0,0), breaks = seq(0,1000,100)) + 
-  theme_bw()
+#Set default ranger learner with explicit parameter set
+rangerlrn <- mlr3::lrn('classif.ranger', id = 'ranger', 
+                       num.trees = 500,
+                       #mtry = , #Default is square root of number of variables
+                       min.node.size = 1, #Default is 1 for classification, 5 for regression and 10 for probability
+                       replace = FALSE, #in ranger package, default replace is True but Boulesteix et al. 2012 show that less biased
+                       sample.fraction = 0.632, #Default for sampling without replacement
+                       split.select.weights = ,
+                       always.split.variables= ,
+                       respect.unordered.factors = 'ignore',
+                       importance='permutation',
+                       write.forest=TRUE, 
+                       scale.permutation.importance = FALSE,
+                       num.threads = bigstatsr::nb_cores(),
+                       save.memory = FALSE,
+                       verbose = TRUE,
+                       splitrule = "gini",
+                       num.random.splits = 1L,
+                       keep.inbag = FALSE,
+                       predict_type = 'prob',
+                       max.depth = NULL #Unlimited depth default
+)
+
+mlr3::lrn('classif.ranger')$param_set
+
+mlr_measures
+measure = lapply(c("classif.sensitivity", 'classif.specificity'), msr)
+basic800pred$score(measure)
 
 
-#Run model with ntree=800
-mod_basic800 <- ranger(rf_formula, data = gaugestats_join[!is.na(cly_pc_cav),],
-                       num.trees = 800, replace = F, keep.inbag = FALSE, seed= set.seed(123),
-                       probability = TRUE,
-                       write.forest=TRUE, importance='permutation', scale.permutation.importance = FALSE) #Run basic model with 100 trees
-mod_basic800
+tune_ps = ParamSet$new(list(
+  ParamDbl$new("cp", lower = 0.001, upper = 0.1),
+  ParamInt$new("minsplit", lower = 1, upper = 10)
+))
+tune_ps
+
+
 
 #### -------------------------- Diagnose initial model -------------------------------------------------
-###---- Variable importance ----
+# ---- Variable importance ----
 varimp_basic <- data.table(varcode=names(mod_basic800$variable.importance), 
                            importance=mod_basic800$variable.importance)[
                              rfpredcols_dt, on='varcode' ]%>%
@@ -372,19 +396,19 @@ ggplot(varimp_basic[1:30,],aes(x=varname, y=importance)) +
   theme_classic() +
   theme(axis.text.x = element_text(size=8))
 
-###---- Check misclassification rate with different threshold probabilities ----
+# ---- Check misclassification rate with different threshold probabilities ----
 gaugestats_join[!is.na(cly_pc_cav), intermittent_predprob := mod_basic800$predictions[,'1']]
 
 threshold_misclass <- ldply(seq(0,1,0.01), function(i) {
   gaugestats_join[!is.na(cly_pc_cav), intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
   confumat <- gaugestats_join[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
   outvec <- data.table(i, 
-              `Misclassification rate`=gaugestats_join[intermittent!=intermittent_predcat,.N]/gaugestats_join[,.N],
-              `True positive rate (sensitivity)` = confumat[intermittent=='1' & intermittent_predcat==1, N]/confumat[intermittent=='1', sum(N)],
-              `True negative rate (specificity)` = confumat[intermittent=='0' & intermittent_predcat==0, N]/confumat[intermittent=='0', sum(N)])
+                       `Misclassification rate`=gaugestats_join[intermittent!=intermittent_predcat,.N]/gaugestats_join[,.N],
+                       `True positive rate (sensitivity)` = confumat[intermittent=='1' & intermittent_predcat==1, N]/confumat[intermittent=='1', sum(N)],
+                       `True negative rate (specificity)` = confumat[intermittent=='0' & intermittent_predcat==0, N]/confumat[intermittent=='0', sum(N)])
   return(outvec)
 }) %>% setDT
-  
+
 ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable)) + 
   geom_line(size=1.2) + 
   scale_x_continuous(expand=c(0,0)) + 
@@ -394,15 +418,15 @@ ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable))
 threshold_misclass[i==0.5,]
 gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.3, 1, 0)]
 
-###---- Partial dependence plots ----
+# ---- Partial dependence plots ----
 pdtiles_grid(mod = mod_basic800, dt = gaugestats_join, colnums = 5)
 
-###---- Output GRDC predictions as points ----
+# ---- Output GRDC predictions as points ----
 st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(GRDCpjoin) != 'GRDC_NO']) , with=F], by='GRDC_NO'),
          dsn=file.path(resdir, 'GRDCstations_predbasic800.gpkg'), driver = 'gpkg', delete_dsn=T)
 
 
-##---- Generate predictions to map on river network ----
+# ---- Generate predictions to map on river network ----
 #Read in river network attribute table
 riveratlas <- fread_cols(file.path(resdir, 'RiverATLAS_v10tab.csv'), 
                          colsToKeep = c("HYRIV_ID", rfpredcols, 'ele_mt_cav', 'ele_mt_uav',
@@ -422,9 +446,6 @@ check <- riveratlas[is.na(sgr_dk_rav),]
 
 #Convert -9999 values to NA
 colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
-
-
-
 
 for (j in which(sapply(riveratlas,is.numeric))) { #Iterate through numeric column indices
   set(riveratlas,which(riveratlas[[j]]==-9999),j, NA)} #Set those to 0 if -9999
@@ -457,6 +478,16 @@ for (clz in unique(riveratlas$clz_cl_cmj)) {
 riveratlas[, predbasic800cat := ifelse(predbasic800>=0.3, 1, 0)]
 fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800cat'), with=F], file.path(resdir, 'RiverATLAS_predbasic800.csv'))
 
+
+
+
+
+
+
+
+
+
+############# TO DO ##############
 ## Map uncertainty in predictions for each gauge — relate to length of record and environmental characteristics
 ## Compare gauge environmental characteristics compared to full river network, looking at confusion matrix results
 ## Understand variable associations with gauges
@@ -468,15 +499,6 @@ fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800cat'), with=F], file.path(resdir,
 #Implement conditional inference forest
 #Use CAST package for variable selection and Leave one location out CV
 #Use mlr3? (read mlr3 book) — test spatial and aspatial CV
-
-
-
-
-
-
-############# TO DO ##############
-
-
 
 
 
@@ -515,6 +537,18 @@ monthinter_melt <- melt(gaugestats[, c('GRDC_NO', "Jan", "Feb", "Mar", "Apr", "M
 ggplot(monthinter_melt, aes(x=variable, y=value, fill=GRDC_NO)) +
   geom_area(stat='identity')
 
+#Base ranger training
+#To adapt
+OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_join[!is.na(cly_pc_cav),]) %>%
+  setDT %>%
+  .[, numtrees := .I]
+
+#Plot it
+ggplot(melt(OOBfulldat, id.vars = 'numtrees'), aes(x=numtrees, y=value, color=variable)) + 
+  geom_point(size=1, alpha=0.5) + 
+  scale_y_continuous(limits=c(0,1), expand=c(0,0), breaks=seq(0,1,0.1)) + 
+  scale_x_continuous(expand=c(0,0), breaks = seq(0,1000,100)) + 
+  theme_bw()
 ############################## MORE CHARLOTTE ####################################################################################################
 ### Leave-one-out cross-validation (run overnight)
 jack_results <- jackRF(MyYVar = class, MyXPreds = predictors)
