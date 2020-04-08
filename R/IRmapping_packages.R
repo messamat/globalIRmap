@@ -1,0 +1,28 @@
+#--- Set up and import libraries ----
+#packrat::init()
+#packrat::status()
+#)
+
+#library(pdp) #https://bgreenwell.github.io/pdp/articles/pdp.html for partial dependence — but very slow
+# install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
+
+suppressPackageStartupMessages(library(drake))
+suppressPackageStartupMessages(library(tictoc))
+suppressPackageStartupMessages(library(profvis))
+suppressPackageStartupMessages(library(progress))
+suppressPackageStartupMessages(library(stringr))
+suppressPackageStartupMessages(library(plyr))
+suppressPackageStartupMessages(library(ggplot2))
+suppressPackageStartupMessages(library(gridExtra))
+suppressPackageStartupMessages(library(sf))
+suppressPackageStartupMessages(library(rprojroot))
+suppressPackageStartupMessages(library(bigstatsr))
+suppressPackageStartupMessages(library(parallel))
+suppressPackageStartupMessages(library(doParallel))
+suppressPackageStartupMessages(library(mlr3verse))
+suppressPackageStartupMessages(library(paradox))
+suppressPackageStartupMessages(library(ranger))
+suppressPackageStartupMessages(library(OOBCurve))
+suppressPackageStartupMessages(library(edarf)) 
+suppressPackageStartupMessages(library(xlsx))
+suppressPackageStartupMessages(library(ggpubr))
