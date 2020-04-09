@@ -1,16 +1,7 @@
 
 
 
-#Import GRDC stations and only keep those < 200 m from a HydroSHEDS reach
-GRDCpjoin <- st_read(dsn=outgdb, layer='GRDCstations_riverjoin') %>%
-  .[.$station_river_distance<200,]
 
-#Get data paths of daily records for GRDC stations
-fileNames <- file.path(datdir, 'GRDCdat_day', paste(GRDCpjoin$GRDC_NO,  ".txt", sep=""))
-which(do.call(rbind, lapply(fileNames, file.exists))) #Check whether any file does not exist
-
-
-#### -------------------------- Define functions ------------------------------------------
 
 #### -------------------------- Format and inspect data -------------------------------------------------
 #---- Get mean drying duration and frequency per year ----
