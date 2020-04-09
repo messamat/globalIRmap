@@ -4,16 +4,28 @@
 #Affiliation: 
 #Global HydroLAB, Department of Geography, McGill University
 #EcoFlows Lab, RiverLy Research Unit, INRAE Lyon
+interactive()
 
 source('R/IRmapping_packages.R')
 source('R/IRmapping_functions.R')
 source('R/IRmap_plan.R')
 
-future::plan(future::multiprocess) 
-drake_config(plan, verbose = 2, parallelism = "future", jobs = )
+future::plan(future.callr::callr)
+#drake_debug(gaugep, plan)
 make(plan)
 
-vis_drake_graph(plan)
+vis_drake_graph(plan, targets_only=T)
+# drake_history(plan)
+# loadd()
+# outdated(plan)
+
+
+"recover=T
+drake’s data recovery feature is another way to avoid rerunning commands. It is useful if:
+  
+  You want to revert to your old code, maybe with git reset.
+You accidentally clean()ed a target and you want to get it back.
+You want to rename an expensive target."
 
 # drake_config(plan,
 #   verbose = 2,
