@@ -36,10 +36,10 @@ pdtiles_grid <- function(mod, dt, colnums) {
       
       if (i != j) {
         ggplotGrob(
-          ggplot(edarf_outdt,  aes_string(x=xvar, y=yvar)) +
+          ggplot(pdout,  aes_string(x=xvar, y=yvar)) +
             geom_tile(aes(fill = `1`)) + 
             scale_fill_distiller(palette='Spectral') + 
-            geom_jitter(data=pointdt, aes(color=intermittent)) +
+            geom_jitter(data=dt, aes(color=intermittent)) +
             theme_bw()
         )
       } else {
@@ -362,51 +362,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 tune_rf <- function(in_gaugestats, in_predvars) {
   #---- Tune model ----
   predcols <- in_predvars$varcode
-  # rf_formula <- as.formula(paste0('intermittent~', 
-  #                                 paste(predcols, collapse="+"), 
-  #                                 collapse=""))
-  
-  task_inter <- mlr3::TaskClassif$new(
-    id ='inter_basic',
-    backend = in_gaugestats[!is.na(cly_pc_cav), 
-                            c('intermittent', predcols),with=F],
-    target = "intermittent")
-  
-  #Set default ranger learner with explicit parameter set
-  print(mlr3::lrn('classif.ranger')$param_set)
-  
-  # rangerlrn <- mlr3::lrn('classif.ranger', id = 'ranger', 
-  #                        num.trees = 500,
-  #                        #mtry = , #Default is square root of number of variables
-  #                        min.node.size = 1, #Default is 1 for classification, 5 for regression and 10 for probability
-  #                        replace = FALSE, #in ranger package, default replace is True but Boulesteix et al. 2012 show that less biased
-  #                        sample.fraction = 0.632, #Default for sampling without replacement
-  #                        split.select.weights = ,
-  #                        always.split.variables= ,
-  #                        respect.unordered.factors = 'ignore',
-  #                        importance='permutation',
-  #                        write.forest=TRUE, 
-  #                        scale.permutation.importance = FALSE,
-  #                        num.threads = bigstatsr::nb_cores(),
-  #                        save.memory = FALSE,
-  #                        verbose = TRUE,
-  #                        splitrule = "gini",
-  #                        num.random.splits = 1L,
-  #                        keep.inbag = FALSE,
-  #                        predict_type = 'prob',
-  #                        max.depth = NULL #Unlimited depth default
-  # )
-  
-  # mlr_measures
-  # measure = lapply(c("classif.sensitivity", 'classif.specificity'), msr)
-  # basic800pred$score(measure)
-  # 
-  # 
-  # tune_ps = ParamSet$new(list(
-  #   ParamDbl$new("cp", lower = 0.001, upper = 0.1),
-  #   ParamInt$new("minsplit", lower = 1, upper = 10)
-  # ))
-  # tune_ps
 }
 
 
