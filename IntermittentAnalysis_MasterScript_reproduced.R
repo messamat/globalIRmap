@@ -1,70 +1,30 @@
-#### -------------------------- Run RF model -------------------------------------------------
-#---- Tune model ----
-# rf_formula <- as.formula(paste0('intermittent~', 
-#                                 paste(rfpredcols, collapse="+"), 
-#                                 collapse=""))
-
-
-
-
-
-
-
-
-
-#Launch nested resampling (outer resampling)
-future::plan("multiprocess")
-tic()
-
-toc()
-
-nestedresamp_ranger$score()
-check <- nestedresamp_ranger$data$learner[[1]]$model$learner$importance()
-
-
 
   
 
-
-
 #### -------------------------- Diagnose initial model -------------------------------------------------
-# ---- Variable importance ----
-
-ggplot(varimp_basic[1:30,],aes(x=varname, y=importance)) + 
-  geom_bar(stat = 'identity') +
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) +
-  theme_classic() +
-  theme(axis.text.x = element_text(size=8))
-
 # ---- Check misclassification rate with different threshold probabilities ----
-gaugestats_join[!is.na(cly_pc_cav), intermittent_predprob := 
-                  as.data.table(nestedresamp_ranger$prediction())[order(row_id), mean(prob.1), by=row_id]$V1]
 
 
-threshold_misclass <- ldply(seq(0,1,0.01), function(i) {
-  gaugestats_join[!is.na(cly_pc_cav), intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
-  confumat <- gaugestats_join[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
-  outvec <- data.table(i, 
-                       `Misclassification rate`=gaugestats_join[intermittent!=intermittent_predcat,.N]/gaugestats_join[,.N],
-                       `True positive rate (sensitivity)` = confumat[intermittent=='1' & intermittent_predcat==1, N]/confumat[intermittent=='1', sum(N)],
-                       `True negative rate (specificity)` = confumat[intermittent=='0' & intermittent_predcat==0, N]/confumat[intermittent=='0', sum(N)])
-  return(outvec)
-}) %>% setDT
 
-ggplot(melt(threshold_misclass, id.vars='i'), aes(x=i, y=value, color=variable)) + 
-  geom_line(size=1.2) + 
-  scale_x_continuous(expand=c(0,0)) + 
-  scale_y_continuous(expand=c(0,0)) +
-  theme_bw()
+
+
+
+
+
+
+
+`Misclassification rate
+`True positive rate (sensitivity)`
+`True negative rate (specificity)`
 
 threshold_misclass[i %in% c(0.25, 0.26, 0.27, 0.28, 0.29, 0.3, 0.35, 0.5, 0.45, 0.5),]
-gaugestats_join[, intermittent_predcat := ifelse(intermittent_predprob>=0.28, 1, 0)]
+in_gaugestats[, intermittent_predcat := ifelse(intermittent_predprob>=0.28, 1, 0)]
 
 # ---- Partial dependence plots ----
-pdtiles_grid(mod = ranger_basictrained, dt = gaugestats_join, colnums = 5)
+pdtiles_grid(mod = ranger_basictrained, dt = gaugestats_format, colnums = 5)
 
 # ---- Output GRDC predictions as points ----
-st_write(obj=merge(GRDCpjoin, gaugestats_join[, !(colnames(GRDCpjoin)[colnames(GRDCpjoin) != 'GRDC_NO']) , with=F], by='GRDC_NO'),
+st_write(obj=merge(GRDCpjoin, gaugestats_format[, !(colnames(GRDCpjoin)[colnames(GRDCpjoin) != 'GRDC_NO']) , with=F], by='GRDC_NO'),
          dsn=file.path(resdir, 'GRDCstations_predbasic800.gpkg'), driver = 'gpkg', delete_dsn=T)
 
 
@@ -195,7 +155,7 @@ ggplot(monthinter_melt, aes(x=variable, y=value, fill=GRDC_NO)) +
 
 #Base ranger training
 #To adapt
-OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_join[!is.na(cly_pc_cav),]) %>%
+OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_format[!is.na(cly_pc_cav),]) %>%
   setDT %>%
   .[, numtrees := .I]
 

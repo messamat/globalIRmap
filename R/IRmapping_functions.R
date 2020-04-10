@@ -90,6 +90,20 @@ weighted_vimportance <- function(rfresamp) {
   return(out_vimportance)
 }
 
+threshold_misclass <- function(i, in_gaugestats) {
+  in_gaugestats[!is.na(cly_pc_cav), intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
+  confumat <-in_gaugestats[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
+  outvec <- data.table(
+    i, 
+    misclas=in_gaugestats[intermittent!=intermittent_predcat,.N]/
+      in_gaugestats[,.N],
+    sens = confumat[intermittent=='1' & intermittent_predcat==1, N]/
+      confumat[intermittent=='1', sum(N)],
+    spec  = confumat[intermittent=='0' & intermittent_predcat==0, N]/
+      confumat[intermittent=='0', sum(N)])
+  return(outvec)
+}
+
 #Not used
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, 
                              reverse=FALSE) {
@@ -456,9 +470,28 @@ ggvimp <- function(in_rftuned, in_predvars) {
     theme(axis.text.x = element_text(size=8))
 }
 
-
-
-
-
-
-
+ggmisclass <-  function(in_gaugestats, in_tunedrf) {
+  #Get predicted probabilities of intermittency for each gauge
+  in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
+                  as.data.table(in_tunedrf$prediction())[order(row_id), mean(prob.1), by=row_id]$V1]
+  #Get misclassification error, sensitivity, and specificity for different classification thresholds 
+  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
+  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_gaugestats) %>%
+    setDT
+  
+  #Get classification threshold at which sensitivity and specificity are the most similar
+  balanced_thresh <- threshold_confu_dt[which.min(abs(spec-sens)),] 
+  print(paste('Sensitivity =', round(balanced_thresh$sens,2),
+              'and Specificity =', round(balanced_thresh$spec,2),
+              'at a classification threshold of', balanced_thresh$i))
+  
+  #Plot it
+  return(
+    ggplot(melt(threshold_confu_dt, id.vars='i'), aes(x=i, y=value, color=variable)) + 
+      geom_line(size=1.2) + 
+      geom_vline(xintercept=balanced_thresh$i) +
+      scale_x_continuous(expand=c(0,0)) + 
+      scale_y_continuous(expand=c(0,0)) +
+      theme_bw()
+  )
+}
