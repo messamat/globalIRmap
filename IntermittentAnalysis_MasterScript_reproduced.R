@@ -4,63 +4,31 @@
 #                                 paste(rfpredcols, collapse="+"), 
 #                                 collapse=""))
 
-#Create taxk
-task_inter <- mlr3::TaskClassif$new(id ='inter_basic',
-                                    backend = gaugestats_join[!is.na(cly_pc_cav), c('intermittent', rfpredcols),with=F],
-                                    target = "intermittent")
-
-#Create learner
-lrn_ranger <- mlr3::lrn('classif.ranger', num.trees=500, replace=F, predict_type="prob", importance = "permutation")
-lrn_ranger$param_set
-
-#Define parameter ranges to tune on
-tune_ranger <- ParamSet$new(list(
-  ParamInt$new("mtry", lower = 1, upper = 11),
-  ParamInt$new("min.node.size", lower = 1, upper = 10),
-  ParamDbl$new("sample.fraction", lower = 0.1, upper = 0.9)
-))
-
-#Define resampling strategy
-rcv_ranger = rsmp("cv", folds=5) #5-fold aspatial CV repeated 10 times
-#Define performance measure
-measure_ranger = msr("classif.bacc") #use balanced accuracy to account for imbalanced dataset
-#Define termination rule 
-evals20 = term("evals", n_evals = 20) #termine tuning after 20 rounds
 
 
-#Define hyperparameter tuner wrapper for inner sampling
-at_ranger <- AutoTuner$new(learner= lrn_ranger,
-                           resampling = rcv_ranger, 
-                           measures = measure_ranger,
-                           tune_ps = tune_ranger, 
-                           terminator = evals20,
-                           tuner =  tnr("random_search", batch_size = 4L))
+
+
+
+
+
 
 #Launch nested resampling (outer resampling)
 future::plan("multiprocess")
 tic()
-nestedresamp_ranger <- resample(task = task_inter, 
-                                learner = at_ranger, 
-                                resampling = rsmp("repeated_cv", repeats = 10, folds = 5),
-                                store_models = TRUE)
+
 toc()
-nestedresamp_ranger$aggregate()
+
+nestedresamp_ranger$score()
+check <- nestedresamp_ranger$data$learner[[1]]$model$learner$importance()
 
 
-lapply(nestedresamp_ranger$data$learner, function(x) x$variable.importance)
 
-check <- nestedresamp_ranger$data$learner[[1]]$model$learner$model
+  
 
 
 
 #### -------------------------- Diagnose initial model -------------------------------------------------
 # ---- Variable importance ----
-
-varimp_basic <- data.table(varcode=names(ranger_basictrained$variable.importance), 
-                           importance=ranger_basictrained$variable.importance)[
-                             rfpredcols_dt, on='varcode' ]%>%
-  .[, varname := factor(varname, levels=.[,varname[order(-importance)]])] %>%
-  setorder(-importance)
 
 ggplot(varimp_basic[1:30,],aes(x=varname, y=importance)) + 
   geom_bar(stat = 'identity') +

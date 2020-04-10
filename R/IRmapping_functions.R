@@ -61,6 +61,35 @@ fread_cols <- function(file_name, colsToKeep) {
   fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
 }
 
+weighted_sd <- function(x, w) {
+  #Compute weighted standard deviation
+  return(sqrt(sum((w) * (x - weighted.mean(x, w)) ^ 2) / (sum(w) - 1)))
+}
+
+extract_impperf_nestedrf <- function(nested_rflearner) {
+  #Get variable importance and performance measure for one instance of a resampled rf learner 
+  return(c(nested_rflearner$model$learner$importance(),
+           nested_rflearner$tuning_result$perf))
+}
+
+weighted_vimportance <- function(rfresamp) {
+  #Compute weighted mean and standard deviation of variable importance based on
+  #accuracy measure (not error measure — could be amended to be based on 1-error)
+  
+  varnames <- names(rfresamp$data$learner[[1]]$model$learner$importance())
+  
+  out_vimportance <- lapply(rfresamp$data$learner, #Extract vimp and perf for each resampling instance
+                            extract_impperf_nestedrf) %>% 
+    do.call(rbind, .) %>% 
+    as.data.table %>%
+    melt(id.var='classif.bacc') %>%
+    .[, list(imp_wmean = weighted.mean(value, classif.bacc), #Compute weighted mean for each variable
+             imp_wsd =  weighted_sd(value, classif.bacc)),  #Compute weighted sd for each variable
+      by=variable] 
+  
+  return(out_vimportance)
+}
+
 #Not used
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, 
                              reverse=FALSE) {
@@ -359,9 +388,72 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   return(predcols_dt)
 }
 
-tune_rf <- function(in_gaugestats, in_predvars) {
-  #---- Tune model ----
-  predcols <- in_predvars$varcode
+tune_rf <- function(in_gaugestats, in_predvars, 
+                    insamp_nfolds, insamp_neval, insamp_nbatch,
+                    outsamp_nrep, outsamp_nfolds) {
+  #Create task
+  datsel <- in_gaugestats[!is.na(cly_pc_cav), 
+                          c('intermittent',in_predvars$varcode),
+                          with=F]
+  task_inter <- mlr3::TaskClassif$new(id ='inter_basic',
+                                      backend = datsel,
+                                      target = "intermittent")
+  
+  #Create learner
+  lrn_ranger <- mlr3::lrn('classif.ranger', 
+                          num.trees=500, 
+                          replace=F, 
+                          predict_type="prob", 
+                          importance = "permutation")
+  #print(lrn_ranger$param_set)
+  
+  #Define parameter ranges to tune on
+  tune_ranger <- ParamSet$new(list(
+    ParamInt$new("mtry", lower = 1, upper = 11),
+    ParamInt$new("min.node.size", lower = 1, upper = 10),
+    ParamDbl$new("sample.fraction", lower = 0.1, upper = 0.95)
+  ))
+  
+  #Define resampling strategy
+  rcv_ranger = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
+  #Define performance measure
+  measure_ranger = msr("classif.bacc") #use balanced accuracy to account for imbalanced dataset
+  #Define termination rule 
+  evals20 = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
+  
+  #Define hyperparameter tuner wrapper for inner sampling
+  at_ranger <- AutoTuner$new(learner= lrn_ranger,
+                             resampling = rcv_ranger, 
+                             measures = measure_ranger,
+                             tune_ps = tune_ranger, 
+                             terminator = evals20,
+                             tuner =  tnr("random_search", 
+                                          batch_size = insamp_nbatch))
+  
+  nestedresamp_ranger <- mlr3::resample(task = task_inter, 
+                                        learner = at_ranger, 
+                                        resampling = rsmp("repeated_cv", 
+                                                          repeats = outsamp_nrep, 
+                                                          folds = outsamp_nfolds),
+                                        store_models=TRUE)
+  
+  print(nestedresamp_ranger$aggregate())
+  print(nestedresamp_ranger$prediction()$confusion)
+  return(nestedresamp_ranger)
+}
+
+ggvimp <- function(in_rftuned, in_predvars) {
+  varimp_basic <- weighted_vimportance(in_rftuned) %>% 
+    merge(., in_predvars, by.x='variable', by.y='varcode') %>%
+    .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
+
+  
+  ggplot(varimp_basic[1:30,],aes(x=varname)) + 
+    geom_bar(aes(y=imp_wmean), stat = 'identity') +
+    geom_errorbar(aes(ymin=imp_wmean-2*imp_wsd, ymax=imp_wmean+2*imp_wsd)) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10)) +
+    theme_classic() +
+    theme(axis.text.x = element_text(size=8))
 }
 
 
