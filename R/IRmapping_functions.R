@@ -18,47 +18,62 @@ zero.lomf <- function(x, first=TRUE) {
   }
 }
 
-pdtiles_grid <- function(mod, dt, colnums) {
-  "Create a plot matrix of partial dependence interactions"
+comp_derivedvar <- function(dt) {
+  #---- Inspect and correct -9999 values ----
+  print('Inspect and correct -9999 values')
+  #check <- riveratlas[cmi_ix_uyr == -9999,] #All have precipitation = 0
+  dt[cmi_ix_uyr == -9999, cmi_ix_uyr := 0]
   
-  allvar <- mod$variable.importance[order(-mod$variable.importance)]
-  selcols <- names(allvar)[1:colnums]
-  pdout <- edarf::partial_dependence(mod, vars= selcols, 
-                                     n=c(10,10), interaction=TRUE, data=as.data.frame(dt)) %>% #Warning: doe snot work with data_table
-    setDT 
+  #check <- riveratlas[snw_pc_cyr == -9999,] #One reach in the middle of the Pacific
+  dt[snw_pc_cyr == -9999, snw_pc_cyr:=0]
+  dt[snw_pc_cmx == -9999, snw_pc_cmx:=0]
   
-  #Iterate over every pair of PCs
-  tileplots_l <- sapply(seq_len(length(selcols)-1), function(i) {
-    sapply(seq(2, length(selcols)), function(j) {
-      print(paste0('Generating plot', i , j))
-      xvar <- selcols[i]
-      yvar <- selcols[j]
-      
-      if (i != j) {
-        ggplotGrob(
-          ggplot(pdout,  aes_string(x=xvar, y=yvar)) +
-            geom_tile(aes(fill = `1`)) + 
-            scale_fill_distiller(palette='Spectral') + 
-            geom_jitter(data=dt, aes(color=intermittent)) +
-            theme_bw()
-        )
-      } else {
-        #Write proportion of variance explained by PC
-        text_grob(round(allvar[1:colnums]), 3)
-      }
-    })
-  })
-  #Plot, only keeping unique combinations by grabbing lower triangle of plot matrix
-  do.call("grid.arrange", list(grobs=tileplots_l[lower.tri(tileplots_l, diag=T)], ncol=colnums-1)) 
+  #check <- dt[is.na(sgr_dk_rav),]
+  
+  print('Number of NA values per column')
+  colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+  print(colNAs)
+  
+  #Convert -9999 values to NA
+  for (j in which(sapply(dt,is.numeric))) { #Iterate through numeric column indices
+    set(dt,which(dt[[j]]==-9999),j, NA)} #Set those to 0 if -9999
+  
+  
+  #---- Compute derived predictor variables ----
+  print('Compute derived predictor variables')
+  pre_mcols <- paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)) #Monthly precipitation columns
+  dt[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
+            pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
+     .SDcols= pre_mcols] %>% 
+    #       min/max monthly catchment precip
+    .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, 
+             #min/max monthly watershed discharge
+             dis_mm_pvar=fifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), 
+             #min monthly/average yearly watershed discharge
+             dis_mm_pvaryr=fifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr), 
+             #catchment average elv - watershec average elev
+             ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))] 
+  
+  dt[, cmi_ix_cmn := do.call(pmin, c(.SD)),
+     .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
+    .[, swc_pc_cmn := do.call(pmin, c(.SD)),
+      .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
+  
+  return(dt)
 }
 
-fread_cols <- function(file_name, colsToKeep) {
-  header <- fread(file_name, nrows = 1, header = FALSE)
-  keptcols <- colsToKeep[colsToKeep %chin% unlist(header)]
-  missingcols <- colsToKeep[!(colsToKeep %chin% unlist(header))]
-  paste('Importing', file_name, 'with ', length(keptcols), 
-        'columns out of ', length(colsToKeep), 'supplied column names')
-  fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
+threshold_misclass <- function(i, in_gaugestats) {
+  in_gaugestats[!is.na(cly_pc_cav), intermittent_predcat := fifelse(intermittent_predprob>=i, 1, 0)]
+  confumat <-in_gaugestats[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
+  outvec <- data.table(
+    i, 
+    misclas=in_gaugestats[intermittent!=intermittent_predcat,.N]/
+      in_gaugestats[,.N],
+    sens = confumat[intermittent=='1' & intermittent_predcat==1, N]/
+      confumat[intermittent=='1', sum(N)],
+    spec  = confumat[intermittent=='0' & intermittent_predcat==0, N]/
+      confumat[intermittent=='0', sum(N)])
+  return(outvec)
 }
 
 weighted_sd <- function(x, w) {
@@ -66,17 +81,17 @@ weighted_sd <- function(x, w) {
   return(sqrt(sum((w) * (x - weighted.mean(x, w)) ^ 2) / (sum(w) - 1)))
 }
 
-extract_impperf_nestedrf <- function(nested_rflearner) {
+extract_impperf_nestedrf <- function(nested_rflearner, imp=T, perf=T) {
   #Get variable importance and performance measure for one instance of a resampled rf learner 
-  return(c(nested_rflearner$model$learner$importance(),
-           nested_rflearner$tuning_result$perf))
+  return(c(if (imp) {nested_rflearner$model$learner$importance()}, 
+           if (perf) {nested_rflearner$tuning_result$perf}))
 }
 
-weighted_vimportance <- function(rfresamp) {
+weighted_vimportance_nestedrf <- function(rfresamp) {
   #Compute weighted mean and standard deviation of variable importance based on
   #accuracy measure (not error measure — could be amended to be based on 1-error)
   
-  varnames <- names(rfresamp$data$learner[[1]]$model$learner$importance())
+  varnames <- names(rfresamp$learners[[1]]$model$learner$importance())
   
   out_vimportance <- lapply(rfresamp$data$learner, #Extract vimp and perf for each resampling instance
                             extract_impperf_nestedrf) %>% 
@@ -90,18 +105,32 @@ weighted_vimportance <- function(rfresamp) {
   return(out_vimportance)
 }
 
-threshold_misclass <- function(i, in_gaugestats) {
-  in_gaugestats[!is.na(cly_pc_cav), intermittent_predcat := ifelse(intermittent_predprob>=i, 1, 0)]
-  confumat <-in_gaugestats[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
-  outvec <- data.table(
-    i, 
-    misclas=in_gaugestats[intermittent!=intermittent_predcat,.N]/
-      in_gaugestats[,.N],
-    sens = confumat[intermittent=='1' & intermittent_predcat==1, N]/
-      confumat[intermittent=='1', sum(N)],
-    spec  = confumat[intermittent=='0' & intermittent_predcat==0, N]/
-      confumat[intermittent=='0', sum(N)])
-  return(outvec)
+extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
+  "Create a plot matrix of partial dependence interactions"
+  
+  in_mod <- in_rftuned$learners[[learner_id]] 
+  in_fit <- in_mod$learner$model 
+  foldperf <- extract_impperf_nestedrf(in_mod, imp=F, perf=T)
+  
+  # selcols <- in_vimp_plot$data %>% #Can use that if extracting from tunredrf is expensive
+  #   setorder(-imp_wmean) %>%
+  #   .[colnums, variable]
+  
+  pdout <- edarf::partial_dependence(in_fit, vars = selcols, n = ngrid,
+                                     interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
+    setDT %>%
+    .[,(names(foldperf)) := foldperf]
+  
+  return(pdout)
+}
+
+fread_cols <- function(file_name, cols_tokeep) {
+  header <- fread(file_name, nrows = 1, header = FALSE)
+  keptcols <- cols_tokeep[cols_tokeep %chin% unlist(header)]
+  missingcols <- cols_tokeep[!(cols_tokeep %chin% unlist(header))]
+  paste('Importing', file_name, 'with ', length(keptcols), 
+        'columns out of ', length(cols_tokeep), 'supplied column names')
+  fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
 }
 
 #Not used
@@ -190,7 +219,8 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
   # mDur           : num mean number of days/year with discharge = 0
   # mFreq          : num mean number of periods with discharge = 0 (with at least one day of flow between periods)
   
-  gaugetab <- cbind(fread(path, header=T, skip = 40, sep=";", colClasses=c('character', 'character', 'numeric', 'numeric', 'integer')),
+  gaugetab <- cbind(fread(path, header=T, skip = 40, sep=";", 
+                          colClasses=c('character', 'character', 'numeric', 'numeric', 'integer')),
                     GRDC_NO = strsplit(basename(path), '[.]')[[1]][1])%>%
     setnames('YYYY-MM-DD', 'dates') %>%
     setorder(GRDC_NO, dates)
@@ -199,22 +229,26 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
     .[, prevflowdate := gaugetab[zero.lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
     .[Original != 0, prevflowdate:=NA]
   
+  #Compute number of missing days per year
   gaugetab[!(Original == -999 | is.na(Original)), `:=`(missingdays = diny(year)-.N,
-                                                       datadays = .N), by= 'year'] #Compute number of missing days per year
+                                                       datadays = .N), by= 'year'] 
   
   
   gaugetab[,month:=as.numeric(substr(dates, 6, 7))] #create a month column
   
   if (gaugetab[(missingdays < maxgap), .N>0]) { #Make sure that there are years with sufficient data
-    monthlyfreq <- gaugetab[(missingdays < maxgap), 
-                            .(GRDC_NO = unique(GRDC_NO),
-                              monthrelfreq = length(unique(na.omit(prevflowdate)))/length(unique(year))), by='month'] %>% #Count proportion of years with zero flow occurrence per month
+    monthlyfreq <- gaugetab[
+      (missingdays < maxgap), 
+      .(GRDC_NO = unique(GRDC_NO),
+        monthrelfreq = length(unique(na.omit(prevflowdate)))/length(unique(year))), by='month'] %>% #Count proportion of years with zero flow occurrence per month
       dcast(GRDC_NO~month, value.var='monthrelfreq') %>%
-      setnames(as.character(seq(1,12)), c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+      setnames(as.character(seq(1,12)),
+               c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
   } else {
     monthlyfreq <- data.table(GRDC_NO = gaugetab[, unique(GRDC_NO)], month=1:12, monthrelfreq=rep(NA,12)) %>%
       dcast(GRDC_NO~month, value.var='monthrelfreq') %>%
-      setnames(as.character(seq(1,12)), c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+      setnames(as.character(seq(1,12)),
+               c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
   }
   
   #If analysis is only performed on a subset of months
@@ -237,14 +271,15 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
                         gaugetab_yearly[, .(firstYear=min(year), 
                                             lastYear=max(year), 
                                             totalYears=length(unique(year)))],
-                        gaugetab_yearly[missingdays <= maxgap, .(firstYear_kept=min(year), 
-                                                                 lastYear_kept=max(year), 
-                                                                 totalYears_kept=length(unique(year)),
-                                                                 totaldays = sum(datadays), 
-                                                                 sumDur = sum(dur),
-                                                                 mDur = mean(dur),
-                                                                 mFreq = mean(freq),
-                                                                 intermittent = factor(ifelse(sum(dur)>0, 1, 0), levels=c('0','1')))]
+                        gaugetab_yearly[missingdays <= maxgap,
+                                        .(firstYear_kept=min(year), 
+                                          lastYear_kept=max(year), 
+                                          totalYears_kept=length(unique(year)),
+                                          totaldays = sum(datadays), 
+                                          sumDur = sum(dur),
+                                          mDur = mean(dur),
+                                          mFreq = mean(freq),
+                                          intermittent = factor(fifelse(sum(dur)>0, 1, 0), levels=c('0','1')))]
   )
   return(gaugetab_all)
 }
@@ -252,38 +287,12 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
 format_gaugestats <- function(in_gaugestats, in_gaugep) {
   #Format gaugestats into data.table
   
-  
   #Join intermittency statistics to predictor variables and subset to only include those gauges with at least
   gaugestats_join <- do.call(rbind, in_gaugestats) %>%
     setDT %>%
     .[as.data.table(in_gaugep), on='GRDC_NO'] %>%
-    .[!is.na(totalYears_kept) & totalYears_kept>10,] # Only keep stations with at least 10 years of data
-  
-  #---- Compute derived predictor variables ----
-  pre_mcols <- paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)) #Monthly precipitation columns
-  gaugestats_join[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
-                         pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
-                  .SDcols= pre_mcols] %>% 
-    .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, #min/max monthly catchment precip
-             dis_mm_pvar=ifelse(dis_m3_pmx==0, 
-                                1, 
-                                dis_m3_pmn/dis_m3_pmx), #min/max monthly watershed discharge
-             dis_mm_pvaryr=ifelse(dis_m3_pyr==0, 
-                                  1, 
-                                  dis_m3_pmn/dis_m3_pyr),#min monthly/average yearly watershed discharge
-             ele_pc_rel = ifelse(ele_mt_uav==0, 
-                                 0, 
-                                 (ele_mt_cav-ele_mt_uav)/ele_mt_uav))] #catchment average elv - watershec average elev
-  
-  gaugestats_join[, cmi_ix_cmn := do.call(pmin, c(.SD)),
-                  .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
-    .[, swc_pc_cmn := do.call(pmin, c(.SD)),
-      .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
-  
-
-  #---- Convert -9999 values to NA ----
-  for (j in which(sapply(gaugestats_join,is.numeric))) { #Iterate through numeric column indices
-    set(gaugestats_join,which(gaugestats_join[[j]]==-9999),j, NA)} #Set those to 0 if -9999
+    .[!is.na(totalYears_kept) & totalYears_kept>10,] %>% # Only keep stations with at least 10 years of data
+    comp_derivedvar #Compute derived variables and remove -9999
   return(gaugestats_join)
 }
 
@@ -451,16 +460,17 @@ tune_rf <- function(in_gaugestats, in_predvars,
                                                           folds = outsamp_nfolds),
                                         store_models=TRUE)
   
+  #Check at_ranger
+  
   print(nestedresamp_ranger$aggregate())
   print(nestedresamp_ranger$prediction()$confusion)
   return(nestedresamp_ranger)
 }
 
 ggvimp <- function(in_rftuned, in_predvars) {
-  varimp_basic <- weighted_vimportance(in_rftuned) %>% 
+  varimp_basic <- weighted_vimportance_nestedrf(in_rftuned) %>% 
     merge(., in_predvars, by.x='variable', by.y='varcode') %>%
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
-
   
   ggplot(varimp_basic[1:30,],aes(x=varname)) + 
     geom_bar(aes(y=imp_wmean), stat = 'identity') +
@@ -470,10 +480,10 @@ ggvimp <- function(in_rftuned, in_predvars) {
     theme(axis.text.x = element_text(size=8))
 }
 
-ggmisclass <-  function(in_gaugestats, in_tunedrf) {
+ggmisclass <-  function(in_gaugestats, in_rftuned) {
   #Get predicted probabilities of intermittency for each gauge
   in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
-                  as.data.table(in_tunedrf$prediction())[order(row_id), mean(prob.1), by=row_id]$V1]
+                  as.data.table(in_rftuned$prediction())[order(row_id), mean(prob.1), by=row_id]$V1]
   #Get misclassification error, sensitivity, and specificity for different classification thresholds 
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
   threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_gaugestats) %>%
@@ -495,3 +505,70 @@ ggmisclass <-  function(in_gaugestats, in_tunedrf) {
       theme_bw()
   )
 }
+
+ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
+  
+  #Get partial dependence across all folds
+  nlearners <- in_rftuned$resampling$param_set$values$folds
+  datdf <- as.data.frame(in_rftuned$data$task[[1]]$data())
+  varimp <- weighted_vimportance_nestedrf(in_rftuned)
+  selcols <- as.character(varimp$variable[colnums])
+  
+  if (parallel) {
+    print(paste("Computing partial dependence with future.apply across", nlearners,
+                "CV folds"))
+    pd <- future.apply::future_lapply(seq_len(nlearners),
+                                      extract_pd_nestedrf,
+                                      in_rftuned = in_rftuned,
+                                      datdf = datdf,
+                                      selcols = selcols,
+                                      ngrid = ngrid,
+                                      future.scheduling = structure(TRUE,ordering = "random"), 
+                                      future.packages = c("data.table","edarf","ranger"))
+    
+  } else {
+    print(paste("Computing partial dependence iteratively across", nlearners,
+                "CV folds"))
+    pd <- lapply(seq_len(nlearners),
+                 extract_pd_nestedrf,
+                 in_rftuned = in_rftuned,
+                 datdf = datdf,
+                 selcols = selcols,
+                 ngrid = ngridb)
+  }
+  
+  #Get weighted mean
+  pdformat <- do.call(rbind, pd) %>%
+    setDT %>%
+    .[, list(mean1 = weighted.mean(`1`, classif.bacc)),
+      by= selcols]
+  
+  vargrid <- t(combn(1:length(selcols), 2))
+  #leglims <- pdformat[, c(min(mean1), max(mean1))]
+  
+  #Iterate over every pair of variables
+  tileplots_l <- mapply(function(i, j) {
+    print(paste0('Generating plot', i , j))
+    xvar <- selcols[i]
+    yvar <- selcols[j]
+    
+    pdbivar <- pdformat[, list(bimean = mean(mean1)), by=c(xvar, yvar)]
+    
+    ggplotGrob(
+      ggplot(pdbivar, aes_string(x=xvar, y=yvar)) +
+        geom_tile(aes(fill = bimean)) + 
+        scale_fill_distiller(palette='Spectral') + # , limits=leglims
+        geom_jitter(data=datdf, aes(color=intermittent)) +
+        labs(x=stringr::str_wrap(in_predvars[varcode==xvar, varname], 
+                                 width = 30),
+             y=stringr::str_wrap(in_predvars[varcode==yvar, varname],
+                                 width = 30)) +
+        theme_bw()
+    )
+  }, vargrid[,1], vargrid[,2] 
+  )
+  #Plot, only keeping unique combinations by grabbing lower triangle of plot matrix
+  return(do.call("grid.arrange", list(grobs=tileplots_l))) 
+}
+
+

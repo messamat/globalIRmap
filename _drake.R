@@ -9,7 +9,6 @@ drake_config(plan,
              prework = quote(future::plan(future.callr::callr)))
 #,workers=availableCores()-1)))
 
-vis_drake_graph(plan)
 #drake_history(plan)
 #loadd()
 

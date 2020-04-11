@@ -14,13 +14,15 @@ plan <- drake_plan(
   
   predvars = selectformat_predvars(filestructure, gaugestats_format),
   
-  rftuned = tune_rf(gaugestats_format, predvars, 
+  rftuned = tune_rf(in_gaugestats= gaugestats_format, in_predvars = predvars, 
                     insamp_nfolds = 2, insamp_neval = 20, 
                     insamp_nbatch = parallel::detectCores(logical=FALSE),
                     outsamp_nrep = 1, outsamp_nfolds = 5),
   
-  vimp_plot = ggvimp(rftuned, predvars)
-)
-
-
+  misclass_plot = ggmisclass(gaugestats_format, rftuned),
   
+  vimp_plot = ggvimp(rftuned, predvars),
+  
+  pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T)
+)
+                    
