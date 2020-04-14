@@ -1,5 +1,5 @@
 hash,type,name
-da16a988434a9285,import,comp_derivedvar
+2c6c08202e563c89,import,comp_derivedvar
 a995ef6c56c223e0,import,comp_durfreq
 9fd08009de67af58,import,def_filestructure
 143346635cfe887f,import,diny
@@ -7,7 +7,8 @@ a995ef6c56c223e0,import,comp_durfreq
 109f4ff896f36b18,import,extract_impperf_nestedrf
 d29264cb70e1129f,import,extract_pd_nestedrf
 3058217c84f98db0,target,filestructure
-be53b7ae5e0683b6,import,format_gaugestats
+fff052d15caac323,import,format_gaugestats
+b8547ef42164e39b,import,fread_cols
 16e7febba1ce0b7a,target,gauged_filenames
 a11a851fdd944a77,target,gaugep
 b9db142e8bb135cd,target,gaugestats
@@ -15,7 +16,7 @@ b22ac02b5141c4bb,target,gaugestats_format
 3db40f8fb3b51f37,import,ggmisclass
 ba273531129b3730,import,ggpd
 1d108b2f28b75f35,import,ggvimp
-2defec3b8ee63215,target,misclass_plot
+f6f955e32d4d9291,target,misclass_plot
 e278449854395dff,import,edarf::partial_dependence
 24443337370bab07,import,future::availableCores
 240d2ca98f6995c7,import,future.apply::future_lapply
@@ -26,16 +27,18 @@ f5ed5ccd78695223,import,mlr3::resample
 d1ab99cba1c328de,import,rmarkdown::render
 97e7a02a1ae6aa11,import,stringr::str_wrap
 3ea8d2dc9b9879ac,import,file report.Rmd
-0f5982e651e8fb36,target,pd_plot
+94ccce29645cf319,target,pd_plot
 0942530bfee0f08b,target,predvars
 c9d492d81131ed37,import,read_gauged_paths
 7e2eb233b13ab61c,import,read_gaugep
-394df1323bcafba2,target,rftuned
+c85d88fc56f4e042,target,rfpreds
+3a89bbaa208a03e0,target,rftuned
 484daecda3b2ad88,import,selectformat_predvars
 da5331ef7290cecc,import,threshold_misclass
-d037287b97be0697,import,tune_rf
-af0b8cd5b05d475d,target,vimp_plot
+00e8101b34be88d0,import,tune_rf
+49fae7563ad6e908,target,vimp_plot
 1465784120f2cc69,import,weighted_sd
 8628345a6ada79d9,import,weighted_vimportance
 26cabd120c52a178,import,weighted_vimportance_nestedrf
+93ea7dfe02bb7a2c,import,write_preds
 8f65a1d5acc4a567,import,zero.lomf
