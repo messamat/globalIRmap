@@ -133,6 +133,21 @@ fread_cols <- function(file_name, cols_tokeep) {
   fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
 }
 
+get_oversamp_ratio <- function(in_task) {
+  #When given an mlr3 task with binary classification target, gets which class is minority and the ratio
+  return(
+    in_task$data()[, .N,
+                   by=get(rftuned$task_inter$target_names)] %>%
+      setorder(N) %>%
+      .[, list(minoclass=get[1], ratio=N[2]/N[1])]
+  )
+}
+
+po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
+              reference = "minor", shuffle = FALSE, 
+              ratio = get_oversamp_ratio(rftuned$task_inter)$ratio)
+table(po_over$train(list(rftuned$task_inter))$output$truth()) 
+
 #Not used
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, 
                              reverse=FALSE) {
@@ -430,6 +445,18 @@ tune_rf <- function(in_gaugestats, in_predvars,
                           importance = "permutation")
   #print(lrn_ranger$param_set)
   
+  #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
+  #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
+  #https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_classbalancing.html
+  #Sampling happens only during training phase.
+  po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
+                reference = "minor", shuffle = TRUE, 
+                ratio = get_oversamp_ratio(rftuned$task_inter)$ratio)
+  #table(po_over$train(list(rftuned$task_inter))$output$truth()) #Make sure that oversampling worked
+  
+  #Create a graph learner so that oversampling happens systematically upstream of all training
+  lrn_ranger_over <- GraphLearner$new(po_over %>>% lrn_ranger)
+  
   #Define parameter ranges to tune on
   tune_ranger <- ParamSet$new(list(
     ParamInt$new("mtry", lower = 1, upper = 11),
@@ -437,7 +464,7 @@ tune_rf <- function(in_gaugestats, in_predvars,
     ParamDbl$new("sample.fraction", lower = 0.1, upper = 0.95)
   ))
   
-  #Define resampling strategy
+  #Define inner resampling strategy
   rcv_ranger = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
   #Define performance measure
   measure_ranger = msr("classif.bacc") #use balanced accuracy to account for imbalanced dataset
@@ -445,21 +472,36 @@ tune_rf <- function(in_gaugestats, in_predvars,
   evals20 = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
   
   #Define hyperparameter tuner wrapper for inner sampling
-  at_ranger <- AutoTuner$new(learner= lrn_ranger,
-                             resampling = rcv_ranger, 
-                             measures = measure_ranger,
-                             tune_ps = tune_ranger, 
-                             terminator = evals20,
-                             tuner =  tnr("random_search", 
-                                          batch_size = insamp_nbatch))
+  learns = list(
+    at_ranger <- AutoTuner$new(learner= lrn_ranger,
+                               resampling = rcv_ranger, 
+                               measures = measure_ranger,
+                               tune_ps = tune_ranger, 
+                               terminator = evals20,
+                               tuner =  tnr("random_search", 
+                                            batch_size = insamp_nbatch)), #batch_size determines level of parallelism
+    
+    at_ranger_over <- AutoTuner$new(learner= lrn_ranger_over,
+                                    resampling = rcv_ranger, 
+                                    measures = measure_ranger,
+                                    tune_ps = tune_ranger, 
+                                    terminator = evals20,
+                                    tuner =  tnr("random_search", 
+                                                 batch_size = insamp_nbatch)) 
+  )
+
   
   #Perform outer resampling, keeping models for diagnostics later
-  nestedresamp_ranger <- mlr3::resample(task = task_inter, 
-                                        learner = at_ranger, 
-                                        resampling = rsmp("repeated_cv", 
-                                                          repeats = outsamp_nrep, 
-                                                          folds = outsamp_nfolds),
-                                        store_models=TRUE)
+  outer_resampling = rsmp("repeated_cv", 
+                          repeats = outsamp_nrep, 
+                          folds = outsamp_nfolds)
+  
+  nestedresamp_bmrdesign <- benchmark_grid(tasks = task_inter, 
+                                                 learners = learns, 
+                                                 resamplings = outer_resampling)
+  
+  nestedresamp_bmrout = benchmark(nestedresamp_bmrdesign,
+                                  store_models = TRUE)
   
   #Train full model
   at_ranger$train(task_inter)

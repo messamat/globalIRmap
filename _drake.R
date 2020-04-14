@@ -6,7 +6,8 @@ source('R/IRmap_plan.R')
 drake_config(plan,
              verbose=1L,
              cache_log_file = TRUE,
-             prework = quote(future::plan(future.callr::callr)))
+             prework = quote(future::plan(future.callr::callr)),
+             console_log_file = "log/drake.log")
 #,workers=availableCores()-1)))
 
 #drake_history(plan)

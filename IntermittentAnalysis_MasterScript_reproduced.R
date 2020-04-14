@@ -1,3 +1,24 @@
+library(drake)
+source('R/IRmapping_packages.R')
+source('R/IRmapping_functions.R')
+source('R/IRmap_plan.R')
+
+loadd(rftuned)
+
+#Get number of cases for each class
+get_oversamp_ratio <- function(in_task) {
+  return(
+    in_task$data()[, .N,
+                   by=get(rftuned$task_inter$target_names)] %>%
+      setorder(N) %>%
+      .[, list(minoclass=get[1], ratio=N[2]/N[1])]
+  )
+}
+
+  
+
+
+
 
 #---- Get mDur and mFreq in winter and non-winter periods to assess whether intermittency is due to freezing ----
 
