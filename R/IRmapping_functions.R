@@ -31,7 +31,7 @@ comp_derivedvar <- function(dt) {
   #check <- dt[is.na(sgr_dk_rav),]
   
   print('Number of NA values per column')
-  colNAs<- riveratlas[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+  colNAs<- dt[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
   print(colNAs)
   
   #Convert -9999 values to NA
@@ -45,8 +45,8 @@ comp_derivedvar <- function(dt) {
   dt[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
             pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
      .SDcols= pre_mcols] %>% 
-    #       min/max monthly catchment precip
-    .[, `:=`(pre_mm_cvar=pre_mm_cmn/pre_mm_cmx, 
+    #       min/max monthly catchment precip (while dealing with times when )
+    .[, `:=`(pre_mm_cvar= fifelse(pre_mm_cmx==0, 0, pre_mm_cmn/pre_mm_cmx), 
              #min/max monthly watershed discharge
              dis_mm_pvar=fifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx), 
              #min monthly/average yearly watershed discharge
@@ -54,9 +54,9 @@ comp_derivedvar <- function(dt) {
              #catchment average elv - watershec average elev
              ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))] 
   
-  dt[, cmi_ix_cmn := do.call(pmin, c(.SD)),
+  dt[, cmi_ix_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
      .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
-    .[, swc_pc_cmn := do.call(pmin, c(.SD)),
+    .[, swc_pc_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
       .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
   
   return(dt)
@@ -453,6 +453,7 @@ tune_rf <- function(in_gaugestats, in_predvars,
                              tuner =  tnr("random_search", 
                                           batch_size = insamp_nbatch))
   
+  #Perform outer resampling, keeping models for diagnostics later
   nestedresamp_ranger <- mlr3::resample(task = task_inter, 
                                         learner = at_ranger, 
                                         resampling = rsmp("repeated_cv", 
@@ -460,15 +461,18 @@ tune_rf <- function(in_gaugestats, in_predvars,
                                                           folds = outsamp_nfolds),
                                         store_models=TRUE)
   
-  #Check at_ranger
+  #Train full model
+  at_ranger$train(task_inter)
   
   print(nestedresamp_ranger$aggregate())
   print(nestedresamp_ranger$prediction()$confusion)
-  return(nestedresamp_ranger)
+  return(list(rf_outer = nestedresamp_ranger, #Resampling results
+              rf_inner = at_ranger, #Core learner (with hyperparameter tuning)
+              task_inter = task_inter)) #Task
 }
 
 ggvimp <- function(in_rftuned, in_predvars) {
-  varimp_basic <- weighted_vimportance_nestedrf(in_rftuned) %>% 
+  varimp_basic <- weighted_vimportance_nestedrf(in_rftuned$rf_outer) %>% 
     merge(., in_predvars, by.x='variable', by.y='varcode') %>%
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
   
@@ -483,7 +487,7 @@ ggvimp <- function(in_rftuned, in_predvars) {
 ggmisclass <-  function(in_gaugestats, in_rftuned) {
   #Get predicted probabilities of intermittency for each gauge
   in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
-                  as.data.table(in_rftuned$prediction())[order(row_id), mean(prob.1), by=row_id]$V1]
+                  as.data.table(in_rftuned$rf_outer$prediction())[order(row_id), mean(prob.1), by=row_id]$V1]
   #Get misclassification error, sensitivity, and specificity for different classification thresholds 
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
   threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_gaugestats) %>%
@@ -509,9 +513,9 @@ ggmisclass <-  function(in_gaugestats, in_rftuned) {
 ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
   
   #Get partial dependence across all folds
-  nlearners <- in_rftuned$resampling$param_set$values$folds
-  datdf <- as.data.frame(in_rftuned$data$task[[1]]$data())
-  varimp <- weighted_vimportance_nestedrf(in_rftuned)
+  nlearners <- in_rftuned$rf_outer$resampling$param_set$values$folds
+  datdf <- as.data.frame(in_rftuned$rf_outer$data$task[[1]]$data()) #This may be shortened
+  varimp <- weighted_vimportance_nestedrf(in_rftuned$rf_outer)
   selcols <- as.character(varimp$variable[colnums])
   
   if (parallel) {
@@ -519,7 +523,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
                 "CV folds"))
     pd <- future.apply::future_lapply(seq_len(nlearners),
                                       extract_pd_nestedrf,
-                                      in_rftuned = in_rftuned,
+                                      in_rftuned = in_rftuned$rf_outer,
                                       datdf = datdf,
                                       selcols = selcols,
                                       ngrid = ngrid,
@@ -531,7 +535,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
                 "CV folds"))
     pd <- lapply(seq_len(nlearners),
                  extract_pd_nestedrf,
-                 in_rftuned = in_rftuned,
+                 in_rftuned = in_rftuned$rf_outer,
                  datdf = datdf,
                  selcols = selcols,
                  ngrid = ngridb)
@@ -571,4 +575,40 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
   return(do.call("grid.arrange", list(grobs=tileplots_l))) 
 }
 
+write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, predvars) {
+  # ---- Output GRDC predictions as points ----
+  in_gaugestats[!is.na(cly_pc_cav), 
+                IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task_inter)$prob[,2]]
+  
+  cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
+  st_write(obj=merge(in_gaugep, 
+                     in_gaugestats[, !cols_toditch, with=F], by='GRDC_NO'),
+           dsn=in_filestructure['out_gauge'], 
+           driver = 'gpkg', 
+           delete_dsn=T)
+  
+  # ---- Generate predictions to map on river network ----
+  cols_tokeep <-  c("HYRIV_ID", predvars[!is.na(ID),varcode],
+                    'ele_mt_cav','ele_mt_uav',
+                    paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
+  
+  riveratlas <- fread_cols(in_filestructure['in_riveratlas'], 
+                           cols_tokeep = cols_tokeep) %>%
+    comp_derivedvar
+  
+  #Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up by climate zone to avoid memory errors)
+  for (clz in unique(riveratlas$clz_cl_cmj)) {
+    print(clz)
+    tic()
+    riveratlas[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz,
+               predbasic800 := in_rftuned$rf_inner$predict_newdata(as.data.frame(.SD))$prob[,2],]
+    toc()
+  }
+  
+  riveratlas[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
+  fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],
+         file.path(in_filestructure['resdir'], 'RiverATLAS_predbasic800.csv'))
+}
 

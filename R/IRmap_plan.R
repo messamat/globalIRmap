@@ -23,6 +23,8 @@ plan <- drake_plan(
   
   vimp_plot = ggvimp(rftuned, predvars),
   
-  pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T)
+  pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T),
+  
+  rfpreds = write_preds(filestructure, gaugep, gaugestats_format, rftuned, predvars)
 )
                     

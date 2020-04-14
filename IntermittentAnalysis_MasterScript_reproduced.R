@@ -1,43 +1,3 @@
-write_preds <- function(filestructure, gaugep, gaugestats_format, rftuned, predvars) {
-  
-  
-}
-
-
-# ---- Output GRDC predictions as points ----
-cols_toditch<- colnames(gaugep)[colnames(gaugep) != 'GRDC_NO']
-st_write(obj=merge(gaugep, 
-                   gaugestats_format[, !cols_toditch, with=F], by='GRDC_NO'),
-         dsn=filestructure['out_gauge'], 
-         driver = 'gpkg', 
-         delete_dsn=T)
-
-# ---- Generate predictions to map on river network ----
-cols_tokeep <-  c("HYRIV_ID", predvars[!is.na(ID),varcode],
-                'ele_mt_cav','ele_mt_uav',
-                paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
-                paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
-
-riveratlas <- fread_cols(filestructure['in_riveratlas'], 
-                         cols_tokeep = cols_tokeep) %>%
-  comp_derivedvar
-
-
-predict(rftuned, type='response', riveratlas[1:10,])
-
-#Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up by climate zone to avoid memory errors)
-for (clz in unique(riveratlas$clz_cl_cmj)) {
-  print(clz)
-  tic()
-  riveratlas[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz, 
-             predbasic800 := predict(ranger_basictrained, type='response', data=.SD)$predictions[,'1'], 
-             .SDcols = c("HYRIV_ID", rfpredcols)]
-  toc()
-}
-
-riveratlas[, predbasic800cat := ifelse(predbasic800>=0.3, 1, 0)]
-fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800cat'), with=F], file.path(resdir, 'RiverATLAS_predbasic800.csv'))
 
 
 
@@ -90,20 +50,20 @@ mintemplist<- dcast(
 names(mintemplist) <- reaches_with_points$GRDC_NO
 
 #Compute mdur and mfreq for winter months
-gaugestats_winter <- durfreq_parallel(pathlist=fileNames, maxgap=20, monthsel_list=mintemplist, reverse=FALSE)
+in_gaugestats_winter <- durfreq_parallel(pathlist=fileNames, maxgap=20, monthsel_list=mintemplist, reverse=FALSE)
 
 #Compute mdur and mfreq for non-winter months
-gaugestats_nowinter <- durfreq_parallel(pathlist=fileNames, maxgap=20, monthsel_list=mintemplist, reverse=TRUE)
+in_gaugestats_nowinter <- durfreq_parallel(pathlist=fileNames, maxgap=20, monthsel_list=mintemplist, reverse=TRUE)
 
 #---- Check month of intermittency ----
-monthinter_melt <- melt(gaugestats[, c('GRDC_NO', "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), with=F],
+monthinter_melt <- melt(in_gaugestats[, c('GRDC_NO', "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"), with=F],
                         id.var='GRDC_NO')
 ggplot(monthinter_melt, aes(x=variable, y=value, fill=GRDC_NO)) +
   geom_area(stat='identity')
 
 #Base ranger training
 #To adapt
-OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = gaugestats_format[!is.na(cly_pc_cav),]) %>%
+OOBfulldat <- OOBCurve(mod=mod_basic, measures = list(mmce, auc, brier), task = intermittent.task, data = in_gaugestats_format[!is.na(cly_pc_cav),]) %>%
   setDT %>%
   .[, numtrees := .I]
 
