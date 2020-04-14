@@ -1,7 +1,7 @@
-name: "globalIRmap"
+name: globalIRmap
 output_dir: ../docs
 navbar:
-  title: "globalIRmap"
+  title: globalIRmap
   left:
   - text: Home
     href: index.html
@@ -9,6 +9,10 @@ navbar:
     href: about.html
   - text: License
     href: license.html
+  right:
+  - icon: fa-github
+    text: Source code
+    href: https://github.com/messamat/globalIRmap
 output:
   workflowr::wflow_html:
     toc: yes
