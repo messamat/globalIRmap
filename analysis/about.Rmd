@@ -1,10 +1,84 @@
 ---
-title: "About"
+  title: "About"
 output:
   workflowr::wflow_html:
-    toc: false
+  toc: false
 editor_options:
   chunk_output_type: console
 ---
+  
+  **Global mapping of intermittent rivers and ephemeral streams**
+  
+  # Authors
+  
+  **Mathis Loïc Messager** (mathis.messager@mail.mcgill.ca) [![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-3051-8068)    
+  Charlotte Cockburn
+  Thibault Datry
+  Bernhard Lehner
 
-Describe your project.
+# Contents
+
+This repository contains the research compendium of the above mentioned paper. 
+
+- [Paper]()
+- [Appendices]()
+
+# How to use
+
+## Read the code, access the data
+
+See the [`code`]() directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript.
+The raw data is stored on [Zenodo]() and [HydroSHEDS]() and will be downloaded when starting the analysis. 
+
+## Install the R package
+
+[![Build Status]()]()
+
+This repository is organized as an R package, providing functions and raw data to reproduce and extend the analysis reported in the publication. 
+Note that this package has been written explicitly for this project and may not be suitable for general use. 
+
+This project is setup with a [drake workflow](https://github.com/ropensci/drake), ensuring reproducibility.
+Intermediate targets/objects will be stored in a hidden `.drake` directory.
+
+The R library of this project is managed by [packrat](https://rstudio.github.io/packrat/).
+This makes sure that the exact same package versions are used when recreating the project.
+When calling `packrat::restore()`, all required packages will be installed with their specific version.
+
+Please note that this project was built with R version X.X.X on a Windows 10 operating system.
+The packrat packages from this project **are not compatible with R versions prior version 3.5.0.**
+  (In general, it should be possible to reproduce the analysis on any other operating system.)
+
+To clone the project, a working installation of `git` is required.
+Open a terminal in the directory of your choice and execute:
+  
+  ```sh
+git clone git@github.com:messamat/globalIRmap.git
+```
+
+Then start R in this directory and run
+
+```{r README-4, eval = FALSE}
+packrat::restore() # restores all R packages with their specific version
+r_make() # recreates the analysis
+```
+
+# Structure of the analysis
+
+In the `drake` philosophy, every R object is a "target" with dependencies.
+This repository contains more targets than actually needed to replicate the associated publication.
+
+If you want to replicate the publication, you need to build the following targets:
+  -
+  -
+  -
+  -
+  
+#### Other practical notes
+
+# Notes and resources 
+
+* The [issues tracker](https://github.com/messamat/globalIRmap/issues) is the place to report problems or ask questions  
+
+* See the repository [history](https://github.com/messamat/globalIRmap/commits/master) for a fine-grained view of progress and changes.
+
+* The structure of this compendium is based on the work of [Carl Boettiger](http://www.carlboettiger.info/), [Ben Marwick](https://github.com/benmarwick), [Patrick Schratz](https://github.com/pat-s) and the [workflowr](https://github.com/jdblischak/workflowr) package.
