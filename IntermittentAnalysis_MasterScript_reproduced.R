@@ -1,7 +1,7 @@
 library(drake)
 source('R/IRmapping_packages.R')
 source('R/IRmapping_functions.R')
-source('R/IRmap_plan.R')
+source('R/IRmapping_plan.R')
 
 in_gaugestats= readd(gaugestats_format)
 in_predvars = readd(predvars)
@@ -33,8 +33,8 @@ lrn_ranger <- mlr3::lrn('classif.ranger',
 #Sampling happens only during training phase.
 po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
               reference = "minor", shuffle = TRUE, 
-              ratio = get_oversamp_ratio(rftuned$task_inter)$ratio)
-#table(po_over$train(list(rftuned$task_inter))$output$truth()) #Make sure that oversampling worked
+              ratio = get_oversamp_ratio(task_inter)$ratio)
+#table(po_over$train(list(task_inter))$output$truth()) #Make sure that oversampling worked
 
 #Create a graph learner so that oversampling happens systematically upstream of all training
 lrn_ranger_over <- GraphLearner$new(po_over %>>% lrn_ranger)
@@ -99,15 +99,14 @@ mlr3viz::autoplot(nestedresamp_bmrout, measure = measure_ranger)
 learns$classif.ranger.tuned$train(task_inter) 
 learns$oversample.classif.ranger.tuned$train(task_inter)
 
-#Check confusion matrix
-pred_basic<- learns$classif.ranger.tuned$predict(task_inter)
-pred_basic$confusion
-pred_basic$score(measure_ranger)
+#Return outer sampling object for selected model
+nestedresamp_bmrout$resample_result(
+  which(names(learns)=="oversample.classif.ranger.tuned"))
 
-pred_basicover <- learns$oversample.classif.ranger.tuned$predict(task_inter)
-pred_basicover$confusion
-pred_basicover$score(measure_ranger)
+rfresamp <- rftuned$rf_outer
 
+
+rftuned$rf_outer$aggregate(msr('time_both'))
 
 #---- Get mDur and mFreq in winter and non-winter periods to assess whether intermittency is due to freezing ----
 

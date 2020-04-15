@@ -83,17 +83,24 @@ weighted_sd <- function(x, w) {
 
 extract_impperf_nestedrf <- function(nested_rflearner, imp=T, perf=T) {
   #Get variable importance and performance measure for one instance of a resampled rf learner 
-  return(c(if (imp) {nested_rflearner$model$learner$importance()}, 
-           if (perf) {nested_rflearner$tuning_result$perf}))
+  sublrn <- nested_rflearner$model$learner
+  
+  return(c(if (imp) {
+    if (inherits(sublrn, "GraphLearner")) { 
+      sublrn$model$classif.ranger$model$variable.importance #Will need to make it more flexible depending on learner
+    } else {
+      nested_rflearner$model$learner$importance()
+    }
+  },
+  if (perf) {nested_rflearner$tuning_result$perf}))
 }
 
 weighted_vimportance_nestedrf <- function(rfresamp) {
   #Compute weighted mean and standard deviation of variable importance based on
   #accuracy measure (not error measure — could be amended to be based on 1-error)
+  varnames <- rfresamp$task$feature_names
   
-  varnames <- names(rfresamp$learners[[1]]$model$learner$importance())
-  
-  out_vimportance <- lapply(rfresamp$data$learner, #Extract vimp and perf for each resampling instance
+  out_vimportance <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
                             extract_impperf_nestedrf) %>% 
     do.call(rbind, .) %>% 
     as.data.table %>%
@@ -109,7 +116,14 @@ extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
   "Create a plot matrix of partial dependence interactions"
   
   in_mod <- in_rftuned$learners[[learner_id]] 
-  in_fit <- in_mod$learner$model 
+  #in_mod <- nestedresamp_ranger$learners[[1]] 
+  
+  if (inherits(in_mod$learner, "GraphLearner")) {
+    in_fit <- in_mod$learner$model$classif.ranger$model
+  } else {
+    in_fit <- in_mod$learner$model 
+  }
+  
   foldperf <- extract_impperf_nestedrf(in_mod, imp=F, perf=T)
   
   # selcols <- in_vimp_plot$data %>% #Can use that if extracting from tunredrf is expensive
@@ -136,17 +150,11 @@ fread_cols <- function(file_name, cols_tokeep) {
 get_oversamp_ratio <- function(in_task) {
   #When given an mlr3 task with binary classification target, gets which class is minority and the ratio
   return(
-    in_task$data()[, .N,
-                   by=get(rftuned$task_inter$target_names)] %>%
+    in_task$data()[, .N, by=get(in_task$target_names)] %>%
       setorder(N) %>%
       .[, list(minoclass=get[1], ratio=N[2]/N[1])]
   )
 }
-
-po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
-              reference = "minor", shuffle = FALSE, 
-              ratio = get_oversamp_ratio(rftuned$task_inter)$ratio)
-table(po_over$train(list(rftuned$task_inter))$output$truth()) 
 
 #Not used
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, 
@@ -440,8 +448,9 @@ tune_rf <- function(in_gaugestats, in_predvars,
   #Create learner
   lrn_ranger <- mlr3::lrn('classif.ranger', 
                           num.trees=500, 
-                          replace=F, 
+                          replace=FALSE, 
                           predict_type="prob", 
+                          respect.unordered.factors = 'order',
                           importance = "permutation")
   #print(lrn_ranger$param_set)
   
@@ -451,18 +460,25 @@ tune_rf <- function(in_gaugestats, in_predvars,
   #Sampling happens only during training phase.
   po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
                 reference = "minor", shuffle = TRUE, 
-                ratio = get_oversamp_ratio(rftuned$task_inter)$ratio)
-  #table(po_over$train(list(rftuned$task_inter))$output$truth()) #Make sure that oversampling worked
+                ratio = get_oversamp_ratio(task_inter)$ratio)
+  #table(po_over$train(list(task_inter))$output$truth()) #Make sure that oversampling worked
   
   #Create a graph learner so that oversampling happens systematically upstream of all training
   lrn_ranger_over <- GraphLearner$new(po_over %>>% lrn_ranger)
   
   #Define parameter ranges to tune on
-  tune_ranger <- ParamSet$new(list(
-    ParamInt$new("mtry", lower = 1, upper = 11),
-    ParamInt$new("min.node.size", lower = 1, upper = 10),
-    ParamDbl$new("sample.fraction", lower = 0.1, upper = 0.95)
-  ))
+  regex_tuneset <- function(in_lrn) {
+    prmset <- names(in_lrn$param_set$tags)
+    
+    tune_ranger <- ParamSet$new(list(
+      ParamInt$new(prmset[grep(".*mtry", prmset)], 
+                   lower = 1, upper = 11),
+      ParamInt$new(prmset[grep(".*min.node.size", prmset)], 
+                   lower = 1, upper = 10),
+      ParamDbl$new(prmset[grep(".*sample.fraction", prmset)], 
+                   lower = 0.1, upper = 0.95)
+    ))
+  }
   
   #Define inner resampling strategy
   rcv_ranger = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
@@ -473,23 +489,23 @@ tune_rf <- function(in_gaugestats, in_predvars,
   
   #Define hyperparameter tuner wrapper for inner sampling
   learns = list(
-    at_ranger <- AutoTuner$new(learner= lrn_ranger,
-                               resampling = rcv_ranger, 
-                               measures = measure_ranger,
-                               tune_ps = tune_ranger, 
-                               terminator = evals20,
-                               tuner =  tnr("random_search", 
-                                            batch_size = insamp_nbatch)), #batch_size determines level of parallelism
+    AutoTuner$new(learner= lrn_ranger,
+                  resampling = rcv_ranger, 
+                  measures = measure_ranger,
+                  tune_ps = regex_tuneset(lrn_ranger), 
+                  terminator = evals20,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)), #batch_size determines level of parallelism
     
-    at_ranger_over <- AutoTuner$new(learner= lrn_ranger_over,
-                                    resampling = rcv_ranger, 
-                                    measures = measure_ranger,
-                                    tune_ps = tune_ranger, 
-                                    terminator = evals20,
-                                    tuner =  tnr("random_search", 
-                                                 batch_size = insamp_nbatch)) 
+    AutoTuner$new(learner= lrn_ranger_over,
+                  resampling = rcv_ranger, 
+                  measures = measure_ranger,
+                  tune_ps = regex_tuneset(lrn_ranger_over), 
+                  terminator = evals20,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)) 
   )
-
+  names(learns) <-mlr3misc::map(learns, "id")
   
   #Perform outer resampling, keeping models for diagnostics later
   outer_resampling = rsmp("repeated_cv", 
@@ -497,19 +513,25 @@ tune_rf <- function(in_gaugestats, in_predvars,
                           folds = outsamp_nfolds)
   
   nestedresamp_bmrdesign <- benchmark_grid(tasks = task_inter, 
-                                                 learners = learns, 
-                                                 resamplings = outer_resampling)
+                                           learners = learns, 
+                                           resamplings = outer_resampling)
   
-  nestedresamp_bmrout = benchmark(nestedresamp_bmrdesign,
-                                  store_models = TRUE)
+  nestedresamp_bmrout <- benchmark(nestedresamp_bmrdesign,
+                                   store_models = TRUE)
   
-  #Train full model
-  at_ranger$train(task_inter)
+  print(nestedresamp_bmrout$aggregate(measure_ranger))
+  mlr3viz::autoplot(nestedresamp_bmrout, measure = measure_ranger)
   
-  print(nestedresamp_ranger$aggregate())
-  print(nestedresamp_ranger$prediction()$confusion)
-  return(list(rf_outer = nestedresamp_ranger, #Resampling results
-              rf_inner = at_ranger, #Core learner (with hyperparameter tuning)
+  #Train learners
+  learns$classif.ranger.tuned$train(task_inter) 
+  learns$oversample.classif.ranger.tuned$train(task_inter)
+  
+  #Return outer sampling object for selected model
+  outer_resampling_output <- nestedresamp_bmrout$resample_result(
+    which(names(learns)=="oversample.classif.ranger.tuned"))
+  
+  return(list(rf_outer = outer_resampling_output, #Resampling results
+              rf_inner = learns$oversample.classif.ranger.tuned, #Core learner (with hyperparameter tuning)
               task_inter = task_inter)) #Task
 }
 
@@ -556,7 +578,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
   
   #Get partial dependence across all folds
   nlearners <- in_rftuned$rf_outer$resampling$param_set$values$folds
-  datdf <- as.data.frame(in_rftuned$rf_outer$data$task[[1]]$data()) #This may be shortened
+  datdf <- as.data.frame(in_rftuned$rf_outer$task$data()) #This may be shortened
   varimp <- weighted_vimportance_nestedrf(in_rftuned$rf_outer)
   selcols <- as.character(varimp$variable[colnums])
   
@@ -580,7 +602,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
                  in_rftuned = in_rftuned$rf_outer,
                  datdf = datdf,
                  selcols = selcols,
-                 ngrid = ngridb)
+                 ngrid = ngrid)
   }
   
   #Get weighted mean

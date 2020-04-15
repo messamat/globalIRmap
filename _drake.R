@@ -1,7 +1,7 @@
 library(drake)
 source('R/IRmapping_packages.R')
 source('R/IRmapping_functions.R')
-source('R/IRmap_plan.R')
+source('R/IRmapping_plan.R')
 
 drake_config(plan,
              verbose=1L,
