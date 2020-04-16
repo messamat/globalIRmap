@@ -8,7 +8,7 @@ editor_options:
 
 <style type="text/css">
 .main-container {
-  max-width: 1800px;
+  max-width: 2600px;
   margin-left: auto;
   margin-right: auto;
 }
@@ -18,9 +18,11 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, results = 'hide', echo = FALSE, message=FALSE}
+```{r, results = 'hide', echo = FALSE, message=FALSE, warning=FALSE}
 source('R/IRmapping_packages.R')
 library(kableExtra)
+library(plotly)
+library(ggplotify)
 
 loadd(predvars)
 loadd(pd_plot)
@@ -60,19 +62,16 @@ In our case, the inner resampling strategy consisted of tuning three random fore
 It is defined analogously to the definition in [sklearn](https://scikit-learn.org/).
 
 First, the sample weights $w$ are normalized per class:
+$${
+\hat{w}_i = \frac{w_i}{\sum_j 1(y_j = y_i) w_i}.
+}
 $$
- \hat{w}_i = \frac{w_i}{\sum_j 1(y_j = y_i) w_i}.
-}{
- w_hat[i] = w[i] / sum((t == t[i]) * w[i]).
-}$$
 
 The balanced accuracy is calculated as:
-$$\deqn{
- \frac{1}{\sum_i \hat{w}_i} \sum_i 1(r_i = t_i) \hat{w}_i.
-}{
- 1 / sum(w_hat) * sum((r == t) * w_hat).
+$${
+\frac{1}{\sum_i \hat{w}_i} \sum_i 1(r_i = t_i) \hat{w}_i.
 }
-}$$
+$$
 
 Outer resampling was performed with repeated cross-validation using five folds and two repeatitions.
 
@@ -82,18 +81,25 @@ All RF instances were trained with 500 tree, using the Gini index as splitting r
 
 # Model performance
 ```{r, out.width='100%', out.height='100%'}
-print(misclass_plot)
+ggplotly(p=misclass_plot) %>%
+    layout(
+    xaxis = list(tickfont = list(size = 12)), 
+    yaxis = list(titlefont = list(size = 12)))
 ```
 
 # Variable importance
 ```{r, out.width='100%', out.height='100%'}
-print(vimp_plot)
+ggplotly(vimp_plot)%>%
+    layout(
+    xaxis = list(tickfont = list(size = 10)), 
+    yaxis = list(titlefont = list(size = 10)))
 ```
 
 # Bivariate partial dependence plots
 ```{r, out.width='100%', out.height='100%'}
 plot(pd_plot)
 ```
+
 # Map of gauges
 To be added later
 
