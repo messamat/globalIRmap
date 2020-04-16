@@ -1,12 +1,12 @@
 ---
 title: "License"
-site: workflowr::wflow_site
 output:
   workflowr::wflow_html:
     toc: false
 editor_options:
   chunk_output_type: console
 ---
+
 **Until publication of the accompanying manuscript, the code and data herein are licensed under a  Copyright (C) Mathis Loïc Messager - All Rights Reserved. Unauthorized copying of this file, via any medium is strictly prohibited Proprietary and confidential**
 
   The code and data herein are licensed under a (Creative Commons Attribution 4.0 International License)[http://creativecommons.org/licenses/by/4.0]. By downloading and using the data the user agrees to the terms and conditions of this license. 
