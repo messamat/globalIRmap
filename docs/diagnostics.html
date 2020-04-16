@@ -23,8 +23,6 @@
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
 <script src="site_libs/kePrint-0.0.1/kePrint.js"></script>
-<link href="site_libs/font-awesome-5.1.0/css/all.css" rel="stylesheet" />
-<link href="site_libs/font-awesome-5.1.0/css/v4-shims.css" rel="stylesheet" />
 
 <link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
 <!-- Add a small amount of space between sections. -->
@@ -289,20 +287,23 @@ $(document).ready(function () {
   <a href="about.html">About</a>
 </li>
 <li>
-  <a href="diagnostics.html">Model diagnostics</a>
-</li>
-<li>
   <a href="license.html">License</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Results
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="diagnostics.html">Model diagnostics</a>
+    </li>
+  </ul>
 </li>
       </ul>
       <ul class="nav navbar-nav navbar-right">
-        <li>
-  <a href="https://github.com/messamat/globalIRmap">
-    <span class="fa fa-github"></span>
-     
-    Source code
-  </a>
-</li>
+        
       </ul>
     </div><!--/.nav-collapse -->
   </div><!--/.container -->
@@ -428,16 +429,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree64454d891dd4b11636dfbea1cef596a7b36351b1targetblank64454d8a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/64454d891dd4b11636dfbea1cef596a7b36351b1" target="_blank">64454d8</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreecb44e3754d96902c099b9e1c7a052e2ae01c3374targetblankcb44e37a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/cb44e3754d96902c099b9e1c7a052e2ae01c3374" target="_blank">cb44e37</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree64454d891dd4b11636dfbea1cef596a7b36351b1targetblank64454d8a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreecb44e3754d96902c099b9e1c7a052e2ae01c3374targetblankcb44e37a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/64454d891dd4b11636dfbea1cef596a7b36351b1" target="_blank">64454d8</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/cb44e3754d96902c099b9e1c7a052e2ae01c3374" target="_blank">cb44e37</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -495,6 +496,57 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/cb44e3754d96902c099b9e1c7a052e2ae01c3374/analysis/diagnostics.Rmd" target="_blank">cb44e37</a>
+</td>
+<td>
+Mathis Loïc Messager
+</td>
+<td>
+2020-04-16
+</td>
+<td>
+Add main result page to navbar
+</td>
+</tr>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/c0a7f71bc66134a0cb21f6459ca69c7c7ed4e378/analysis/diagnostics.Rmd" target="_blank">c0a7f71</a>
+</td>
+<td>
+GitHub
+</td>
+<td>
+2020-04-16
+</td>
+<td>
+TRy troubleshooting
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/2c6be1ec046b578e26d7ec7da71eb05808c1c9c6/docs/diagnostics.html" target="_blank">2c6be1e</a>
+</td>
+<td>
+Mathis Loïc Messager
+</td>
+<td>
+2020-04-16
+</td>
+<td>
+small change
+</td>
+</tr>
 <tr>
 <td>
 html
@@ -2524,7 +2576,8 @@ Class group 2
 <div id="bivariate-partial-dependence-plots" class="section level1">
 <h1>Bivariate partial dependence plots</h1>
 <pre class="r"><code>plot(pd_plot)</code></pre>
-<p><img src="figure/diagnostics.Rmd/unnamed-chunk-5-1.png" width="100%" height="100%" style="display: block; margin: auto;" /> # Map of gauges</p>
+<p><img src="figure/diagnostics.Rmd/unnamed-chunk-5-1.png" width="100%" height="100%" style="display: block; margin: auto;" /> # Map of gauges To be added later</p>
+<p>#Tuning time analysis To be added later</p>
 <br>
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
