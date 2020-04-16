@@ -75,17 +75,17 @@ The random forest algorithm is known to produce biased estimates in binary class
 All RF instances were trained with 500 tree, using the Gini index as splitting rule, and grown as probability trees following Malley et al.'s 2012 approach with the mlr3 and ranger package.
 
 # Model performance
-```{r}
+```{r, out.width='100%', out.height='100%'}
 print(misclass_plot)
 ```
 
 # Variable importance
-```{r}
+```{r, out.width='100%', out.height='100%'}
 print(vimp_plot)
 ```
 
 # Bivariate partial dependence plots
-```{r}
+```{r, out.width='100%', out.height='100%'}
 plot(pd_plot)
 ```
 # Map of gauges

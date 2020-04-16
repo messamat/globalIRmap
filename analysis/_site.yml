@@ -7,6 +7,8 @@ navbar:
     href: index.html
   - text: About
     href: about.html
+  - text: Model diagnostics
+    href: diagnostics.html
   - text: License
     href: license.html
   right:
