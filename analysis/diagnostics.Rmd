@@ -1,0 +1,92 @@
+---
+title: "Model diagnostics"
+site: workflowr::wflow_site
+output:
+  workflowr::wflow_html:
+  toc: false
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, results = 'hide', echo = FALSE, message=FALSE}
+source('R/IRmapping_packages.R')
+library(kableExtra)
+
+loadd(predvars)
+loadd(pd_plot)
+loadd(misclass_plot)
+loadd(vimp_plot)
+loadd(rftuned)
+```
+# Reference data
+We use streamflow data from a subset of streamgauging stations from the Global Runoff Data Center.
+These stations were closely inspected for streamflow time series quality and positional accuracy prior to being snapped/joined to the HydroSHEDS global river network. Only gauges with at least 10 years of streamflow data were included in the analysis, excluding any year with more than 20 days of missing data. A gauge was considered intermittent if it stopped flowing at least one day over the course of its record.
+
+# Predictor variables
+
+The following variables, either directly included or derived from the HydroATLAS are used as candidates in training the random forest classification model.
+
+```{r, echo = FALSE} 
+kable(predvars[,. (varname, Keyscale, Keystat, ID, Category, Attribute, Source.Data, Citation, Spatial.representation, Temporal.or.statistical.aggregation.or.other.association)]) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+```
+
+# Model training strategy
+## Explanation adapated from mlr3 manual
+Resampling strategies are usually used to assess the performance of a learning algorithm. By subsetting the reference data (that we intend to predict) into independent training and testing sets, resampling allows us to assess how our algorithm may perform on a previously untested datasets.
+
+Hyperparameters are second-order parameters of machine learning models that, while often not explicitly optimized during the model estimation process, can have important impacts on the outcome and predictive performance of a model. Typically, hyperparameters are fixed before training a model. However, because the output of a model can be sensitive to the specification of hyperparameters, it is often recommended to make an informed decision about which hyperparameter settings may yield better model performance. In many cases, hyperparameter settings may be chosen a priori, but it can be advantageous to try different settings before fitting your model on the training data. This process is often called ‘tuning’ your model.
+
+In order to obtain unbiased performance estimates, all parts of the model building (preprocessing and model selection steps) should be included in the resampling, i.e., repeated for every pair of training/test data. Because not only final training but hyperparameter tuning requires resampling to avoid overfitting and to give accurate performance estimates, then our analysis relied on a nested resampling strategy.
+
+![Nested resampling illustration](https://mlr3book.mlr-org.com/images/nested_resampling.png)
+
+The graphic above illustrates nested resampling for parameter tuning with 3-fold cross-validation in the outer and 4-fold cross-validation in the inner loop.
+
+In the outer resampling loop, we have three pairs of training/test sets. On each of these outer training sets parameter tuning is done, thereby executing the inner resampling loop. This way, we get one set of selected hyperparameters for each outer training set. Then the learner is fitted on each outer training set using the corresponding selected hyperparameters. Subsequently, we can evaluate the performance of the learner on the outer test sets.
+
+In our case, the inner resampling strategy consisted of tuning three random forest hyperparameters: the fraction of the dataset sampled without replacement to grow each tree in the forest, the number of predictor variables to randomly draw at each decision split in the trees, and the minimum size of end nodes. With this initial development of the model and in the absence of additional computational power, the inner resampling was performed  by cross-validation with 2 folds. For each fold, hyperparameter tuning was conducted by randomly drawing twenty sets of values for all three tuned hyperparameters, training a random forest model with each set of values on the training data for that fold, and testing the performance of the model on the testing data for that fold (here 50% of the dataset). The highest performing hyperparameter values are then passed on to the outer resampling fold. Our performance measure in determing the best set of hyperparameter values was the weighted balanced accuracy, suited for imbalanced datasets.
+It is defined analogously to the definition in [sklearn](https://scikit-learn.org/).
+
+First, the sample weights $w$ are normalized per class:
+$$
+ \hat{w}_i = \frac{w_i}{\sum_j 1(y_j = y_i) w_i}.
+}{
+ w_hat[i] = w[i] / sum((t == t[i]) * w[i]).
+}$$
+
+The balanced accuracy is calculated as:
+$$\deqn{
+ \frac{1}{\sum_i \hat{w}_i} \sum_i 1(r_i = t_i) \hat{w}_i.
+}{
+ 1 / sum(w_hat) * sum((r == t) * w_hat).
+}
+}$$
+
+Outer resampling was performed with repeated cross-validation using five folds and two repeatitions.
+
+The random forest algorithm is known to produce biased estimates in binary classification tasks if the two classes are unequally represented in the training data. In the case of this study, the classes were unequally represented with almost three times as many perennial as there were intermittent rivers. The minority class (here intermittent rivers) was therefore oversampled with replacement for training purposes.
+
+All RF instances were trained with 500 tree, using the Gini index as splitting rule, and grown as probability trees following Malley et al.'s 2012 approach with the mlr3 and ranger package.
+
+# Model performance
+```{r}
+print(misclass_plot)
+```
+
+# Variable importance
+```{r}
+print(vimp_plot)
+```
+
+# Bivariate partial dependence plots
+```{r}
+plot(pd_plot)
+```
+# Map of gauges
+
