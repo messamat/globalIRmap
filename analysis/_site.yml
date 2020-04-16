@@ -1,4 +1,4 @@
-name: globalIRmap
+name: "globalIRmap"
 output_dir: ../docs
 navbar:
   title: globalIRmap
@@ -13,10 +13,6 @@ navbar:
     menu:
     - text: "Model diagnostics"
       href: diagnostics.html
-  right:
-  - icon: fa-github
-    text: Source code
-    href: https://github.com/messamat/globalIRmap
 output:
   workflowr::wflow_html:
     toc: yes
