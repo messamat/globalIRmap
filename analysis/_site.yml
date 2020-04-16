@@ -9,8 +9,10 @@ navbar:
     href: about.html
   - text: License
     href: license.html
-  - text: "Model diagnostics"
-    href: diagnostics.html
+  - text: Results
+    menu:
+    - text: "Model diagnostics"
+      href: diagnostics.html
   right:
   - icon: fa-github
     text: Source code
