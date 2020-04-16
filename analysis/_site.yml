@@ -7,10 +7,10 @@ navbar:
     href: index.html
   - text: About
     href: about.html
-  - text: "Model diagnostics"
-    href: diagnostics.html
   - text: License
     href: license.html
+  - text: "Model diagnostics"
+    href: diagnostics.html
   right:
   - icon: fa-github
     text: Source code
