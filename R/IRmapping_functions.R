@@ -156,6 +156,27 @@ get_oversamp_ratio <- function(in_task) {
   )
 }
 
+convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
+  if (oversample) {
+    oversamp_ratio <- get_oversamp_ratio(in_task)
+    mino_subdat <- in_task$data()[
+      eval(in_task$target_names) == oversamp_ratio$minoclass,] #Get part of the underlying dataset of the minority class
+    nmino <- mino_subdat[,.N]
+    oversamp_index <- sample(nmino, nmino*(oversamp_ratio$ratio-1), replace=T)
+    
+    newdat <- rbind(in_task$data(),
+                    mino_subdat[oversamp_index,]) %>%
+      .[, eval(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))]
+  } else {
+    newdat <- in_task$data()[, eval(in_task$target_names) := 
+                               as.numeric(as.character(get(in_task$target_names)))]
+  }
+  
+  return(mlr3::TaskRegr$new(id =in_id,
+                            backend = newdat,
+                            target = in_task$target_names))
+}
+
 #Not used
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL, 
                              reverse=FALSE) {
@@ -437,22 +458,43 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 tune_rf <- function(in_gaugestats, in_predvars, 
                     insamp_nfolds, insamp_neval, insamp_nbatch,
                     outsamp_nrep, outsamp_nfolds) {
-  #Create task
+  
+  #---------- Create tasks -----------------------------------------------------
   datsel <- in_gaugestats[!is.na(cly_pc_cav), 
                           c('intermittent',in_predvars$varcode),
                           with=F]
-  task_inter <- mlr3::TaskClassif$new(id ='inter_basic',
-                                      backend = datsel,
-                                      target = "intermittent")
   
-  #Create learner
+  task_classif <- mlr3::TaskClassif$new(id ='inter_basic',
+                                        backend = datsel,
+                                        target = "intermittent")
+  
+  task_regr <- convert_clastoregrtask(in_task = task_classif,
+                                      in_id = 'inter_regr',
+                                      oversample=FALSE) 
+  
+  task_regrover <- convert_clastoregrtask(in_task = task_classif,
+                                          in_id = 'inter_regrover',
+                                          oversample=TRUE) 
+  
+  #---------- Create learners --------------------------------------------------
+  #Create basic learner
   lrn_ranger <- mlr3::lrn('classif.ranger', 
-                          num.trees=500, 
-                          replace=FALSE, 
-                          predict_type="prob", 
-                          respect.unordered.factors = 'order',
-                          importance = "permutation")
+                          num.trees = 500, 
+                          replace = FALSE, 
+                          splitrule = 'gini',
+                          predict_type = "prob", 
+                          importance = "permutation",
+                          respect.unordered.factors = 'order')
+  
   #print(lrn_ranger$param_set)
+  
+  #Create learner with 
+  lrn_ranger_maxstat <- mlr3::lrn('regr.ranger', 
+                                  num.trees=500, 
+                                  replace=FALSE, 
+                                  splitrule = 'maxstat',
+                                  importance = "permutation",
+                                  respect.unordered.factors = 'order')
   
   #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
   #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
@@ -460,79 +502,122 @@ tune_rf <- function(in_gaugestats, in_predvars,
   #Sampling happens only during training phase.
   po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
                 reference = "minor", shuffle = TRUE, 
-                ratio = get_oversamp_ratio(task_inter)$ratio)
-  #table(po_over$train(list(task_inter))$output$truth()) #Make sure that oversampling worked
+                ratio = get_oversamp_ratio(task_classif)$ratio)
+  #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
   
   #Create a graph learner so that oversampling happens systematically upstream of all training
-  lrn_ranger_over <- GraphLearner$new(po_over %>>% lrn_ranger)
-  
-  #Define parameter ranges to tune on
+  lrn_ranger_overp <- GraphLearner$new(po_over %>>% lrn_ranger)
+
+  #---------- Set up inner resampling ------------------------------------------
+  #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
     prmset <- names(in_lrn$param_set$tags)
     
     tune_ranger <- ParamSet$new(list(
-      ParamInt$new(prmset[grep(".*mtry", prmset)], 
+      ParamInt$new(grep(".*mtry", prmset, value=T), 
                    lower = 1, upper = 11),
-      ParamInt$new(prmset[grep(".*min.node.size", prmset)], 
-                   lower = 1, upper = 10),
-      ParamDbl$new(prmset[grep(".*sample.fraction", prmset)], 
+      ParamDbl$new(grep(".*sample.fraction", prmset, value=T), 
                    lower = 0.1, upper = 0.95)
     ))
+    
+    in_splitrule =in_lrn$param_set$get_values()[
+      grep(".*splitrule", prmset, value=T)]
+    
+    if (in_splitrule == 'maxstat') {
+      tune_ranger$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)], 
+                     lower = 0.01, upper = 0.1)
+      )
+      
+    } else {
+      tune_ranger$add(
+        ParamInt$new(prmset[grep(".*min.node.size", prmset)], 
+                     lower = 1, upper = 10)
+      )
+    }
   }
   
   #Define inner resampling strategy
   rcv_ranger = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
+  
   #Define performance measure
-  measure_ranger = msr("classif.bacc") #use balanced accuracy to account for imbalanced dataset
+  measure_ranger_class = msr("classif.bacc") #use balanced accuracy as objective function
+  measure_ranger_reg = msr("regr.mae") 
+  
   #Define termination rule 
   evals20 = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
   
   #Define hyperparameter tuner wrapper for inner sampling
-  learns = list(
+  learns_classif = list(
     AutoTuner$new(learner= lrn_ranger,
                   resampling = rcv_ranger, 
-                  measures = measure_ranger,
+                  measures = measure_ranger_class,
                   tune_ps = regex_tuneset(lrn_ranger), 
                   terminator = evals20,
                   tuner =  tnr("random_search", 
                                batch_size = insamp_nbatch)), #batch_size determines level of parallelism
     
-    AutoTuner$new(learner= lrn_ranger_over,
+    AutoTuner$new(learner= lrn_ranger_overp,
                   resampling = rcv_ranger, 
-                  measures = measure_ranger,
-                  tune_ps = regex_tuneset(lrn_ranger_over), 
+                  measures = measure_ranger_class,
+                  tune_ps = regex_tuneset(lrn_ranger_overp), 
                   terminator = evals20,
                   tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch)) 
+                               batch_size = insamp_nbatch))
   )
-  names(learns) <-mlr3misc::map(learns, "id")
+  names(learns_classif) <-mlr3misc::map(learns_classif, "id")
+  
+  learns_regr = list(
+    AutoTuner$new(learner= lrn_ranger_maxstat,
+                  resampling = rcv_ranger, 
+                  measures = measure_ranger_reg,
+                  tune_ps = regex_tuneset(lrn_ranger_maxstat), 
+                  terminator = evals20,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)))
+  
+  #---------- Set up outer resampling benchmarking -----------------------------
   
   #Perform outer resampling, keeping models for diagnostics later
   outer_resampling = rsmp("repeated_cv", 
                           repeats = outsamp_nrep, 
                           folds = outsamp_nfolds)
   
-  nestedresamp_bmrdesign <- benchmark_grid(tasks = task_inter, 
-                                           learners = learns, 
-                                           resamplings = outer_resampling)
+  nestedresamp_bmrdesign_classif <- benchmark_grid(
+    tasks = task_classif, 
+    learners = learns_classif, 
+    resamplings = outer_resampling)
   
-  nestedresamp_bmrout <- benchmark(nestedresamp_bmrdesign,
-                                   store_models = TRUE)
+  nestedresamp_bmrout_classif <- benchmark(
+    nestedresamp_bmrdesign_classif, store_models = TRUE)
   
-  print(nestedresamp_bmrout$aggregate(measure_ranger))
-  mlr3viz::autoplot(nestedresamp_bmrout, measure = measure_ranger)
+  print(nestedresamp_bmrout_classif$aggregate(measure_ranger_class))
+  mlr3viz::autoplot(nestedresamp_bmrout_classif, measure = measure_ranger_class)
   
+  nestedresamp_bmrdesign_regr <- benchmark_grid(
+    tasks = list(task_regr, task_regrover), 
+    learners = learns_regr, 
+    resamplings = outer_resampling)
+  
+  nestedresamp_bmrout_regr <- benchmark(
+    nestedresamp_bmrdesign_regr, store_models = TRUE)
+  
+  print(nestedresamp_bmrout_regr$aggregate(measure_ranger_reg))
+  mlr3viz::autoplot(nestedresamp_bmrout_regr, measure = measure_ranger_reg)
+  
+  
+  #---------- Create outputs ---------------------------------------------------
   #Train learners
-  learns$classif.ranger.tuned$train(task_inter) 
-  learns$oversample.classif.ranger.tuned$train(task_inter)
+  learns_classif$classif.ranger.tuned$train(task_basic) 
+  learns_classif$oversample.classif.ranger.tuned$train(task_basic)
   
   #Return outer sampling object for selected model
-  outer_resampling_output <- nestedresamp_bmrout$resample_result(
-    which(names(learns)=="oversample.classif.ranger.tuned"))
+  outer_resampling_output <- nestedresamp_bmrout_classif$resample_result(
+    which(names(learns_classif)=="oversample.classif.ranger.tuned"))
   
   return(list(rf_outer = outer_resampling_output, #Resampling results
-              rf_inner = learns$oversample.classif.ranger.tuned, #Core learner (with hyperparameter tuning)
-              task_inter = task_inter)) #Task
+              rf_inner = learns_classif$oversample.classif.ranger.tuned, #Core learner (with hyperparameter tuning)
+              task_basic = task_basic)) #Task
 }
 
 ggvimp <- function(in_rftuned, in_predvars) {
@@ -642,7 +727,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
 write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, predvars) {
   # ---- Output GRDC predictions as points ----
   in_gaugestats[!is.na(cly_pc_cav), 
-                IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task_inter)$prob[,2]]
+                IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task_basic)$prob[,2]]
   
   cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
   st_write(obj=merge(in_gaugep, 

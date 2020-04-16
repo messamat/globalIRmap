@@ -17,7 +17,7 @@ plan <- drake_plan(
   rftuned = tune_rf(in_gaugestats= gaugestats_format, in_predvars = predvars, 
                     insamp_nfolds = 2, insamp_neval = 20, 
                     insamp_nbatch = parallel::detectCores(logical=FALSE),
-                    outsamp_nrep = 1, outsamp_nfolds = 5),
+                    outsamp_nrep = 2, outsamp_nfolds = 5),
   
   misclass_plot = ggmisclass(gaugestats_format, rftuned),
   
