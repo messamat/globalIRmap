@@ -730,8 +730,12 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, 
                 IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task_basic)$prob[,2]]
   
   cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
-  st_write(obj=merge(in_gaugep, 
-                     in_gaugestats[, !cols_toditch, with=F], by='GRDC_NO'),
+  
+
+  out_gaugep <- merge(in_gaugep, 
+                      in_gaugestats[, !cols_toditch, with=F], by='GRDC_NO')
+  
+  st_write(obj=out_gaugep,
            dsn=in_filestructure['out_gauge'], 
            driver = 'gpkg', 
            delete_dsn=T)
@@ -759,5 +763,8 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, 
   riveratlas[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
   fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],
          file.path(in_filestructure['resdir'], 'RiverATLAS_predbasic800.csv'))
+  
+  # --------- Return data for plotting ------------------------
+  return(out_gaugep)
 }
 
