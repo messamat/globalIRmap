@@ -19,7 +19,11 @@ plan <- drake_plan(
                       insamp_nbatch = parallel::detectCores(logical=FALSE),
                       outsamp_nrep = 2, outsamp_nfolds = 5),
   
-  #bm_ = target() , #Add analyze_benchmark with dynamic variables with in_bm, in_tasks, in_measure
+  bm_checked = target(
+    analyze_benchmark(in_bm, in_measure),
+    transform = map(in_bm = c(rfbm$bm_classif, rfbm$bm_regr),
+                    in_measure = c(rfbm$measure_classif, rfbm$meassure_regr))
+  ),
   
   rftuned = selecttrain_rf(
     in_rf = rfbm$bm_classif$filter(learner_ids = "oversample.classif.ranger.tuned"),

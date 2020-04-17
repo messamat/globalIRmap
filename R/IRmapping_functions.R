@@ -610,7 +610,7 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   )
 }
 
-analyze_benchmark <- function(in_bm, in_tasks, in_measure) {
+analyze_benchmark <- function(in_bm, in_measure) {
   print(in_bm$aggregate(in_measure))
   mlr3viz::autoplot(in_bm, measure = in_measure)
   
@@ -766,10 +766,11 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
         scale_fill_distiller(palette='Spectral') + # , limits=leglims
         geom_jitter(data=datdf, aes(color=intermittent)) +
         labs(x=stringr::str_wrap(in_predvars[varcode==xvar, varname], 
-                                 width = 30),
+                                 width = 20),
              y=stringr::str_wrap(in_predvars[varcode==yvar, varname],
-                                 width = 30)) +
-        theme_bw()
+                                 width = 20)) +
+        theme_bw() +
+        theme(text = element_text(size=12))
     )
   }, vargrid[,1], vargrid[,2] 
   )

@@ -78,7 +78,6 @@ Outer resampling was performed with repeated cross-validation using five folds a
 The random forest algorithm is known to produce biased estimates in binary classification tasks if the two classes are unequally represented in the training data. In the case of this study, the classes were unequally represented with almost three times as many perennial as there were intermittent rivers. The minority class (here intermittent rivers) was therefore oversampled with replacement for training purposes.
 
 All RF instances were trained with 500 tree, using the Gini index as splitting rule, and grown as probability trees following Malley et al.'s 2012 approach with the mlr3 and ranger package.
-
 # Model performance
 ```{r, out.width='100%', out.height='100%'}
 ggplotly(p=misclass_plot) %>%
@@ -86,7 +85,6 @@ ggplotly(p=misclass_plot) %>%
     xaxis = list(tickfont = list(size = 12)), 
     yaxis = list(titlefont = list(size = 12)))
 ```
-
 # Variable importance
 ```{r, out.width='100%', out.height='100%'}
 ggplotly(vimp_plot)%>%
@@ -94,14 +92,11 @@ ggplotly(vimp_plot)%>%
     xaxis = list(tickfont = list(size = 10)), 
     yaxis = list(titlefont = list(size = 10)))
 ```
-
 # Bivariate partial dependence plots
 ```{r, out.width='100%', out.height='100%'}
 plot(pd_plot)
 ```
-
 # Map of gauges
 To be added later
-
 #Tuning time analysis
 To be added later
