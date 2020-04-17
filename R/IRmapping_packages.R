@@ -29,6 +29,9 @@ suppressPackageStartupMessages(library(future.apply))
 suppressPackageStartupMessages(library(future.callr))
 suppressPackageStartupMessages(library(furrr))
 
+#install.packages("mlr3learners.partykit", repos = "https://mlr3learners.github.io/mlr3learners.drat")
+suppressPackageStartupMessages(library(mlr3learners.partykit))
+
 # suppressPackageStartupMessages(library(bigstatsr))
 # suppressPackageStartupMessages(library(parallel))
 # suppressPackageStartupMessages(library(doParallel))

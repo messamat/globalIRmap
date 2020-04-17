@@ -14,12 +14,20 @@ plan <- drake_plan(
   
   predvars = selectformat_predvars(filestructure, gaugestats_format),
   
-  rftuned = tune_rf(in_gaugestats= gaugestats_format, in_predvars = predvars, 
-                    insamp_nfolds = 2, insamp_neval = 20, 
-                    insamp_nbatch = parallel::detectCores(logical=FALSE),
-                    outsamp_nrep = 2, outsamp_nfolds = 5),
+  rfbm = benchmark_rf(in_gaugestats= gaugestats_format, in_predvars = predvars, 
+                      insamp_nfolds = 2, insamp_neval = 20, 
+                      insamp_nbatch = parallel::detectCores(logical=FALSE),
+                      outsamp_nrep = 2, outsamp_nfolds = 5),
   
-  misclass_plot = ggmisclass(gaugestats_format, rftuned),
+  #bm_ = target() , #Add analyze_benchmark with dynamic variables with in_bm, in_tasks, in_measure
+  
+  rftuned = selecttrain_rf(
+    in_rf = rfbm$bm_classif$filter(learner_ids = "oversample.classif.ranger.tuned"),
+    in_task = rfbm$bm_tasks$task_classif,
+    insamp_nfolds = 5,
+    insamp_nevals = 50), 
+  
+  misclass_plot = ggmisclass(gaugestats_format, rftuned$rf_outer$prediction()),
   
   vimp_plot = ggvimp(rftuned, predvars),
   
