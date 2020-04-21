@@ -62,17 +62,30 @@ comp_derivedvar <- function(dt) {
   return(dt)
 }
 
-threshold_misclass <- function(i, in_gaugestats) {
-  in_gaugestats[!is.na(cly_pc_cav), intermittent_predcat := fifelse(intermittent_predprob>=i, 1, 0)]
-  confumat <-in_gaugestats[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
+threshold_misclass <- function(i, in_preds) {
+  if (inherits(in_preds, 'PredictionClassif')) {
+    confu <- as.data.table(in_preds$set_threshold(1-i)$confusion)
+  } 
+  
+  if (is.data.table(in_preds)) {
+    if (in_preds[task_type == 'classif',.N] > 0) {
+      confu <- in_preds[, as.data.table(pred[[1]]$set_threshold(1-i)$confusion), #Threshold is based on prob.0, not prob.1, so need to use 1-i
+                        by=outf] %>% 
+        .[, .(N=sum(N)), by=.(response, truth)]
+    } 
+    
+    if (in_preds[task_type == 'regr', .N] > 0) {
+      confu <- in_preds[, response := fifelse(prob.1>=i, '1', '0')] %>% 
+        .[, truth := as.character(truth)] %>%
+        .[, .N, by=.(response, truth)]
+    }
+  }
+  
   outvec <- data.table(
     i, 
-    misclas=in_gaugestats[intermittent!=intermittent_predcat,.N]/
-      in_gaugestats[,.N],
-    sens = confumat[intermittent=='1' & intermittent_predcat==1, N]/
-      confumat[intermittent=='1', sum(N)],
-    spec  = confumat[intermittent=='0' & intermittent_predcat==0, N]/
-      confumat[intermittent=='0', sum(N)])
+    misclas = confu[truth != response, sum(N)] / confu[, sum(N)],
+    sens = confu[truth == '1' & response == '1', N] / confu[truth=='1', sum(N)],
+    spec  = confu[truth=='0' & response==0, N]/confu[truth=='0', sum(N)])
   return(outvec)
 }
 
@@ -603,9 +616,13 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   
   return(
     list(
-      bm_classif = nestedresamp_bmrdesign_classif,
+      bm_classif = nestedresamp_bmrout_classif,
       bm_regr = nestedresamp_bmrout_regr,
-      bm_tasks = list(task_classif, task_regr, task_regrover)
+      bm_tasks = list(task_classif=task_classif, 
+                      task_regr=task_regr,
+                      task_regrover=task_regrover),
+      measure_classif = measure_ranger_class,
+      measure_regr = measure_ranger_reg
     )
   )
 }
@@ -616,18 +633,34 @@ analyze_benchmark <- function(in_bm, in_measure) {
   
   bmdt <- as.data.table(in_bm)
   
-  preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
-    preds <- bmdt$prediction[[rsmp_i]]$test %>%
-      as.data.table %>%
-      .[, `:=`(outf = bmdt$iteration[[rsmp_i]],
-               task = bmdt$task[[rsmp_i]]$id,
-               learner = bmdt$learner[[rsmp_i]]$id)]
-    return(preds)
-  }) %>%
-    do.call(rbind, .) 
+  if (in_bm$task_type == 'regr') {
+    preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
+      preds <- bmdt$prediction[[rsmp_i]]$test %>%
+        as.data.table %>%
+        .[, `:=`(outf = bmdt$iteration[[rsmp_i]],
+                 task = bmdt$task[[rsmp_i]]$id,
+                 task_type = in_bm$task_type,
+                 learner = bmdt$learner[[rsmp_i]]$id)]
+      return(preds)
+    }) %>%
+      do.call(rbind, .) 
+    
+    if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
+      preds[, prob.1 := response]
+    }
+  }
   
-  if (!('prob.1' %in% names(preds))) {
-    preds[, prob.1 := response]
+  
+  if (in_bm$task_type == 'classif') {
+    preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
+      preds <- data.table(outf = bmdt$iteration[[rsmp_i]],
+                          task = bmdt$task[[rsmp_i]]$id,
+                          learner = bmdt$learner[[rsmp_i]]$id,
+                          task_type = in_bm$task_type,
+                          pred = list(bmdt$prediction[[rsmp_i]]$test))
+      return(preds)
+    }) %>%
+      do.call(rbind, .) 
   }
   
   tasklearner_unique <- preds[, expand.grid(unique(task), unique(learner))] %>%
@@ -638,12 +671,13 @@ analyze_benchmark <- function(in_bm, in_measure) {
     subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
                        learner == tasklearner_unique$learner[tsklrn],]
     return(ggplotGrob(
-      ggmisclass(in_gaugestats, subpred) + 
+      ggmisclass(in_predictions = subpred) + 
         ggtitle(paste(tasklearner_unique$task[tsklrn], 
                       tasklearner_unique$learner[tsklrn]))
     )
     ) 
   })
+  
   return(do.call("grid.arrange", list(grobs=glist)))
 } 
 
@@ -651,25 +685,24 @@ selecttrain_rf <- function(in_rf, in_task,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   lrn_autotuner <- in_rf$learners$learner[[1]]
   
-  if (!is.null(in_folds)) {
-    lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_folds
+  if (!is.null(insamp_nfolds)) {
+    lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
   }
   
-  if (!is.null(in_nevals)) {
+  if (!is.null(insamp_nevals)) {
     lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
   }
   
   #Train learners
-  in_rf$learners$learner[[1]]$train(rfbm$bm_tasks$task_classif)
+  lrn_autotuner$train(in_task)
   
   #Return outer sampling object for selected model
-  outer_resampling_output <- in_rf$resample_result(1)
-  
-  
+  outer_resampling_output <- in_rf$resample_result(
+    uhash=unique(as.data.table(in_rf)$uhash))
   
   return(list(rf_outer = outer_resampling_output, #Resampling results
-              rf_inner = in_rf$learners$learner[[1]], #Core learner (with hyperparameter tuning)
-              task = in_rf$tasks$task[[1]])) #Task
+              rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
+              task = in_task)) #Task
 }
 
 ggvimp <- function(in_rftuned, in_predvars) {
@@ -685,14 +718,14 @@ ggvimp <- function(in_rftuned, in_predvars) {
     theme(axis.text.x = element_text(size=8))
 }
 
-ggmisclass <-  function(in_gaugestats, in_predictions) {
+ggmisclass <-  function(in_predictions) {
   #Get predicted probabilities of intermittency for each gauge
-  in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
-                  as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
+  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
+  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
   #Get misclassification error, sensitivity, and specificity for different classification thresholds 
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
 
-  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_gaugestats) %>%
+  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
     setDT
   
   #Get classification threshold at which sensitivity and specificity are the most similar

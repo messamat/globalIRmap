@@ -26,12 +26,12 @@ plan <- drake_plan(
   ),
   
   rftuned = selecttrain_rf(
-    in_rf = rfbm$bm_classif$filter(learner_ids = "oversample.classif.ranger.tuned"),
+    in_rf = rfbm$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
     in_task = rfbm$bm_tasks$task_classif,
-    insamp_nfolds = 5,
-    insamp_nevals = 50), 
+    insamp_nfolds = 2,
+    insamp_nevals = 2), 
   
-  misclass_plot = ggmisclass(gaugestats_format, rftuned$rf_outer$prediction()),
+  misclass_plot = ggmisclass(in_predictions=rftuned$rf_outer$prediction()),
   
   vimp_plot = ggvimp(rftuned, predvars),
   
