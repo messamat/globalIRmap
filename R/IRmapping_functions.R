@@ -516,9 +516,11 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
                                   importance = "permutation",
                                   respect.unordered.factors = 'order')
   
-  #Create a conditional inference forest learner
+  #Create a conditional inference forest learner with default parameters
+  # mtry = sqrt(nvar), fraction = 0.632
   lrn_cforest <- mlr3::lrn('classif.cforest',
                            ntree = 500,
+                           alpha = 0.5,
                            replace = F,
                            predict_type = "prob")
   
@@ -536,7 +538,6 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   
   lrn_cforest_overp <- GraphLearner$new(po_over %>>% lrn_cforest)
   
-
   #---------- Set up inner resampling ------------------------------------------
   #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
@@ -600,24 +601,7 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
                                batch_size = insamp_nbatch)),
-    
-    #CI partykit rf without oversampling
-    AutoTuner$new(learner= lrn_cforest,
-                  resampling = rcv_rf, 
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_cforest), 
-                  terminator = evalsn,
-                  tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch)),
-    
-    #CI partykit rf with oversampling
-    AutoTuner$new(learner= lrn_cforest_overp,
-                  resampling = rcv_rf, 
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_cforest_overp), 
-                  terminator = evalsn,
-                  tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch))
+    lrn_cforest_overp
   )
   names(learns_classif) <-mlr3misc::map(learns_classif, "id")
   
