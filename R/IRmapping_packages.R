@@ -29,7 +29,7 @@ suppressPackageStartupMessages(library(future.apply))
 suppressPackageStartupMessages(library(future.callr))
 suppressPackageStartupMessages(library(furrr))
 
-#install.packages("mlr3learners.partykit", repos = "https://mlr3learners.github.io/mlr3learners.drat")
+#remotes::install_github("mlr3learners/mlr3learners.partykit", INSTALL_opts = c("--no-multiarch"), force=T)
 suppressPackageStartupMessages(library(mlr3learners.partykit))
 
 # suppressPackageStartupMessages(library(bigstatsr))

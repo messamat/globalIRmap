@@ -473,18 +473,22 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
                          outsamp_nrep, outsamp_nfolds) {
   
   #---------- Create tasks -----------------------------------------------------
+  #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[!is.na(cly_pc_cav), 
                           c('intermittent',in_predvars$varcode),
                           with=F]
   
+  #Basic task for classification
   task_classif <- mlr3::TaskClassif$new(id ='inter_basic',
                                         backend = datsel,
                                         target = "intermittent")
   
+  #Basic task for regression without oversampling
   task_regr <- convert_clastoregrtask(in_task = task_classif,
                                       in_id = 'inter_regr',
                                       oversample=FALSE) 
   
+  #Basic task for regression with oversampling to have the same number of minority and majority class
   task_regrover <- convert_clastoregrtask(in_task = task_classif,
                                           in_id = 'inter_regrover',
                                           oversample=TRUE) 
@@ -501,13 +505,22 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   
   #print(lrn_ranger$param_set)
   
-  #Create learner with 
+  #Create regression learner with maxstat. Represents an approximation of 
+  #classification learner with probabilities as the prediction type and a simili-
+  #conditional-inference forest tweak to correct for the over-representation
+  #of variables with many values over those with few categories
   lrn_ranger_maxstat <- mlr3::lrn('regr.ranger', 
                                   num.trees=500, 
                                   replace=FALSE, 
                                   splitrule = 'maxstat',
                                   importance = "permutation",
                                   respect.unordered.factors = 'order')
+  
+  #Create a conditional inference forest learner
+  lrn_cforest <- mlr3::lrn('classif.cforest',
+                           ntree = 500,
+                           replace = F,
+                           predict_type = "prob")
   
   #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
   #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
@@ -518,72 +531,101 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
                 ratio = get_oversamp_ratio(task_classif)$ratio)
   #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
   
-  #Create a graph learner so that oversampling happens systematically upstream of all training
+  #Create graph learners so that oversampling happens systematically upstream of all training
   lrn_ranger_overp <- GraphLearner$new(po_over %>>% lrn_ranger)
   
+  lrn_cforest_overp <- GraphLearner$new(po_over %>>% lrn_cforest)
+  
+
   #---------- Set up inner resampling ------------------------------------------
   #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
     prmset <- names(in_lrn$param_set$tags)
     
-    tune_ranger <- ParamSet$new(list(
+    tune_rf <- ParamSet$new(list(
       ParamInt$new(grep(".*mtry", prmset, value=T), 
                    lower = 1, upper = 11),
-      ParamDbl$new(grep(".*sample.fraction", prmset, value=T), 
+      ParamDbl$new(grep(".*fraction", prmset, value=T), 
                    lower = 0.2, upper = 0.8)
     ))
     
-    in_splitrule =in_lrn$param_set$get_values()[
-      grep(".*splitrule", prmset, value=T)]
+    in_split =in_lrn$param_set$get_values()[
+      grep(".*split(rule|stat)", prmset, value=T)]
     
-    if (in_splitrule == 'maxstat') {
-      tune_ranger$add(
+    if (in_split == 'maxstat') {
+      tune_rf$add(
         ParamDbl$new(prmset[grep(".*alpha", prmset)], 
                      lower = 0.01, upper = 0.1)
       )
       
-    } else {
-      tune_ranger$add(
+    } else if (any(grepl(".*min.node.size", prmset))) {
+      tune_rf$add(
         ParamInt$new(prmset[grep(".*min.node.size", prmset)], 
                      lower = 1, upper = 10)
+      )
+    } else if (any(grepl(".*splitstat", prmset))) {
+      tune_rf$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)], 
+                     lower = 0.01, upper = 0.1)
       )
     }
   }
   
   #Define inner resampling strategy
-  rcv_ranger = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
+  rcv_rf = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
   
   #Define performance measure
-  measure_ranger_class = msr("classif.bacc") #use balanced accuracy as objective function
-  measure_ranger_reg = msr("regr.mae") 
+  measure_rf_class = msr("classif.bacc") #use balanced accuracy as objective function
+  measure_rf_reg = msr("regr.mae") 
   
   #Define termination rule 
   evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
   
   #Define hyperparameter tuner wrapper for inner sampling
   learns_classif = list(
+    #Standard ranger rf without oversampling
     AutoTuner$new(learner= lrn_ranger,
-                  resampling = rcv_ranger, 
-                  measures = measure_ranger_class,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
                   tune_ps = regex_tuneset(lrn_ranger), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
                                batch_size = insamp_nbatch)), #batch_size determines level of parallelism
     
+    #Standard ranger rf with oversampling
     AutoTuner$new(learner= lrn_ranger_overp,
-                  resampling = rcv_ranger, 
-                  measures = measure_ranger_class,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
                   tune_ps = regex_tuneset(lrn_ranger_overp), 
+                  terminator = evalsn,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)),
+    
+    #CI partykit rf without oversampling
+    AutoTuner$new(learner= lrn_cforest,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
+                  tune_ps = regex_tuneset(lrn_cforest), 
+                  terminator = evalsn,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)),
+    
+    #CI partykit rf with oversampling
+    AutoTuner$new(learner= lrn_cforest_overp,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
+                  tune_ps = regex_tuneset(lrn_cforest_overp), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
                                batch_size = insamp_nbatch))
   )
   names(learns_classif) <-mlr3misc::map(learns_classif, "id")
   
+  #Regression standard rf
   learns_regr = list(
     AutoTuner$new(learner= lrn_ranger_maxstat,
-                  resampling = rcv_ranger, 
-                  measures = measure_ranger_reg,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_reg,
                   tune_ps = regex_tuneset(lrn_ranger_maxstat), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
@@ -621,8 +663,8 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
       bm_tasks = list(task_classif=task_classif, 
                       task_regr=task_regr,
                       task_regrover=task_regrover),
-      measure_classif = measure_ranger_class,
-      measure_regr = measure_ranger_reg
+      measure_classif = measure_rf_class,
+      measure_regr = measure_rf_reg
     )
   )
 }
@@ -630,6 +672,10 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
 analyze_benchmark <- function(in_bm, in_measure) {
   print(in_bm$aggregate(in_measure))
   mlr3viz::autoplot(in_bm, measure = in_measure)
+  
+  print(paste('It took', 
+              in_bm$aggregate(msr('time_both')),
+              'seconds to train and predict with this model...'))
   
   bmdt <- as.data.table(in_bm)
   

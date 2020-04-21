@@ -3,11 +3,9 @@ source('R/IRmapping_packages.R')
 source('R/IRmapping_functions.R')
 source('R/IRmapping_plan.R')
 
-in_bm <- rfbm$bm_regr
-in_measure <- rfbm$measure_regr
+in_gaugestats <- readd(gaugestats_format)
+in_predvars <- readd(predvars)
 
-in_bm <- rfbm$bm_classif
-in_measure <- rfbm$measure_classif
 
 #################
 
