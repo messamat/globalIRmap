@@ -869,9 +869,93 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
   return(do.call("grid.arrange", list(grobs=tileplots_l))) 
 }
 
+gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
+  #Get average predictions for oversampled rows
+  gaugepred <-  in_rftuned$rf_outer$prediction() %>%
+    as.data.table %>%
+    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+    setorder(row_id)
+  
+  predattri <- cbind(in_gaugestats[!is.na(cly_pc_cav),], gaugepred) %>%
+    .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent)),
+             yearskeptratio = totalYears_kept/totalYears)]
+  
+  #Plot numeric variables
+  predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
+    cbind(predattri[, c('GRDC_NO', 'intermittent'), with=F]) %>%
+    melt(id.vars=c('GRDC_NO', 'intermittent', 'prob.1', 'preduncert'))
+  
+  
+  #Set variable labels
+  varlabels <- setkey(in_predvars[, .(varcode, varname)], varcode)[
+    levels(predmelt_num$variable)] %>%
+    .[is.na(varname), varname := varcode]
+  predmelt_num[, variable := factor(variable, labels = varlabels$varname)]
+  
+  varstoplot <- merge(in_predvars[, .(varcode, varname)], 
+                      data.table(varcode = 
+                                   c('totalYears_kept', 'yearskeptratio', 
+                                     'mDur', 'mFreq', 'station_river_distance', 
+                                     'UPLAND_SKM', 'ORD_STRA', 
+                                     'dis_m3_pyr', 'dor_pc_pva',
+                                     'cmi_ix_uyr','ari_ix_uav')), 
+                      all.x =F, all.y=T)
+  plotdt <- predmelt_num[variable %in% varstoplot$varcode | 
+                           variable %in% varstoplot$varname ,]
+  
+  uncertainty_numplot <- 
+    ggplot(plotdt, aes(x=value, y=preduncert, color=intermittent)) + 
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5, 
+              fill='#d9d9d9', color='#d9d9d9') +
+    geom_point(alpha = 1/4) + 
+    geom_hline(yintercept=0, alpha=1/2) +
+    geom_smooth(method='gam', formula = y ~ s(x, k=3)) +
+    annotate("text", x = Inf-5, y = 0.5, angle = 90, 
+             label = "Pred:Int, Obs:Per",
+             color = '#1f78b4') +
+    annotate("text", x = Inf-5, y = -0.5, angle = 90, 
+             label = "Pred:Per, Obs:Int",
+             color = '#ff7f00') + 
+    scale_color_manual(values=c('#1f78b4', '#ff7f00'),
+                       name='Observed regime', 
+                       labels = c('Perennial', 'Intermittent')) + 
+    #scale_x_sqrt(expand=c(0,0)) +
+    coord_cartesian(clip='off') + 
+    facet_wrap(~variable, scales='free', labeller=label_value) + 
+    theme_classic() +
+    theme(legend.position = c(0.8, 0.1))
+  
+  
+  #Plot numeric variables
+  predmelt_cat <- predattri[, c('GRDC_NO', 'intermittent', 'preduncert',
+                                'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
+    melt(id.vars=c('GRDC_NO', 'intermittent', 'preduncert'))
+  
+  uncertainty_catplot <- 
+    ggplot(predmelt_cat, aes(x=as.factor(value), y=preduncert, 
+                             fill=intermittent, color=intermittent)) + 
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5, 
+              fill='#d9d9d9', color='#d9d9d9', alpha=1/2) +
+    #geom_boxplot(alpha = 0.75) +
+    geom_violin(alpha=0.75, color=NA) +
+    geom_hline(yintercept=0, alpha=1/2) +
+    coord_cartesian(clip='off') + 
+    scale_fill_manual(values=c('#1f78b4', '#ff7f00'),
+                      name='Observed regime', 
+                      labels = c('Perennial', 'Intermittent')) + 
+    scale_color_manual(values=c('#175885', '#9e3f00'),
+                       name='Observed regime', 
+                       labels = c('Perennial', 'Intermittent')) + 
+    facet_wrap(~variable, scales='free', labeller=label_value) + 
+    theme_bw() +
+    theme(legend.position = c(0.8, 0.1))
+  
+  return(list(uncertainty_numplot, uncertainty_catplot))
+}
+
 write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, predvars) {
   # ---- Output GRDC predictions as points ----
-  in_gaugestats[!is.na(cly_pc_cav), 
+  in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
                 IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]]
   
   cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']

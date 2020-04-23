@@ -37,6 +37,8 @@ plan <- drake_plan(
   
   pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T),
   
+  uncertainty_plot = gguncertainty(rftuned, gaugestats_format, predvars),
+  
   rfpreds = write_preds(filestructure, gaugep, gaugestats_format, rftuned, predvars)
 )
                     
