@@ -96,11 +96,25 @@ weighted_sd <- function(x, w) {
 
 extract_impperf_nestedrf <- function(nested_rflearner, imp=T, perf=T) {
   #Get variable importance and performance measure for one instance of a resampled rf learner 
-  sublrn <- nested_rflearner$model$learner
-  
+  if (inherits(nested_rflearner, "AutoTuner")) {
+    sublrn <- nested_rflearner$model$learner
+  } else {
+    sublrn <- nested_rflearner
+  }
+
   return(c(if (imp) {
     if (inherits(sublrn, "GraphLearner")) { 
-      sublrn$model$classif.ranger$model$variable.importance #Will need to make it more flexible depending on learner
+      if ('classif.ranger' %in% names(sublrn$model)) {
+        sublrn$model$classif.ranger$model$variable.importance
+      } 
+      else if ('classif.cforest' %in% names(sublrn$model)) {
+        partykit::varimp(sublrn$model$classif.cforest$model,
+                         nperm = 1L, 
+                         OOB = TRUE, 
+                         risk = c("loglik", "misclassification"),
+                         conditional = FALSE, 
+                         threshold = .2)
+      }
     } else {
       nested_rflearner$model$learner$importance()
     }
@@ -114,9 +128,9 @@ weighted_vimportance_nestedrf <- function(rfresamp) {
   varnames <- rfresamp$task$feature_names
   
   out_vimportance <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
-                            extract_impperf_nestedrf) %>% 
+                            extract_impperf_nestedrf, imp=T, perf=T) %>% 
     do.call(rbind, .) %>% 
-    as.data.table %>%
+    as.data.table(keep.rownames = T) %>%
     melt(id.var='classif.bacc') %>%
     .[, list(imp_wmean = weighted.mean(value, classif.bacc), #Compute weighted mean for each variable
              imp_wsd =  weighted_sd(value, classif.bacc)),  #Compute weighted sd for each variable
@@ -520,7 +534,7 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   # mtry = sqrt(nvar), fraction = 0.632
   lrn_cforest <- mlr3::lrn('classif.cforest',
                            ntree = 500,
-                           alpha = 0.5,
+                           alpha = 0.05,
                            replace = F,
                            predict_type = "prob")
   
@@ -654,12 +668,15 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
 }
 
 analyze_benchmark <- function(in_bm, in_measure) {
+  
   print(in_bm$aggregate(in_measure))
-  mlr3viz::autoplot(in_bm, measure = in_measure)
+  boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure)
   
   print(paste('It took', 
-              in_bm$aggregate(msr('time_both')),
-              'seconds to train and predict with this model...'))
+              in_bm$aggregate(msr('time_both'))$time_both,
+              'seconds to train and predict with the',
+              in_bm$aggregate(msr('time_both'))$learner_id,
+              'model...'))
   
   bmdt <- as.data.table(in_bm)
   
@@ -708,7 +725,8 @@ analyze_benchmark <- function(in_bm, in_measure) {
     ) 
   })
   
-  return(do.call("grid.arrange", list(grobs=glist)))
+  return(list(bm_misclasscomp=do.call("grid.arrange", list(grobs=glist)),
+              bm_boxcomp = boxcomp))
 } 
 
 selecttrain_rf <- function(in_rf, in_task, 
@@ -736,10 +754,20 @@ selecttrain_rf <- function(in_rf, in_task,
 }
 
 ggvimp <- function(in_rftuned, in_predvars) {
-  varimp_basic <- weighted_vimportance_nestedrf(in_rftuned$rf_outer) %>% 
+  
+  #Adapt whether direct resample result or output from selecttrain_rf
+  if (inherits(in_rftuned, 'list')) {
+    rsmp_res <- in_rftuned$rf_outer
+  } else if (inherits(in_rftuned, "ResampleResult")) {
+    rsmp_res <- in_rftuned 
+  }
+  
+  #Get variable importance and format them
+  varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res) %>% 
     merge(., in_predvars, by.x='variable', by.y='varcode') %>%
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
   
+  #Plot 'em
   ggplot(varimp_basic[1:30,],aes(x=varname)) + 
     geom_bar(aes(y=imp_wmean), stat = 'identity') +
     geom_errorbar(aes(ymin=imp_wmean-2*imp_wsd, ymax=imp_wmean+2*imp_wsd)) +
