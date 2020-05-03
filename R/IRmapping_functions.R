@@ -62,17 +62,30 @@ comp_derivedvar <- function(dt) {
   return(dt)
 }
 
-threshold_misclass <- function(i, in_gaugestats) {
-  in_gaugestats[!is.na(cly_pc_cav), intermittent_predcat := fifelse(intermittent_predprob>=i, 1, 0)]
-  confumat <-in_gaugestats[!is.na(cly_pc_cav), .N, by=c('intermittent', 'intermittent_predcat')]
+threshold_misclass <- function(i, in_preds) {
+  if (inherits(in_preds, 'PredictionClassif')) {
+    confu <- as.data.table(in_preds$set_threshold(1-i)$confusion)
+  } 
+  
+  if (is.data.table(in_preds)) {
+    if (in_preds[task_type == 'classif',.N] > 0) {
+      confu <- in_preds[, as.data.table(pred[[1]]$set_threshold(1-i)$confusion), #Threshold is based on prob.0, not prob.1, so need to use 1-i
+                        by=outf] %>% 
+        .[, .(N=sum(N)), by=.(response, truth)]
+    } 
+    
+    if (in_preds[task_type == 'regr', .N] > 0) {
+      confu <- in_preds[, response := fifelse(prob.1>=i, '1', '0')] %>% 
+        .[, truth := as.character(truth)] %>%
+        .[, .N, by=.(response, truth)]
+    }
+  }
+  
   outvec <- data.table(
     i, 
-    misclas=in_gaugestats[intermittent!=intermittent_predcat,.N]/
-      in_gaugestats[,.N],
-    sens = confumat[intermittent=='1' & intermittent_predcat==1, N]/
-      confumat[intermittent=='1', sum(N)],
-    spec  = confumat[intermittent=='0' & intermittent_predcat==0, N]/
-      confumat[intermittent=='0', sum(N)])
+    misclas = confu[truth != response, sum(N)] / confu[, sum(N)],
+    sens = confu[truth == '1' & response == '1', N] / confu[truth=='1', sum(N)],
+    spec  = confu[truth=='0' & response==0, N]/confu[truth=='0', sum(N)])
   return(outvec)
 }
 
@@ -83,11 +96,25 @@ weighted_sd <- function(x, w) {
 
 extract_impperf_nestedrf <- function(nested_rflearner, imp=T, perf=T) {
   #Get variable importance and performance measure for one instance of a resampled rf learner 
-  sublrn <- nested_rflearner$model$learner
-  
+  if (inherits(nested_rflearner, "AutoTuner")) {
+    sublrn <- nested_rflearner$model$learner
+  } else {
+    sublrn <- nested_rflearner
+  }
+
   return(c(if (imp) {
     if (inherits(sublrn, "GraphLearner")) { 
-      sublrn$model$classif.ranger$model$variable.importance #Will need to make it more flexible depending on learner
+      if ('classif.ranger' %in% names(sublrn$model)) {
+        sublrn$model$classif.ranger$model$variable.importance
+      } 
+      else if ('classif.cforest' %in% names(sublrn$model)) {
+        partykit::varimp(sublrn$model$classif.cforest$model,
+                         nperm = 1L, 
+                         OOB = TRUE, 
+                         risk = c("loglik", "misclassification"),
+                         conditional = FALSE, 
+                         threshold = .2)
+      }
     } else {
       nested_rflearner$model$learner$importance()
     }
@@ -101,9 +128,9 @@ weighted_vimportance_nestedrf <- function(rfresamp) {
   varnames <- rfresamp$task$feature_names
   
   out_vimportance <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
-                            extract_impperf_nestedrf) %>% 
+                            extract_impperf_nestedrf, imp=T, perf=T) %>% 
     do.call(rbind, .) %>% 
-    as.data.table %>%
+    as.data.table(keep.rownames = T) %>%
     melt(id.var='classif.bacc') %>%
     .[, list(imp_wmean = weighted.mean(value, classif.bacc), #Compute weighted mean for each variable
              imp_wsd =  weighted_sd(value, classif.bacc)),  #Compute weighted sd for each variable
@@ -460,18 +487,22 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
                          outsamp_nrep, outsamp_nfolds) {
   
   #---------- Create tasks -----------------------------------------------------
+  #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[!is.na(cly_pc_cav), 
                           c('intermittent',in_predvars$varcode),
                           with=F]
   
+  #Basic task for classification
   task_classif <- mlr3::TaskClassif$new(id ='inter_basic',
                                         backend = datsel,
                                         target = "intermittent")
   
+  #Basic task for regression without oversampling
   task_regr <- convert_clastoregrtask(in_task = task_classif,
                                       in_id = 'inter_regr',
                                       oversample=FALSE) 
   
+  #Basic task for regression with oversampling to have the same number of minority and majority class
   task_regrover <- convert_clastoregrtask(in_task = task_classif,
                                           in_id = 'inter_regrover',
                                           oversample=TRUE) 
@@ -488,13 +519,24 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   
   #print(lrn_ranger$param_set)
   
-  #Create learner with 
+  #Create regression learner with maxstat. Represents an approximation of 
+  #classification learner with probabilities as the prediction type and a simili-
+  #conditional-inference forest tweak to correct for the over-representation
+  #of variables with many values over those with few categories
   lrn_ranger_maxstat <- mlr3::lrn('regr.ranger', 
                                   num.trees=500, 
                                   replace=FALSE, 
                                   splitrule = 'maxstat',
                                   importance = "permutation",
                                   respect.unordered.factors = 'order')
+  
+  #Create a conditional inference forest learner with default parameters
+  # mtry = sqrt(nvar), fraction = 0.632
+  lrn_cforest <- mlr3::lrn('classif.cforest',
+                           ntree = 500,
+                           alpha = 0.05,
+                           replace = F,
+                           predict_type = "prob")
   
   #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
   #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
@@ -505,72 +547,83 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
                 ratio = get_oversamp_ratio(task_classif)$ratio)
   #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
   
-  #Create a graph learner so that oversampling happens systematically upstream of all training
+  #Create graph learners so that oversampling happens systematically upstream of all training
   lrn_ranger_overp <- GraphLearner$new(po_over %>>% lrn_ranger)
+  
+  lrn_cforest_overp <- GraphLearner$new(po_over %>>% lrn_cforest)
   
   #---------- Set up inner resampling ------------------------------------------
   #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
     prmset <- names(in_lrn$param_set$tags)
     
-    tune_ranger <- ParamSet$new(list(
+    tune_rf <- ParamSet$new(list(
       ParamInt$new(grep(".*mtry", prmset, value=T), 
                    lower = 1, upper = 11),
-      ParamDbl$new(grep(".*sample.fraction", prmset, value=T), 
+      ParamDbl$new(grep(".*fraction", prmset, value=T), 
                    lower = 0.2, upper = 0.8)
     ))
     
-    in_splitrule =in_lrn$param_set$get_values()[
-      grep(".*splitrule", prmset, value=T)]
+    in_split =in_lrn$param_set$get_values()[
+      grep(".*split(rule|stat)", prmset, value=T)]
     
-    if (in_splitrule == 'maxstat') {
-      tune_ranger$add(
+    if (in_split == 'maxstat') {
+      tune_rf$add(
         ParamDbl$new(prmset[grep(".*alpha", prmset)], 
                      lower = 0.01, upper = 0.1)
       )
       
-    } else {
-      tune_ranger$add(
+    } else if (any(grepl(".*min.node.size", prmset))) {
+      tune_rf$add(
         ParamInt$new(prmset[grep(".*min.node.size", prmset)], 
                      lower = 1, upper = 10)
+      )
+    } else if (any(grepl(".*splitstat", prmset))) {
+      tune_rf$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)], 
+                     lower = 0.01, upper = 0.1)
       )
     }
   }
   
   #Define inner resampling strategy
-  rcv_ranger = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
+  rcv_rf = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
   
   #Define performance measure
-  measure_ranger_class = msr("classif.bacc") #use balanced accuracy as objective function
-  measure_ranger_reg = msr("regr.mae") 
+  measure_rf_class = msr("classif.bacc") #use balanced accuracy as objective function
+  measure_rf_reg = msr("regr.mae") 
   
   #Define termination rule 
   evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
   
   #Define hyperparameter tuner wrapper for inner sampling
   learns_classif = list(
+    #Standard ranger rf without oversampling
     AutoTuner$new(learner= lrn_ranger,
-                  resampling = rcv_ranger, 
-                  measures = measure_ranger_class,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
                   tune_ps = regex_tuneset(lrn_ranger), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
                                batch_size = insamp_nbatch)), #batch_size determines level of parallelism
     
+    #Standard ranger rf with oversampling
     AutoTuner$new(learner= lrn_ranger_overp,
-                  resampling = rcv_ranger, 
-                  measures = measure_ranger_class,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
                   tune_ps = regex_tuneset(lrn_ranger_overp), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch))
+                               batch_size = insamp_nbatch)),
+    lrn_cforest_overp
   )
   names(learns_classif) <-mlr3misc::map(learns_classif, "id")
   
+  #Regression standard rf
   learns_regr = list(
     AutoTuner$new(learner= lrn_ranger_maxstat,
-                  resampling = rcv_ranger, 
-                  measures = measure_ranger_reg,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_reg,
                   tune_ps = regex_tuneset(lrn_ranger_maxstat), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
@@ -603,31 +656,58 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   
   return(
     list(
-      bm_classif = nestedresamp_bmrdesign_classif,
+      bm_classif = nestedresamp_bmrout_classif,
       bm_regr = nestedresamp_bmrout_regr,
-      bm_tasks = list(task_classif, task_regr, task_regrover)
+      bm_tasks = list(task_classif=task_classif, 
+                      task_regr=task_regr,
+                      task_regrover=task_regrover),
+      measure_classif = measure_rf_class,
+      measure_regr = measure_rf_reg
     )
   )
 }
 
 analyze_benchmark <- function(in_bm, in_measure) {
+  
   print(in_bm$aggregate(in_measure))
-  mlr3viz::autoplot(in_bm, measure = in_measure)
+  boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure)
+  
+  print(paste('It took', 
+              in_bm$aggregate(msr('time_both'))$time_both,
+              'seconds to train and predict with the',
+              in_bm$aggregate(msr('time_both'))$learner_id,
+              'model...'))
   
   bmdt <- as.data.table(in_bm)
   
-  preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
-    preds <- bmdt$prediction[[rsmp_i]]$test %>%
-      as.data.table %>%
-      .[, `:=`(outf = bmdt$iteration[[rsmp_i]],
-               task = bmdt$task[[rsmp_i]]$id,
-               learner = bmdt$learner[[rsmp_i]]$id)]
-    return(preds)
-  }) %>%
-    do.call(rbind, .) 
+  if (in_bm$task_type == 'regr') {
+    preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
+      preds <- bmdt$prediction[[rsmp_i]]$test %>%
+        as.data.table %>%
+        .[, `:=`(outf = bmdt$iteration[[rsmp_i]],
+                 task = bmdt$task[[rsmp_i]]$id,
+                 task_type = in_bm$task_type,
+                 learner = bmdt$learner[[rsmp_i]]$id)]
+      return(preds)
+    }) %>%
+      do.call(rbind, .) 
+    
+    if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
+      preds[, prob.1 := response]
+    }
+  }
   
-  if (!('prob.1' %in% names(preds))) {
-    preds[, prob.1 := response]
+  
+  if (in_bm$task_type == 'classif') {
+    preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
+      preds <- data.table(outf = bmdt$iteration[[rsmp_i]],
+                          task = bmdt$task[[rsmp_i]]$id,
+                          learner = bmdt$learner[[rsmp_i]]$id,
+                          task_type = in_bm$task_type,
+                          pred = list(bmdt$prediction[[rsmp_i]]$test))
+      return(preds)
+    }) %>%
+      do.call(rbind, .) 
   }
   
   tasklearner_unique <- preds[, expand.grid(unique(task), unique(learner))] %>%
@@ -638,45 +718,56 @@ analyze_benchmark <- function(in_bm, in_measure) {
     subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
                        learner == tasklearner_unique$learner[tsklrn],]
     return(ggplotGrob(
-      ggmisclass(in_gaugestats, subpred) + 
+      ggmisclass(in_predictions = subpred) + 
         ggtitle(paste(tasklearner_unique$task[tsklrn], 
                       tasklearner_unique$learner[tsklrn]))
     )
     ) 
   })
-  return(do.call("grid.arrange", list(grobs=glist)))
+  
+  return(list(bm_misclasscomp=do.call("grid.arrange", list(grobs=glist)),
+              bm_boxcomp = boxcomp))
 } 
 
 selecttrain_rf <- function(in_rf, in_task, 
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   lrn_autotuner <- in_rf$learners$learner[[1]]
   
-  if (!is.null(in_folds)) {
-    lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_folds
+  if (!is.null(insamp_nfolds)) {
+    lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
   }
   
-  if (!is.null(in_nevals)) {
+  if (!is.null(insamp_nevals)) {
     lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
   }
   
   #Train learners
-  in_rf$learners$learner[[1]]$train(rfbm$bm_tasks$task_classif)
+  lrn_autotuner$train(in_task)
   
   #Return outer sampling object for selected model
-  outer_resampling_output <- in_rf$resample_result(1)
-  
-  
+  outer_resampling_output <- in_rf$resample_result(
+    uhash=unique(as.data.table(in_rf)$uhash))
   
   return(list(rf_outer = outer_resampling_output, #Resampling results
-              rf_inner = in_rf$learners$learner[[1]], #Core learner (with hyperparameter tuning)
-              task = in_rf$tasks$task[[1]])) #Task
+              rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
+              task = in_task)) #Task
 }
 
 ggvimp <- function(in_rftuned, in_predvars) {
-  varimp_basic <- weighted_vimportance_nestedrf(in_rftuned$rf_outer) %>% 
+  
+  #Adapt whether direct resample result or output from selecttrain_rf
+  if (inherits(in_rftuned, 'list')) {
+    rsmp_res <- in_rftuned$rf_outer
+  } else if (inherits(in_rftuned, "ResampleResult")) {
+    rsmp_res <- in_rftuned 
+  }
+  
+  #Get variable importance and format them
+  varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res) %>% 
     merge(., in_predvars, by.x='variable', by.y='varcode') %>%
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
   
+  #Plot 'em
   ggplot(varimp_basic[1:30,],aes(x=varname)) + 
     geom_bar(aes(y=imp_wmean), stat = 'identity') +
     geom_errorbar(aes(ymin=imp_wmean-2*imp_wsd, ymax=imp_wmean+2*imp_wsd)) +
@@ -685,14 +776,14 @@ ggvimp <- function(in_rftuned, in_predvars) {
     theme(axis.text.x = element_text(size=8))
 }
 
-ggmisclass <-  function(in_gaugestats, in_predictions) {
+ggmisclass <-  function(in_predictions) {
   #Get predicted probabilities of intermittency for each gauge
-  in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
-                  as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
+  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob := 
+  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
   #Get misclassification error, sensitivity, and specificity for different classification thresholds 
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
 
-  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_gaugestats) %>%
+  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
     setDT
   
   #Get classification threshold at which sensitivity and specificity are the most similar
@@ -778,9 +869,93 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
   return(do.call("grid.arrange", list(grobs=tileplots_l))) 
 }
 
+gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
+  #Get average predictions for oversampled rows
+  gaugepred <-  in_rftuned$rf_outer$prediction() %>%
+    as.data.table %>%
+    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+    setorder(row_id)
+  
+  predattri <- cbind(in_gaugestats[!is.na(cly_pc_cav),], gaugepred) %>%
+    .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent)),
+             yearskeptratio = totalYears_kept/totalYears)]
+  
+  #Plot numeric variables
+  predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
+    cbind(predattri[, c('GRDC_NO', 'intermittent'), with=F]) %>%
+    melt(id.vars=c('GRDC_NO', 'intermittent', 'prob.1', 'preduncert'))
+  
+  
+  #Set variable labels
+  varlabels <- setkey(in_predvars[, .(varcode, varname)], varcode)[
+    levels(predmelt_num$variable)] %>%
+    .[is.na(varname), varname := varcode]
+  predmelt_num[, variable := factor(variable, labels = varlabels$varname)]
+  
+  varstoplot <- merge(in_predvars[, .(varcode, varname)], 
+                      data.table(varcode = 
+                                   c('totalYears_kept', 'yearskeptratio', 
+                                     'mDur', 'mFreq', 'station_river_distance', 
+                                     'UPLAND_SKM', 'ORD_STRA', 
+                                     'dis_m3_pyr', 'dor_pc_pva',
+                                     'cmi_ix_uyr','ari_ix_uav')), 
+                      all.x =F, all.y=T)
+  plotdt <- predmelt_num[variable %in% varstoplot$varcode | 
+                           variable %in% varstoplot$varname ,]
+  
+  uncertainty_numplot <- 
+    ggplot(plotdt, aes(x=value, y=preduncert, color=intermittent)) + 
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5, 
+              fill='#d9d9d9', color='#d9d9d9') +
+    geom_point(alpha = 1/4) + 
+    geom_hline(yintercept=0, alpha=1/2) +
+    geom_smooth(method='gam', formula = y ~ s(x, k=3)) +
+    annotate("text", x = Inf-5, y = 0.5, angle = 90, 
+             label = "Pred:Int, Obs:Per",
+             color = '#1f78b4') +
+    annotate("text", x = Inf-5, y = -0.5, angle = 90, 
+             label = "Pred:Per, Obs:Int",
+             color = '#ff7f00') + 
+    scale_color_manual(values=c('#1f78b4', '#ff7f00'),
+                       name='Observed regime', 
+                       labels = c('Perennial', 'Intermittent')) + 
+    #scale_x_sqrt(expand=c(0,0)) +
+    coord_cartesian(clip='off') + 
+    facet_wrap(~variable, scales='free', labeller=label_value) + 
+    theme_classic() +
+    theme(legend.position = c(0.8, 0.1))
+  
+  
+  #Plot numeric variables
+  predmelt_cat <- predattri[, c('GRDC_NO', 'intermittent', 'preduncert',
+                                'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
+    melt(id.vars=c('GRDC_NO', 'intermittent', 'preduncert'))
+  
+  uncertainty_catplot <- 
+    ggplot(predmelt_cat, aes(x=as.factor(value), y=preduncert, 
+                             fill=intermittent, color=intermittent)) + 
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5, 
+              fill='#d9d9d9', color='#d9d9d9', alpha=1/2) +
+    #geom_boxplot(alpha = 0.75) +
+    geom_violin(alpha=0.75, color=NA) +
+    geom_hline(yintercept=0, alpha=1/2) +
+    coord_cartesian(clip='off') + 
+    scale_fill_manual(values=c('#1f78b4', '#ff7f00'),
+                      name='Observed regime', 
+                      labels = c('Perennial', 'Intermittent')) + 
+    scale_color_manual(values=c('#175885', '#9e3f00'),
+                       name='Observed regime', 
+                       labels = c('Perennial', 'Intermittent')) + 
+    facet_wrap(~variable, scales='free', labeller=label_value) + 
+    theme_bw() +
+    theme(legend.position = c(0.8, 0.1))
+  
+  return(list(uncertainty_numplot, uncertainty_catplot))
+}
+
 write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, predvars) {
   # ---- Output GRDC predictions as points ----
-  in_gaugestats[!is.na(cly_pc_cav), 
+  in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
                 IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]]
   
   cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']

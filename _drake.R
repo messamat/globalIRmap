@@ -6,6 +6,7 @@ source('R/IRmapping_plan.R')
 drake_config(plan,
              verbose=1L,
              cache_log_file = TRUE,
+             garbage_collection = TRUE,
              prework = quote(future::plan(future.callr::callr)),
              console_log_file = "log/drake.log")
 #,workers=availableCores()-1)))

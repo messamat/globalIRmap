@@ -126,10 +126,10 @@
     },
     "backports": {
       "Package": "backports",
-      "Version": "1.1.5",
+      "Version": "1.1.6",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "e9f705633dc932bfd5b02b17a5053a06"
+      "Hash": "3997fd62345a616e59e8161ee0a5816f"
     },
     "base64enc": {
       "Package": "base64enc",
@@ -651,10 +651,10 @@
     },
     "lgr": {
       "Package": "lgr",
-      "Version": "0.3.3",
+      "Version": "0.3.4",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "919a29725a197aea9a723b96db3e7975"
+      "Hash": "bb1b4226102afa014867e8fd4f540f22"
     },
     "lifecycle": {
       "Package": "lifecycle",
@@ -714,10 +714,10 @@
     },
     "mlr3": {
       "Package": "mlr3",
-      "Version": "0.1.7",
+      "Version": "0.2.0",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "cc73299a03196f3a17c4f5507e341623"
+      "Hash": "893fdedd0feffe03efe3952e09ee206a"
     },
     "mlr3db": {
       "Package": "mlr3db",
@@ -742,23 +742,29 @@
     },
     "mlr3learners.partykit": {
       "Package": "mlr3learners.partykit",
-      "Version": "0.2.0",
-      "Source": "unknown",
-      "Hash": "a59de88d2244430dd0da6a78054ae135"
+      "Version": "0.2.0.9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "mlr3learners.partykit",
+      "RemoteUsername": "mlr3learners",
+      "RemoteRef": "master",
+      "RemoteSha": "b7c6d5f936d9242bb9cb05bdec80654efbdb612e",
+      "Hash": "5fc4021be0b6ff00eb3890b3380e20a0"
     },
     "mlr3measures": {
       "Package": "mlr3measures",
-      "Version": "0.1.1",
+      "Version": "0.1.3",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "82c53ce4c51cfbe2fc9f372b926d6567"
+      "Hash": "e9bf7d36fd291522028ad063d2eb57b4"
     },
     "mlr3misc": {
       "Package": "mlr3misc",
-      "Version": "0.1.8",
+      "Version": "0.2.0",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "697dbe66a60fd599cee7f56d349dfd19"
+      "Hash": "3c09e932d0ed90409d3b942c2fec2fae"
     },
     "mlr3pipelines": {
       "Package": "mlr3pipelines",
@@ -825,10 +831,10 @@
     },
     "paradox": {
       "Package": "paradox",
-      "Version": "0.1.0",
+      "Version": "0.2.0",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "4c72f7c6af1c4b9975f414011a680b7e"
+      "Hash": "b945677433a4919168875b1a45936530"
     },
     "pillar": {
       "Package": "pillar",
