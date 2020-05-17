@@ -14,30 +14,45 @@ plan <- drake_plan(
   
   predvars = selectformat_predvars(filestructure, gaugestats_format),
   
-  rfbm = benchmark_rf(in_gaugestats= gaugestats_format, in_predvars = predvars, 
-                      insamp_nfolds = 2, insamp_neval = 20, 
-                      insamp_nbatch = parallel::detectCores(logical=FALSE),
-                      outsamp_nrep = 2, outsamp_nfolds = 5),
+  tasks = create_tasks(in_gaugestats = gaugestats_format, in_predvars = predvars), 
+  
+  rfbm_classif = benchmark_classif(in_tasks = tasks, 
+                                   insamp_nfolds = 2, insamp_neval = 5, 
+                                   insamp_nbatch = parallel::detectCores(logical=FALSE),
+                                   outsamp_nrep = 1, outsamp_nfolds = 2),
+  
+  rfbm_regr = benchmark_classif(in_tasks = tasks, 
+                                insamp_nfolds = 2, insamp_neval = 5, 
+                                insamp_nbatch = parallel::detectCores(logical=FALSE),
+                                outsamp_nrep = 1, outsamp_nfolds = 2),
   
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure),
-    transform = map(in_bm = c(rfbm$bm_classif, rfbm$bm_regr),
-                    in_measure = c(rfbm$measure_classif, rfbm$meassure_regr))
+    transform = map(in_bm = c(rfbm_classif$bm_classif, rfbm_regr$bm_regr),
+                    in_measure = c(rfbm_classif$measure_classif, rfbm_regr$meassure_regr))
   ),
   
-  rftuned = selecttrain_rf(
-    in_rf = rfbm$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
-    in_task = rfbm$bm_tasks$task_classif,
-    insamp_nfolds = 2,
-    insamp_nevals = 2), 
+  rfeval_featsel = target(
+    benchmark_featsel(in_rf = rfbm_classif$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
+                      in_task = rfbm_classif$bm_tasks$task_classif,
+                      in_measure = rfbm_classif$measure_classif,
+                      featimpfilt = 0.01,
+                      insamp_nfolds =  NULL, insamp_nevals = NULL,
+                      outsamp_nrep = NULL, outsamp_nfolds =  NULL) 
+  ),
+  
+  rftuned = target(
+    selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
+                   in_task = rfeval_featsel$bm_tasks$task_classif,
+                   insamp_nfolds = 3,
+                   insamp_nevals = 10),
+    trigger =  trigger(condition = FALSE)),
   
   misclass_plot = ggmisclass(in_predictions=rftuned$rf_outer$prediction()),
   
   vimp_plot = ggvimp(rftuned, predvars),
   
   pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T),
-  
-  uncertainty_plot = gguncertainty(rftuned, gaugestats_format, predvars),
   
   rfpreds = write_preds(filestructure, gaugep, gaugestats_format, rftuned, predvars)
 )
