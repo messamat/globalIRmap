@@ -3,12 +3,15 @@ source('R/IRmapping_packages.R')
 source('R/IRmapping_functions.R')
 source('R/IRmapping_plan.R')
 
+memory.limit(size=50000)
+
 drake_config(plan,
              verbose=1L,
              cache_log_file = TRUE,
+             memory_strategy="preclean",
              garbage_collection = TRUE,
              prework = quote(future::plan(future.callr::callr)),
-             console_log_file = "log/drake.log")
+             log_make = "log/drake.log")
 #,workers=availableCores()-1)))
 
 #drake_history(plan)
