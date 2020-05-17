@@ -94,47 +94,96 @@ weighted_sd <- function(x, w) {
   return(sqrt(sum((w) * (x - weighted.mean(x, w)) ^ 2) / (sum(w) - 1)))
 }
 
-extract_impperf_nestedrf <- function(nested_rflearner, imp=T, perf=T) {
+extract_impperf_nestedrf <- function(nested_rflearner, 
+                                     imp = TRUE, perf = TRUE, 
+                                     pvalue = TRUE, pvalue_permutn = 100) {
   #Get variable importance and performance measure for one instance of a resampled rf learner 
   if (inherits(nested_rflearner, "AutoTuner")) {
     sublrn <- nested_rflearner$model$learner
   } else {
     sublrn <- nested_rflearner
   }
-
-  return(c(if (imp) {
+  
+  print(paste0("Computing variable importance p_values", 
+           "for resampling instance hash #", sublrn$hash))
+  
+  return(cbind(if (imp) {
+    ####################### IF GraphLearner ####################################
     if (inherits(sublrn, "GraphLearner")) { 
+      
       if ('classif.ranger' %in% names(sublrn$model)) {
-        sublrn$model$classif.ranger$model$variable.importance
+        
+        if (pvalue == TRUE) {
+          in_task <- nested_rflearner$model$tuning_instance$task
+          in_formula <- as.formula(paste0(in_task$target_names, '~.'))
+          
+          importance_pvalues(
+            sublrn$model$classif.ranger$model,
+            method = "altmann",
+            num.permutations = pvalue_permutn,
+            data = in_task$data(),
+            formula= in_formula
+          )
+          
+        } else {
+          data.table(importance=sublrn$model$classif.ranger$model$variable.importance)
+        }
       } 
+      
       else if ('classif.cforest' %in% names(sublrn$model)) {
-        partykit::varimp(sublrn$model$classif.cforest$model,
-                         nperm = 1L, 
-                         OOB = TRUE, 
-                         risk = c("loglik", "misclassification"),
-                         conditional = FALSE, 
-                         threshold = .2)
+        if (pvalue == TRUE) {
+          warning("p_value calculation is only available for ranger classification rf, ignoring p_value")
+        }
+        data.table(importance= 
+                     partykit::varimp(sublrn$model$classif.cforest$model,
+                                      nperm = 1L, 
+                                      OOB = TRUE, 
+                                      risk = c("loglik", "misclassification"),
+                                      conditional = FALSE, 
+                                      threshold = .2))
       }
-    } else {
-      nested_rflearner$model$learner$importance()
+    } else { ####################### IF direct model ####################################
+      if (pvalue == TRUE) { #If want pvalue associated with predictor variables
+        in_task <- nested_rflearner$model$task
+        in_formula <- as.formula(paste0(in_task$target_names, '~.'))
+        
+        importance_pvalues(
+          nested_rflearner$model,
+          method = "altmann",
+          num.permutations = pvalue_permutn,
+          data = in_task$data(),
+          formula= in_formula
+        )
+      } else { #If pvalue == FALSE
+        data.table(importance= nested_rflearner$model$learner$importance())
+      }
+      
     }
   },
-  if (perf) {nested_rflearner$tuning_result$perf}))
+  if (perf) {
+    outperf <- nested_rflearner$tuning_result$perf
+    data.table(outperf) %>% setnames(names(outperf))
+  }
+  ))
 }
 
-weighted_vimportance_nestedrf <- function(rfresamp) {
+
+weighted_vimportance_nestedrf <- function(rfresamp,
+                                          pvalue = TRUE, pvalue_permutn = 100) {
   #Compute weighted mean and standard deviation of variable importance based on
   #accuracy measure (not error measure — could be amended to be based on 1-error)
   varnames <- rfresamp$task$feature_names
   
   out_vimportance <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
-                            extract_impperf_nestedrf, imp=T, perf=T) %>% 
+                            extract_impperf_nestedrf, 
+                            imp=T, perf=T, pvalue=pvalue, pvalue_permutn) %>% 
     do.call(rbind, .) %>% 
-    as.data.table(keep.rownames = T) %>%
-    melt(id.var='classif.bacc') %>%
-    .[, list(imp_wmean = weighted.mean(value, classif.bacc), #Compute weighted mean for each variable
-             imp_wsd =  weighted_sd(value, classif.bacc)),  #Compute weighted sd for each variable
-      by=variable] 
+    cbind(., varnames) %>%
+    .[,
+      list(imp_wmean = weighted.mean(importance, classif.bacc), #Compute weighted mean
+           imp_wsd =  weighted_sd(importance, classif.bacc),
+           imp_pvalue = weighted.mean(pvalue, classif.bacc)), #Compute weighted sd
+      by=varnames] 
   
   return(out_vimportance)
 }
@@ -836,20 +885,19 @@ analyze_benchmark <- function(in_bm, in_measure) {
 } 
 
 benchmark_featsel <- function(in_rf, in_task, in_measure,
-                              featimpfilt = 0.01,
+                              pcutoff = 0.1,
                               insamp_nfolds =  NULL, insamp_nevals = NULL,
                               outsamp_nrep = NULL, outsamp_nfolds =  NULL) {
-  #featimpfilt defines the minimum percentage importance of selected features/variables
-  
-  #importance_pvalues(rf.sim, method = "janitza") - instead of establishing a contribution cutoff. Establish a p-value cutoff
+  #pcutoff is the p_value above which features are removes
   
   #Apply feature/variable selection
-  vimp <- weighted_vimportance_nestedrf(rfresamp = in_rf$resample_result(
-    uhash=unique(as.data.table(in_rf)$uhash))) %>%
+  vimp <- weighted_vimportance_nestedrf(
+    rfresamp = in_rf$resample_result(
+      uhash=unique(as.data.table(in_rf)$uhash))) %>%
     .[,imp_wmeanper := imp_wmean/sum(imp_wmean)]
   
   task_featsel <- in_task$clone()$select(
-    vimp[imp_wmeanper>=featimpfilt, as.character(variable)])
+    vimp[imp_pvalue <= pcutoff, as.character(varnames)])
   task_featsel$id <- paste0(in_task$id, '_featsel')
   
   

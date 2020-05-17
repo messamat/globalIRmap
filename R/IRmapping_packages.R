@@ -52,6 +52,8 @@ suppressPackageStartupMessages(library(mlr3))
 suppressPackageStartupMessages(library(mlr3tuning))
 suppressPackageStartupMessages(library(mlr3learners))
 suppressPackageStartupMessages(library(mlr3pipelines))
+suppressPackageStartupMessages(library(visNetwork))
+suppressPackageStartupMessages(library(lubridate))
 
 # suppressPackageStartupMessages(library(bigstatsr))
 # suppressPackageStartupMessages(library(parallel))
