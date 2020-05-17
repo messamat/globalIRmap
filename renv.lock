@@ -154,10 +154,10 @@
     },
     "backports": {
       "Package": "backports",
-      "Version": "1.1.6",
+      "Version": "1.1.7",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "3997fd62345a616e59e8161ee0a5816f"
+      "Hash": "e9c8188eb82b137301493492d767a1ac"
     },
     "base64enc": {
       "Package": "base64enc",
@@ -851,24 +851,15 @@
     },
     "mlr3": {
       "Package": "mlr3",
-      "Version": "0.2.0",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "893fdedd0feffe03efe3952e09ee206a"
-    },
-    "mlr3db": {
-      "Package": "mlr3db",
-      "Version": "0.1.5",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "44d6ca64cf624e5c4cffff8bfd50ab05"
-    },
-    "mlr3filters": {
-      "Package": "mlr3filters",
-      "Version": "0.2.0",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "142f22ec80cc8cdfd5e0f0989cb4566c"
+      "Version": "0.2.0-9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "mlr-org",
+      "RemoteRepo": "mlr3",
+      "RemoteRef": "master",
+      "RemoteSha": "949c4c6fa28da6fa790f0785c4144fce10661a21",
+      "Hash": "51dc61cc51fe73a0f565592852a576b4"
     },
     "mlr3learners": {
       "Package": "mlr3learners",
@@ -905,24 +896,27 @@
     },
     "mlr3pipelines": {
       "Package": "mlr3pipelines",
-      "Version": "0.1.3",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "4a6ed6bc1f5bdf360cff74300f861336"
+      "Version": "0.1.3.9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteUsername": "mlr-org",
+      "RemoteRepo": "mlr3pipelines",
+      "RemoteRef": "master",
+      "RemoteSha": "28abf7cc33f793377209eb0d331a08d1c0554059",
+      "Hash": "baa8096dd857032de573fa27f0165850"
     },
-    "mlr3tuning": {
-      "Package": "mlr3tuning",
-      "Version": "0.1.2",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "b30a7449e9d1a71f38f0815ffded6f6e"
-    },
-    "mlr3verse": {
-      "Package": "mlr3verse",
-      "Version": "0.1.1",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "d5e560562e238b1310727dccb1839506"
+    "mlr3spatiotempcv": {
+      "Package": "mlr3spatiotempcv",
+      "Version": "0.0.0.9004",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "mlr3spatiotempcv",
+      "RemoteUsername": "mlr-org",
+      "RemoteRef": "master",
+      "RemoteSha": "f540f96317825fe9ed92f7edb9f90ac4a0b16c68",
+      "Hash": "c1b8c8c7dc82d3ee3bcef382eca8aff0"
     },
     "mlr3viz": {
       "Package": "mlr3viz",
@@ -1211,6 +1205,13 @@
       "Repository": "CRAN",
       "Hash": "093584b944440c5cd07a696b3c8e0e4c"
     },
+    "rgeos": {
+      "Package": "rgeos",
+      "Version": "0.5-3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "4b63e0cfe930613d0b28bb0761e84aad"
+    },
     "rio": {
       "Package": "rio",
       "Version": "0.5.16",
@@ -1238,6 +1239,20 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "d206dda1106e58b69eba6dddd45d6312"
+    },
+    "rnaturalearth": {
+      "Package": "rnaturalearth",
+      "Version": "0.1.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "946d1b43d7aba91dfa804f02302a5125"
+    },
+    "rnaturalearthdata": {
+      "Package": "rnaturalearthdata",
+      "Version": "0.1.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "0d34b89b43e900467e60f5449226f3e3"
     },
     "roxygen2": {
       "Package": "roxygen2",
