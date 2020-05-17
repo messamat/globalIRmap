@@ -187,15 +187,15 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
   if (oversample) {
     oversamp_ratio <- get_oversamp_ratio(in_task)
     mino_subdat <- in_task$data()[
-      eval(in_task$target_names) == oversamp_ratio$minoclass,] #Get part of the underlying dataset of the minority class
+      get(in_task$target_names) == oversamp_ratio$minoclass,] #Get part of the underlying dataset of the minority class
     nmino <- mino_subdat[,.N]
     oversamp_index <- sample(nmino, nmino*(oversamp_ratio$ratio-1), replace=T)
     
     newdat <- rbind(in_task$data(),
                     mino_subdat[oversamp_index,]) %>%
-      .[, eval(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))]
+      .[, get(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))]
   } else {
-    newdat <- in_task$data()[, eval(in_task$target_names) := 
+    newdat <- in_task$data()[, get(in_task$target_names) := 
                                as.numeric(as.character(get(in_task$target_names)))]
   }
   
@@ -350,7 +350,7 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
                                           sumDur = sum(dur),
                                           mDur = mean(dur),
                                           mFreq = mean(freq),
-                                          intermittent = factor(fifelse(sum(dur)>0, 1, 0), levels=c('0','1')))]
+                                          intermittent = factor(fifelse(mean(dur)>=1, 1, 0), levels=c('0','1')))]
   )
   return(gaugetab_all)
 }
@@ -362,7 +362,8 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
   gaugestats_join <- do.call(rbind, in_gaugestats) %>%
     setDT %>%
     .[as.data.table(in_gaugep), on='GRDC_NO'] %>%
-    .[!is.na(totalYears_kept) & totalYears_kept>10,] %>% # Only keep stations with at least 10 years of data
+    .[!is.na(totalYears_kept) & totalYears_kept>=10,] %>% # Only keep stations with at least 10 years of data
+    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(Shape))] %>%
     comp_derivedvar #Compute derived variables and remove -9999
   return(gaugestats_join)
 }
@@ -436,30 +437,34 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- Associate HydroATLAS column names with variables names ----
   
   #Get predictor variable names
-  metaall <- read.xlsx(in_filestructure['in_riveratlas_meta'], 
-                       sheetName='Overall') %>%
+  metaall <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'], 
+                       sheet='Overall') %>%
     setDT 
   
-  metascale <- read.xlsx(in_filestructure['in_riveratlas_meta'], 
-                         sheetName='scale') %>%
+  metascale <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'], 
+                         sheet='scale') %>%
     setDT %>% 
-    setnames('Key', 'Keyscale')
+    setnames(c('Key','Spatial representation'),
+             c('Keyscale', 'Spatial.representation'))
   
-  metastat <- read.xlsx(in_filestructure['in_riveratlas_meta'], 
-                        sheetName='stat') %>%
+  metastat <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'], 
+                        sheet='stat') %>%
     setDT %>% 
-    setnames('Key', 'Keystat')
+    setnames(c('Key','Temporal or statistical aggregation or other association'),
+             c('Keystat', 'Temporal.or.statistical.aggregation.or.other.association'))
   
-  meta_format <- as.data.table(expand.grid(Column.s.=metaall$Column.s., 
+  meta_format <- as.data.table(expand.grid(`Column(s)`=metaall$`Column(s)`, 
                                            Keyscale=metascale$Keyscale, 
                                            Keystat=metastat$Keystat)) %>%
-                .[metaall, on='Column.s.'] %>%
+                .[metaall, on='Column(s)'] %>%
                 .[metascale, on = 'Keyscale'] %>%
                 .[metastat, on = 'Keystat',
                   allow.cartesian=TRUE]
   
+  
+  
   meta_format[, `:=`(
-    varcode = paste0(gsub('[-]{3}', '', Column.s.),
+    varcode = paste0(gsub('[-]{3}', '', `Column(s)`),
                      Keyscale, 
                      Keystat),
     varname = paste(Attribute, 
@@ -482,20 +487,18 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   return(predcols_dt)
 }
 
-benchmark_rf <- function(in_gaugestats, in_predvars, 
-                         insamp_nfolds, insamp_neval, insamp_nbatch,
-                         outsamp_nrep, outsamp_nfolds) {
-  
-  #---------- Create tasks -----------------------------------------------------
+create_tasks <- function(in_gaugestats, in_predvars) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[!is.na(cly_pc_cav), 
-                          c('intermittent',in_predvars$varcode),
+                          c('intermittent',in_predvars$varcode, 'X', 'Y'),
                           with=F]
   
   #Basic task for classification
-  task_classif <- mlr3::TaskClassif$new(id ='inter_basic',
-                                        backend = datsel,
-                                        target = "intermittent")
+  task_classif <- mlr3spatiotempcv::TaskClassifST$new(
+    id="inter_basicsp", 
+    backend = datsel, 
+    target = "intermittent",
+    coordinate_names = c("X", "Y"))
   
   #Basic task for regression without oversampling
   task_regr <- convert_clastoregrtask(in_task = task_classif,
@@ -505,30 +508,31 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   #Basic task for regression with oversampling to have the same number of minority and majority class
   task_regrover <- convert_clastoregrtask(in_task = task_classif,
                                           in_id = 'inter_regrover',
-                                          oversample=TRUE) 
+                                          oversample=TRUE)
+  return(list(classif=task_classif, regr=task_regr, regover=task_regrover))
+}
+
+benchmark_classif <- function(in_tasks, 
+                              insamp_nfolds, insamp_neval, insamp_nbatch,
+                              outsamp_nrep, outsamp_nfolds) {
+  
+  #Create task vars
+  task_classif <- in_tasks$classif
   
   #---------- Create learners --------------------------------------------------
+  #Compute ratio of intermittent to perennial observations
+  imbalance_ratio <- get_oversamp_ratio(task_classif)$ratio
+  
   #Create basic learner
   lrn_ranger <- mlr3::lrn('classif.ranger', 
                           num.trees = 500, 
                           replace = FALSE, 
                           splitrule = 'gini',
-                          predict_type = "prob", 
-                          importance = "permutation",
+                          predict_type = 'prob', 
+                          importance = 'impurity_corrected',
                           respect.unordered.factors = 'order')
   
   #print(lrn_ranger$param_set)
-  
-  #Create regression learner with maxstat. Represents an approximation of 
-  #classification learner with probabilities as the prediction type and a simili-
-  #conditional-inference forest tweak to correct for the over-representation
-  #of variables with many values over those with few categories
-  lrn_ranger_maxstat <- mlr3::lrn('regr.ranger', 
-                                  num.trees=500, 
-                                  replace=FALSE, 
-                                  splitrule = 'maxstat',
-                                  importance = "permutation",
-                                  respect.unordered.factors = 'order')
   
   #Create a conditional inference forest learner with default parameters
   # mtry = sqrt(nvar), fraction = 0.632
@@ -544,13 +548,149 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   #Sampling happens only during training phase.
   po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
                 reference = "minor", shuffle = TRUE, 
-                ratio = get_oversamp_ratio(task_classif)$ratio)
+                ratio = imbalance_ratio)
   #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
+  
+  #Create mlr3 pipe operator to put a higher class weight on minority class
+  po_classweights <- po("classweights", minor_weight = imbalance_ratio)
   
   #Create graph learners so that oversampling happens systematically upstream of all training
   lrn_ranger_overp <- GraphLearner$new(po_over %>>% lrn_ranger)
-  
   lrn_cforest_overp <- GraphLearner$new(po_over %>>% lrn_cforest)
+  
+  #Create graph learners so that class weighin happens systematically upstream of all training
+  lrn_ranger_weight <- GraphLearner$new(po_classweights %>>% lrn_ranger)
+  lrn_cforest_weight <- GraphLearner$new(po_classweights  %>>% lrn_cforest)
+  
+  #---------- Set up inner resampling ------------------------------------------
+  #Define paramet space to explore
+  regex_tuneset <- function(in_lrn) {
+    prmset <- names(in_lrn$param_set$tags)
+    
+    tune_rf <- ParamSet$new(list(
+      ParamInt$new(grep(".*mtry", prmset, value=T), 
+                   lower = 5, 
+                   upper = floor(length(task_classif$feature_names)/2)), #Half number of features
+      ParamDbl$new(grep(".*fraction", prmset, value=T), 
+                   lower = 0.2, 
+                   upper = 0.8)
+    ))
+    
+    in_split =in_lrn$param_set$get_values()[
+      grep(".*split(rule|stat)", prmset, value=T)]
+    
+    if (in_split == 'maxstat') {
+      tune_rf$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)], 
+                     lower = 0.01, upper = 0.1)
+      )
+      
+    } else if (any(grepl(".*min.node.size", prmset))) {
+      tune_rf$add(
+        ParamInt$new(prmset[grep(".*min.node.size", prmset)], 
+                     lower = 1, upper = 10)
+      )
+    } else if (any(grepl(".*splitstat", prmset))) {
+      tune_rf$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)], 
+                     lower = 0.01, upper = 0.1)
+      )
+    }
+  }
+  
+  #Define inner resampling strategy
+  rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
+  
+  #Define performance measure
+  measure_rf_class = msr("classif.bacc") #use balanced accuracy as objective function
+  
+  #Define termination rule 
+  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
+  
+  #Define hyperparameter tuner wrapper for inner sampling
+  learns_classif = list(
+    #Standard ranger rf without oversampling
+    AutoTuner$new(learner= lrn_ranger,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
+                  tune_ps = regex_tuneset(lrn_ranger), 
+                  terminator = evalsn,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)), #batch_size determines level of parallelism
+    
+    
+    #Standard ranger rf with oversampling
+    AutoTuner$new(learner= lrn_ranger_overp,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
+                  tune_ps = regex_tuneset(lrn_ranger_overp), 
+                  terminator = evalsn,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)),
+    
+    #Standard ranger rf with class weights
+    AutoTuner$new(learner= lrn_ranger_weight,
+                  resampling = rcv_rf, 
+                  measures = measure_rf_class,
+                  tune_ps = regex_tuneset(lrn_ranger_weight), 
+                  terminator = evalsn,
+                  tuner =  tnr("random_search", 
+                               batch_size = insamp_nbatch)), #batch_size determines level of parallelism
+    
+    #CIF rf without oversampling
+    lrn_cforest,
+    
+    #CIF rf with oversampling
+    lrn_cforest_overp,
+    
+    #CIF rf with class 
+    lrn_cforest_weight
+  )
+  names(learns_classif) <-mlr3misc::map(learns_classif, "id")
+  
+  #---------- Set up outer resampling benchmarking -----------------------------
+  
+  #Perform outer resampling, keeping models for diagnostics later
+  outer_resampling = rsmp("repeated_cv", 
+                          repeats = outsamp_nrep, 
+                          folds = outsamp_nfolds)
+  
+  #Run outer resampling and benchmarking on classification learners
+  nestedresamp_bmrdesign_classif <- benchmark_grid(
+    tasks = task_classif, 
+    learners = learns_classif, 
+    resamplings = outer_resampling)
+  
+  nestedresamp_bmrout_classif <- benchmark(
+    nestedresamp_bmrdesign_classif, store_models = TRUE)
+  
+  return(
+    list(
+      bm_classif = nestedresamp_bmrout_classif,
+      bm_tasks = list(task_classif=task_classif),
+      measure_classif = measure_rf_class
+    )
+  )
+}
+
+benchmark_regr <- function(in_tasks, 
+                           insamp_nfolds, insamp_neval, insamp_nbatch,
+                           outsamp_nrep, outsamp_nfolds) {
+  
+  task_regr <- in_tasks$regr
+  task_regrover <- in_tasks$regover
+  
+  #---------- Create learners --------------------------------------------------
+  #Create regression learner with maxstat. Represents an approximation of 
+  #classification learner with probabilities as the prediction type and a simili-
+  #conditional-inference forest tweak to correct for the over-representation
+  #of variables with many values over those with few categories
+  lrn_ranger_maxstat <- mlr3::lrn('regr.ranger', 
+                                  num.trees=500, 
+                                  replace=FALSE, 
+                                  splitrule = 'maxstat',
+                                  importance = 'impurity_corrected',
+                                  respect.unordered.factors = 'order')
   
   #---------- Set up inner resampling ------------------------------------------
   #Define paramet space to explore
@@ -587,47 +727,25 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   }
   
   #Define inner resampling strategy
-  rcv_rf = rsmp("cv", folds=insamp_nfolds) #5-fold aspatial CV repeated 10 times
+  rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
   
   #Define performance measure
-  measure_rf_class = msr("classif.bacc") #use balanced accuracy as objective function
   measure_rf_reg = msr("regr.mae") 
   
   #Define termination rule 
   evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
   
   #Define hyperparameter tuner wrapper for inner sampling
-  learns_classif = list(
-    #Standard ranger rf without oversampling
-    AutoTuner$new(learner= lrn_ranger,
-                  resampling = rcv_rf, 
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_ranger), 
-                  terminator = evalsn,
-                  tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch)), #batch_size determines level of parallelism
-    
-    #Standard ranger rf with oversampling
-    AutoTuner$new(learner= lrn_ranger_overp,
-                  resampling = rcv_rf, 
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_ranger_overp), 
-                  terminator = evalsn,
-                  tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch)),
-    lrn_cforest_overp
-  )
-  names(learns_classif) <-mlr3misc::map(learns_classif, "id")
-  
-  #Regression standard rf
   learns_regr = list(
+    #Regression rf with MAXSTAT
     AutoTuner$new(learner= lrn_ranger_maxstat,
                   resampling = rcv_rf, 
                   measures = measure_rf_reg,
                   tune_ps = regex_tuneset(lrn_ranger_maxstat), 
                   terminator = evalsn,
                   tuner =  tnr("random_search", 
-                               batch_size = insamp_nbatch)))
+                               batch_size = insamp_nbatch))
+  )
   
   #---------- Set up outer resampling benchmarking -----------------------------
   
@@ -635,16 +753,6 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   outer_resampling = rsmp("repeated_cv", 
                           repeats = outsamp_nrep, 
                           folds = outsamp_nfolds)
-  
-  #Run outer resampling and benchmarking on classification learners
-  nestedresamp_bmrdesign_classif <- benchmark_grid(
-    tasks = task_classif, 
-    learners = learns_classif, 
-    resamplings = outer_resampling)
-  
-  nestedresamp_bmrout_classif <- benchmark(
-    nestedresamp_bmrdesign_classif, store_models = TRUE)
-  
   #Run outer resampling and benchmarking on regression learners
   nestedresamp_bmrdesign_regr <- benchmark_grid(
     tasks = list(task_regr, task_regrover), 
@@ -656,16 +764,14 @@ benchmark_rf <- function(in_gaugestats, in_predvars,
   
   return(
     list(
-      bm_classif = nestedresamp_bmrout_classif,
       bm_regr = nestedresamp_bmrout_regr,
-      bm_tasks = list(task_classif=task_classif, 
-                      task_regr=task_regr,
+      bm_tasks = list(task_regr=task_regr,
                       task_regrover=task_regrover),
-      measure_classif = measure_rf_class,
       measure_regr = measure_rf_reg
     )
   )
 }
+
 
 analyze_benchmark <- function(in_bm, in_measure) {
   
@@ -729,8 +835,55 @@ analyze_benchmark <- function(in_bm, in_measure) {
               bm_boxcomp = boxcomp))
 } 
 
+benchmark_featsel <- function(in_rf, in_task, in_measure,
+                              featimpfilt = 0.01,
+                              insamp_nfolds =  NULL, insamp_nevals = NULL,
+                              outsamp_nrep = NULL, outsamp_nfolds =  NULL) {
+  #featimpfilt defines the minimum percentage importance of selected features/variables
+  
+  #importance_pvalues(rf.sim, method = "janitza") - instead of establishing a contribution cutoff. Establish a p-value cutoff
+  
+  #Apply feature/variable selection
+  vimp <- weighted_vimportance_nestedrf(rfresamp = in_rf$resample_result(
+    uhash=unique(as.data.table(in_rf)$uhash))) %>%
+    .[,imp_wmeanper := imp_wmean/sum(imp_wmean)]
+  
+  task_featsel <- in_task$clone()$select(
+    vimp[imp_wmeanper>=featimpfilt, as.character(variable)])
+  task_featsel$id <- paste0(in_task$id, '_featsel')
+  
+  
+  #Set up outer resampling including 
+  outer_resampling = rsmp("repeated_cv", 
+                          repeats = outsamp_nrep, 
+                          folds = outsamp_nfolds)
+  
+  outer_resamplingsp = rsmp("repeated-spcv-coords",
+                            repeats = outsamp_nrep,
+                            folds = outsamp_nfolds) #Create 20 folds (visualize)
+  
+  #Run outer resampling and benchmarking on classification learners
+  bmrdesign_featsel <- benchmark_grid(
+    tasks = list(in_task, task_featsel), 
+    learners = in_rf$learners$learner[[1]], 
+    resamplings = outer_resampling)
+  
+  bmrout_featsel <- benchmark(
+    bmrdesign_featsel, store_models = TRUE)
+  
+  bm_analysis <- analyze_benchmark(bmrout_featsel, in_measure = in_measure)
+  
+  return(bm_classif = bmrout_featsel,
+         bm_tasks = list(task_classif=in_task, 
+                         task_classif_featsel = task_featsel),
+         measure_classif = in_measure,
+         bm_analysis = bm_analysis)
+}
+
+
 selecttrain_rf <- function(in_rf, in_task, 
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
+  #Prepare autotuner for full training
   lrn_autotuner <- in_rf$learners$learner[[1]]
   
   if (!is.null(insamp_nfolds)) {
