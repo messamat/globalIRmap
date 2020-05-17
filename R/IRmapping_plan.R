@@ -12,7 +12,7 @@ plan <- drake_plan(
   
   gaugestats_format = format_gaugestats(gaugestats, gaugep),
   
-  predvars = selectformat_predvars(filestructure, gaugestats_format),
+  predvars = selectformat_predvars(filestructure, in_gaugestats = gaugestats_format),
   
   tasks = create_tasks(in_gaugestats = gaugestats_format, in_predvars = predvars), 
   
@@ -21,10 +21,10 @@ plan <- drake_plan(
                                    insamp_nbatch = parallel::detectCores(logical=FALSE),
                                    outsamp_nrep = 1, outsamp_nfolds = 2),
   
-  rfbm_regr = benchmark_classif(in_tasks = tasks, 
-                                insamp_nfolds = 2, insamp_neval = 5, 
-                                insamp_nbatch = parallel::detectCores(logical=FALSE),
-                                outsamp_nrep = 1, outsamp_nfolds = 2),
+  rfbm_regr = benchmark_regr(in_tasks = tasks, 
+                             insamp_nfolds = 2, insamp_neval = 5, 
+                             insamp_nbatch = parallel::detectCores(logical=FALSE),
+                             outsamp_nrep = 1, outsamp_nfolds = 2),
   
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure),
@@ -37,15 +37,15 @@ plan <- drake_plan(
                       in_task = rfbm_classif$bm_tasks$task_classif,
                       in_measure = rfbm_classif$measure_classif,
                       featimpfilt = 0.01,
-                      insamp_nfolds =  NULL, insamp_nevals = NULL,
-                      outsamp_nrep = NULL, outsamp_nfolds =  NULL) 
+                      insamp_nfolds =  2, insamp_nevals = 1,
+                      outsamp_nrep = 2, outsamp_nfolds =  10) 
   ),
   
   rftuned = target(
     selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
                    in_task = rfeval_featsel$bm_tasks$task_classif,
-                   insamp_nfolds = 3,
-                   insamp_nevals = 10),
+                   insamp_nfolds = 2,
+                   insamp_nevals = 2),
     trigger =  trigger(condition = FALSE)),
   
   misclass_plot = ggmisclass(in_predictions=rftuned$rf_outer$prediction()),

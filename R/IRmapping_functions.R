@@ -187,15 +187,15 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
   if (oversample) {
     oversamp_ratio <- get_oversamp_ratio(in_task)
     mino_subdat <- in_task$data()[
-      get(in_task$target_names) == oversamp_ratio$minoclass,] #Get part of the underlying dataset of the minority class
+      eval(in_task$target_names) == oversamp_ratio$minoclass,] #Get part of the underlying dataset of the minority class
     nmino <- mino_subdat[,.N]
     oversamp_index <- sample(nmino, nmino*(oversamp_ratio$ratio-1), replace=T)
     
     newdat <- rbind(in_task$data(),
                     mino_subdat[oversamp_index,]) %>%
-      .[, get(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))]
+      .[, eval(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))]
   } else {
-    newdat <- in_task$data()[, get(in_task$target_names) := 
+    newdat <- in_task$data()[, eval(in_task$target_names) := 
                                as.numeric(as.character(get(in_task$target_names)))]
   }
   
@@ -524,7 +524,7 @@ benchmark_classif <- function(in_tasks,
   imbalance_ratio <- get_oversamp_ratio(task_classif)$ratio
   
   #Create basic learner
-  lrn_ranger <- mlr3::lrn('classif.ranger', 
+  lrn_ranger <- mlr3::lrn('classif.ranger',
                           num.trees = 500, 
                           replace = FALSE, 
                           splitrule = 'gini',
@@ -546,21 +546,21 @@ benchmark_classif <- function(in_tasks,
   #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
   #https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_classbalancing.html
   #Sampling happens only during training phase.
-  po_over <- po("classbalancing", id = "oversample", adjust = "minor", 
-                reference = "minor", shuffle = TRUE, 
-                ratio = imbalance_ratio)
+  po_over <- mlr3pipelines::po("classbalancing", id = "oversample", adjust = "minor", 
+                              reference = "minor", shuffle = TRUE, 
+                              ratio = imbalance_ratio)
   #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
   
   #Create mlr3 pipe operator to put a higher class weight on minority class
-  po_classweights <- po("classweights", minor_weight = imbalance_ratio)
+  po_classweights <- mlr3pipelines::po("classweights", minor_weight = imbalance_ratio)
   
   #Create graph learners so that oversampling happens systematically upstream of all training
-  lrn_ranger_overp <- GraphLearner$new(po_over %>>% lrn_ranger)
-  lrn_cforest_overp <- GraphLearner$new(po_over %>>% lrn_cforest)
+  lrn_ranger_overp <- mlr3pipelines::GraphLearner$new(po_over %>>% lrn_ranger)
+  lrn_cforest_overp <- mlr3pipelines::GraphLearner$new(po_over %>>% lrn_cforest)
   
   #Create graph learners so that class weighin happens systematically upstream of all training
-  lrn_ranger_weight <- GraphLearner$new(po_classweights %>>% lrn_ranger)
-  lrn_cforest_weight <- GraphLearner$new(po_classweights  %>>% lrn_cforest)
+  lrn_ranger_weight <- mlr3pipelines::GraphLearner$new(po_classweights %>>% lrn_ranger)
+  lrn_cforest_weight <- mlr3pipelines::GraphLearner$new(po_classweights  %>>% lrn_cforest)
   
   #---------- Set up inner resampling ------------------------------------------
   #Define paramet space to explore
@@ -866,18 +866,20 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
   bmrdesign_featsel <- benchmark_grid(
     tasks = list(in_task, task_featsel), 
     learners = in_rf$learners$learner[[1]], 
-    resamplings = outer_resampling)
+    resamplings = list(outer_resampling, outer_resamplingsp))
   
   bmrout_featsel <- benchmark(
     bmrdesign_featsel, store_models = TRUE)
   
   bm_analysis <- analyze_benchmark(bmrout_featsel, in_measure = in_measure)
   
-  return(bm_classif = bmrout_featsel,
-         bm_tasks = list(task_classif=in_task, 
-                         task_classif_featsel = task_featsel),
-         measure_classif = in_measure,
-         bm_analysis = bm_analysis)
+  return(list(
+    bm_classif = bmrout_featsel,
+    bm_tasks = list(task_classif=in_task, 
+                    task_classif_featsel = task_featsel),
+    measure_classif = in_measure,
+    bm_analysis = bm_analysis)
+  )
 }
 
 

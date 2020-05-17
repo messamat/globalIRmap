@@ -1,10 +1,30 @@
 #--- Set up and import libraries ----
-#packrat::init()
-#packrat::status()
-#)
+#renv::status()
+#renv::hydrate()
+#renv::snapshot()
+
+#To write Rtools path to .Renviron to build packages
+# if (!(file.exists("~/.Renviron"))) {
+#   writeLines('PATH="${RTOOLS40_HOME}\\usr\\bin;${PATH}"', con = "~/.Renviron")
+# } else {
+#   renvf <- setDT(read.table("~/.Renviron"))
+#   if (!(any(renvf[, grepl('[{]RTOOLS40_HOME[}]', V1)]))) {
+#     print(".Renviron file exists in ")
+#   }
+# }
 
 #library(pdp) #https://bgreenwell.github.io/pdp/articles/pdp.html for partial dependence — but very slow
 # install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
+
+#remotes::install_github("https://github.com/mlr-org/mlr3spatiotempcv")
+#Conflicts with mlr3pipelines https://github.com/mlr-org/mlr3pipelines/pull/371
+suppressPackageStartupMessages(library(mlr3spatiotempcv))
+
+#remotes::install_github("mlr3learners/mlr3learners.partykit", INSTALL_opts = c("--no-multiarch"), force=T)
+suppressPackageStartupMessages(library(mlr3learners.partykit))
+
+#devtools::install_github("zmjones/edarf", subdir = "pkg")
+suppressPackageStartupMessages(library(edarf))
 
 #devtools::install_github("ropensci/drake")
 suppressPackageStartupMessages(library(drake))
@@ -22,23 +42,16 @@ suppressPackageStartupMessages(library(paradox))
 suppressPackageStartupMessages(library(ranger))
 suppressPackageStartupMessages(library(edarf)) 
 suppressPackageStartupMessages(library(ggpubr))
-suppressPackageStartupMessages(library(mlr3verse))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(future))
 suppressPackageStartupMessages(library(future.apply))
 suppressPackageStartupMessages(library(future.callr))
 suppressPackageStartupMessages(library(furrr))
 suppressPackageStartupMessages(library(quantreg))
-
-
-#remotes::install_github("https://github.com/mlr-org/mlr3spatiotempcv")
-suppressPackageStartupMessages(library(mlr3spatiotempcv))
-
-#remotes::install_github("mlr3learners/mlr3learners.partykit", INSTALL_opts = c("--no-multiarch"), force=T)
-suppressPackageStartupMessages(library(mlr3learners.partykit))
-
-#devtools::install_github("zmjones/edarf", subdir = "pkg")
-suppressPackageStartupMessages(library(edarf))
+suppressPackageStartupMessages(library(mlr3))
+suppressPackageStartupMessages(library(mlr3tuning))
+suppressPackageStartupMessages(library(mlr3learners))
+suppressPackageStartupMessages(library(mlr3pipelines))
 
 # suppressPackageStartupMessages(library(bigstatsr))
 # suppressPackageStartupMessages(library(parallel))
