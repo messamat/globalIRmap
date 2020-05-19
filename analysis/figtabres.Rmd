@@ -58,33 +58,35 @@ grat_wintri <-
   st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
   st_transform(crs = crs_wintri)
 
-#---- Import and format river network, keeping a subset of columns and only for river orders > 4 --------
-cols_tokeep <-  c("HYRIV_ID", "ORD_STRA","dis_m3_pyr")
-
-#predvars[!is.na(ID),varcode],
-# 'ele_mt_cav','ele_mt_uav',
-# paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-# paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
-# paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
-
-riveratlas_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
-
-riveratlas <- st_read(dsn = dirname(riveratlas_path), 
+#---- Import and format river network lines, keeping a subset of columns and only for river orders > 4 --------
+riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
+riv_lines <- st_read(dsn = dirname(riveratlas_path), 
                       layer = basename(riveratlas_path),
-                      query = riveratlas_query)
+                      query = riv_query)
 
-riv_wintri <- sfformat_wintri(riveratlas)
+riv_wintri <- sfformat_wintri(riv_lines)
 riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
 
 #---- Import and format streamgauges --------
 gaugepred <- st_read(filestructure['out_gauge']) %>%
   sfformat_wintri
 
+#---- Import and format river network attributes ------------------------------
+cols_tokeep <-  c("HYRIV_ID", predvars[!is.na(ID),varcode],
+                  'ele_mt_cav','ele_mt_uav',
+                  paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+                  paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                  paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
+
+riveratlas <- fread_cols(filestructure['in_riveratlas'], 
+                         cols_tokeep = cols_tokeep) %>%
+  comp_derivedvar
+
 
 ```
 
-
-```{r basic map}
+#Geographical distribution of reference gauging stations
+```{r basic map, echo = FALSE, fig.width = 6,  dpi=300}
 ggrivers <- function() {
     ggplot() +
     geom_sf(data = grat_wintri, color = alpha("black", 1/10), size = 0.25/.pt) + 
@@ -102,14 +104,14 @@ ggrivers <- function() {
 perennial_gauges <- gaugepred[gaugepred$intermittent=='0',]
 p_pr <- ggrivers() + 
   geom_sf(data=perennial_gauges, aes(color=totalYears_kept), size=1, alpha=1/2) +
-  scale_color_gradient(low='#0F9FD6', high='#152540', 
+  scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540', 
                        breaks=c(min(perennial_gauges$totalYears_kept), 100, max(perennial_gauges$totalYears_kept))) +
   coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F) 
 
 ir_gauges <-  gaugepred[gaugepred$intermittent=='1',]
 p_ir <- ggrivers() + 
   geom_sf(data=ir_gauges, aes(color=totalYears_kept), size=1, alpha=1/2) +
-  scale_color_gradient(low='#ff9b52', high='#a32d18', 
+  scale_color_gradient(name='Years of data', low='#ff9b52', high='#a32d18', 
                        breaks=c(min(ir_gauges$totalYears_kept), 100, max(ir_gauges$totalYears_kept))) +
   coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F)
 
@@ -117,12 +119,162 @@ p_pr/p_ir
 
 ```
 
-## Including Plots
+#Environmental distribution of reference gauging stations
 
-You can also embed plots, for example:
+```{r pressure, , fig.width = 6,  dpi=300}
+#Radar plot of selected variables
+names(riveratlas)
+c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_uyr", "dis_m3_pmn", "dis_m3_pyr", "dor_pc_pva",
+  "for_pc_use", "gla_pc_use", "gwt_cm_cav", "inu_pc_umn", "ire_pc_use", "kar_pc_use", "lka_pc_use",
+  "pet_mm_uyr", "snw_pc_uyr", "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+##################################With individual variable plots#####
+theme_env <- function () { 
+  theme_classic(base_size=18) %+replace% 
+    theme(
+      panel.background  = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      axis.line.x=element_line(),
+      axis.line.y=element_line(),
+      legend.position = 'none'
+    )
+}
+theme_envnoy <- function () { 
+  theme_classic(base_size=18) %+replace% 
+    theme(
+      panel.background  = element_blank(),
+      panel.grid.minor = element_blank(),
+      panel.border = element_blank(),
+      axis.line.x=element_line(),
+      axis.line.y=element_line(),
+      axis.title.y=element_blank(),
+      legend.position='none'
+    )
+}
+
+envplot <- function(selected_gages, plotname) {
+  gagesenvrec[gagesenvrec$RGS_No %in% unique(selected_gages$ID),'select'] <- 'Y'
+  gagesenvrec[!(gagesenvrec$RGS_No %in% unique(selected_gages$ID)),'select'] <- 'N'
+  
+  selRGB <- rgb(168,0,0,maxColorValue = 255)
+  notselRGB <- rgb(150,150,150, maxColorValue = 255)
+  
+  envplot_area <- ggplot(rufienv, aes(x=WsArea)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=WsArea, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50, fill='#878787', alpha=0.5) + 
+    scale_x_log10(name=expression('Catchment area'~(km^2)),
+                  breaks = c(1,10,100,1000,10000,100000),
+                  labels = c(1,10,expression(10^2),expression(10^3),expression(10^4),expression(10^5)),
+                  expand=c(0,0)) +
+    scale_y_continuous(name='Number of stream reaches', expand=c(0,0)) + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_env() + 
+    labs(subtitle = "(a)")
+  #envplot_area
+  envplot_elv <- ggplot(rufienv, aes(x=ReaElvAvg)) +
+    geom_vline(data=gagesenvrec, aes(xintercept=ReaElvAvg, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#fdbf6f', alpha=0.65) + 
+    scale_x_continuous(name=expression('River reach average elevation (m)'),
+                       expand=c(0,0)) +
+    scale_y_continuous(name='Number of stream reaches',expand=c(0,0)) +
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_envnoy()+ 
+    labs(subtitle = "(b)")
+  #envplot_elv
+  envplot_preci <- ggplot(rufienv, aes(x=WsBio12Av)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=WsBio12Av, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#1f78b4', alpha=0.4) + 
+    scale_x_continuous(name=expression('Catchment mean annual precipitation (mm)'),
+                       expand=c(0,0)) +
+    scale_y_continuous(name='Number of stream reaches',expand=c(0,0)) + 
+    theme(axis.title.y=element_blank()) +
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_envnoy()+ 
+    labs(subtitle = "(c)")
+  #envplot_preci
+  
+  
+  envplot_watext <- ggplot(rufienv, aes(x=100*CatWatExt)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=100*CatWatExt, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#35978f', alpha=0.4) + 
+    scale_x_continuous(name=expression('Subcatchment maximum water extent 1984-2015 (% area)'),
+                       expand=c(0,0)) +
+    scale_y_continuous(trans='sqrt',name='Number of stream reaches',expand=c(0,0)) + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_env()+
+    theme(axis.title.x=element_text(hjust=0.90))+ 
+    labs(subtitle = "(d)")
+  #envplot_watext
+  rufienv$CatGeolMaj <- factor(rufienv$CatGeolMaj, levels = unique(rufienv$CatGeolMaj[order(as.numeric(as.character(rufienv$CatGeolMaj)))]))
+  envplot_geol <-  ggplot(rufienv, aes(x=CatGeolMaj)) + 
+    geom_bar(fill='#8c510a', alpha=0.4, stat='count') +
+    geom_bar(data=gagesenvrec, aes(x=as.factor(CatGeolMaj), color=select),fill='white',alpha=0.4, size=0.75) +
+    scale_x_discrete(name=expression('Main subcatchment lithology (GMIS number)')) +
+    scale_y_continuous(trans='log10',name='Number of stream reaches') + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_envnoy() +
+    theme(axis.text.x = element_text(angle = 45, hjust=1))+ 
+    labs(subtitle = "(e)")
+  #envplot_geol
+  envplot_pop <- ggplot(rufienv, aes(x=CatPopDen)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=CatPopDen, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#4d9221', alpha=0.4) + 
+    scale_x_log10(name=expression('Subcatchment population density'~(persons~km^-2)),
+                  breaks=c(1,5,10,50,100,1000),
+                  expand=c(0,0)) +
+    scale_y_continuous(name='Number of stream reaches',expand=c(0,0)) + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_envnoy()+ 
+    labs(subtitle = "(f)")
+  envplot_pop
+  
+  
+  envplot_forlos <- ggplot(rufienv, aes(x=100*WsFLosSum_1)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=100*WsFLosSum_1, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#bf812d', alpha=0.6) + 
+    scale_x_sqrt(name=expression('Catchment forest cover loss 2000-2016 (% area)'),
+                 breaks=c(0,1,5,10,25,50,75,100),
+                 expand=c(0,0)) +
+    scale_y_continuous(name='Number of stream reaches',expand=c(0,0)) + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_env() +
+    theme(axis.title.x=element_text(hjust=1))+ 
+    labs(subtitle = "(g)")
+  #envplot_forlos
+  envplot_urb <- ggplot(rufienv, aes(x=100*LCSum_89)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=100*LCSum_89, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#cab2d6', alpha=0.4) + 
+    scale_x_continuous(trans='log10',
+                       name='Catchment urban cover (% area)',
+                       breaks = c(0.001,0.01,0.1,1,10),
+                       labels= c(0.001,0.01,0.1,1,10),
+                       expand=c(0,0)) +
+    scale_y_continuous(name='Number of stream reaches',expand=c(0,0)) + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_envnoy()+ 
+    labs(subtitle = "(h)")
+  #envplot_urb
+  envplot_resind <- ggplot(rufienv, aes(x=100*WsResInd)) + 
+    geom_vline(data=gagesenvrec, aes(xintercept=100*WsResInd, color=select),alpha=0.75, size=0.75) +
+    geom_histogram(bins=50,fill='#de77ae', alpha=0.4) + 
+    scale_x_continuous(name=expression('Catchment draining through nearest upstream reservoir (%)'),
+                       expand=c(0,0)) +
+    scale_y_log10(name='Number of stream reaches',expand=c(0,0),
+                  breaks = trans_breaks("log10", function(x) 10^x),
+                  labels = trans_format("log10", math_format(10^.x))) + 
+    scale_color_manual(values=c(notselRGB,selRGB))+
+    theme_envnoy() +
+    theme(axis.title.x=element_text(hjust=0.90))+ 
+    labs(subtitle = "(i)")
+  #envplot_resind
+  #plot_grid(envplot_area, envplot_elv, envplot_preci, envplot_watext, envplot_geol, envplot_pop, envplot_forlos, envplot_urb, envplot_resind, align = "v", nrow = 3)
+  
+  png(file.path(outdir,plotname),width=20, height=12,units='in',res=300)
+  print(plot_grid(envplot_area, envplot_elv, envplot_preci, envplot_watext, envplot_geol, envplot_pop, envplot_forlos, envplot_urb, envplot_resind, align = "v", nrow = 3))
+  dev.off()
+}
+envplot(rufidat_select_o15y, 'gage_envo15y_20180703.png')
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
