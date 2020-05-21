@@ -133,45 +133,51 @@ varstoplot_hist <- c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_uyr", "di
                      "for_pc_use", "gla_pc_use", "gwt_cm_cav", "inu_pc_umn", "ire_pc_use", "kar_pc_use", "lka_pc_use",
                      "pet_mm_uyr", "snw_pc_uyr", "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr")
 
-scales_x <- list(
-  ari_ix_uav = scale_x_continuous(),
-  cly_pc_uav = scale_x_continuous(labels=percent_format(scale=1)),
-  clz_cl_cmj = scale_x_continuous(limits=c(1,18), expand=c(0,0),
-                                  breaks=seq(0,18,2)),
-  cmi_ix_uyr = scale_x_continuous(),
-  dis_m3_pmn = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(gaugepred$dis_m3_pmn)))),
-                            labels=c(0, 10^(0:log10(max(gaugepred$dis_m3_pmn))))),
-  dis_m3_pyr = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(gaugepred$dis_m3_pmn)))),
-                            labels=c(0, 10^(0:log10(max(gaugepred$dis_m3_pmn))))),
-  dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1)),
-  for_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-  gla_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-  gwt_cm_cav = scale_x_continuous(), #Change that to gwt_m_cav
-  inu_pc_umn = scale_x_continuous(labels=percent_format(scale=1)),
-  ire_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-  kar_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-  lka_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-  pet_mm_uyr = scale_x_continuous(), 
-  snw_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
-  run_mm_cyr = scale_x_continuous(),
-  swc_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
-  tmp_dc_uyr = scale_x_continuous()
-)
 
-scales_y <- unlist(rep(list(scale_y_log10(expand=c(0,0))), labels = scientific_format(),
-                       length(scales_x)), 
-                   recursive=F) %>%
-  setNames(names(scales_x))
-scales_y[['dis_m3_pmn']] <- scale_y_sqrt(expand=c(0,0))
-
-coordcart <- lapply(varstoplot_hist, function(var) {
-  coord_cartesian(xlim=as.data.table(gaugepred)[, c(min(get(var)), max(get(var)))])
+formatscales <- function(in_df, varstoplot) {
+  scales_x <- list(
+    ari_ix_uav = scale_x_continuous(),
+    cly_pc_uav = scale_x_continuous(labels=percent_format(scale=1)),
+    clz_cl_cmj = scale_x_continuous(limits=c(1,18), expand=c(0,0),
+                                    breaks=seq(0,18,2)),
+    cmi_ix_uyr = scale_x_continuous(),
+    dis_m3_pmn = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(in_df$dis_m3_pmn)))),
+                              labels=c(0, 10^(0:log10(max(in_df$dis_m3_pmn))))),
+    dis_m3_pyr = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(in_df$dis_m3_pmn)))),
+                              labels=c(0, 10^(0:log10(max(in_df$dis_m3_pmn))))),
+    dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1)),
+    for_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    gla_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    gwt_cm_cav = scale_x_continuous(), #Change that to gwt_m_cav
+    inu_pc_umn = scale_x_continuous(labels=percent_format(scale=1)),
+    ire_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    kar_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    lka_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    pet_mm_uyr = scale_x_continuous(), 
+    snw_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
+    run_mm_cyr = scale_x_continuous(),
+    swc_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
+    tmp_dc_uyr = scale_x_continuous()
+  )
+  
+  scales_y <- unlist(rep(list(scale_y_log10(expand=c(0,0))), labels = scientific_format(),
+                         length(scales_x)), 
+                     recursive=F) %>%
+    setNames(names(scales_x))
+  scales_y[['dis_m3_pmn']] <- scale_y_sqrt(expand=c(0,0))
+  
+  coordcart <- lapply(varstoplot_hist, function(var) {
+    coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var)), max(get(var)))])
   }) %>%
-  setNames(names(scales_x))
-coordcart[['clz_cl_cmj']] <-  coord_cartesian(
-  xlim=c(1,max(gaugepred$clz_cl_cmj)))
+    setNames(names(scales_x))
+  coordcart[['clz_cl_cmj']] <-  coord_cartesian(
+    xlim=c(1,max(in_df$clz_cl_cmj)))
+  
+  
+  return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
+}
 
-
+scalesenvhist <- formatscales(riveratlas, varstoplot)
 
 
 ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent=TRUE) {
@@ -185,18 +191,18 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent
                                                     Keystat, 
                                                     ' (',unit,')')]
   
-  format <- as.data.table(in_dt)[, vartoplot2, with=F] 
+  gaugeformat <- as.data.table(in_gaugedt)[, vartoplot2, with=F] 
+  rivformat <- as.data.table(in_rivdt)[, vartoplot, with=F]
   
   
-  
-  
-  penvhist <- ggplot(dtformat, aes_string(x=vartoplot)) +
-    geom_histogram(bins=20) + #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
+  penvhist <- ggplot(gaugeformat, aes_string(x=vartoplot)) +
+    geom_histogram(data=rivformat, bins=20, fill='lightgray') + 
+    geom_histogram(bins=20, fill='darkgray') + #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
     scale_fill_manual(values=c('#0F9FD6','#ff9b52'), 
                       labels = c('Perennial', 'Intermittent'), name=NULL) +
-    scales_x[[vartoplot]] +
-    scales_y[[vartoplot]] +
-    coordcart[[vartoplot]] +
+    scalesenvhist$scales_x[[vartoplot]] +
+    scalesenvhist$scales_y[[vartoplot]] +
+    scalesenvhist$coordcart[[vartoplot]] +
     xlab(varname) +
     ylab('Count') +
     theme_classic() + 
@@ -212,21 +218,11 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent
   return(ggplotGrob(penvhist)) 
 }
 
-penvhist_grobs <- lapply(varstoplot_hist, ggenvhist, in_dt=gaugepred, in_predvars=predvars)
+penvhist_grobs <- lapply(varstoplot_hist, ggenvhist, 
+                         in_gaugedt = gaugepred, 
+                         in_rivdt = riveratlas,
+                         in_predvars=predvars)
 do.call("grid.arrange", list(grobs=penvhist_grobs))
-
-
-
-
-}
-
-
-
-lapply(g_envformat)
-
-
-
-
 
 
 # ggplot(mydf) +
@@ -257,9 +253,6 @@ lapply(g_envformat)
 #     scale_color_manual(values=c(notselRGB,selRGB))+
 #     theme_env() + 
 #     labs(subtitle = "(a)")
-
-
-
 
 ```
 
