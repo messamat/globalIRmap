@@ -59,6 +59,22 @@ comp_derivedvar <- function(dt) {
     .[, swc_pc_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
       .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
   
+  dt[, `:=`(
+    ari_ix_cav = ari_ix_cav/100,
+    ari_ix_uav = ari_ix_uav/100,
+    cmi_ix_cyr = cmi_ix_cyr/100,
+    cmi_ix_uyr = cmi_ix_uyr/100,
+    dor_pc_pva = dor_pc_pva/100,
+    lka_pc_cse = lka_pc_cse/10,
+    lka_pc_use = lka_pc_use/10,
+    tmp_dc_cmn =  tmp_dc_cmn/10,
+    tmp_dc_cmx =  tmp_dc_cmx/10,
+    tmp_dc_cyr =  tmp_dc_cyr/10,
+    tmp_dc_uyr =  tmp_dc_uyr/10,
+    gwt_m_cav = gwt_cm_cav/100
+  )]
+  
+  
   return(dt)
 }
 
@@ -413,7 +429,8 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
     .[as.data.table(in_gaugep), on='GRDC_NO'] %>%
     .[!is.na(totalYears_kept) & totalYears_kept>=10,] %>% # Only keep stations with at least 10 years of data
     .[, c('X', 'Y') := as.data.table(sf::st_coordinates(Shape))] %>%
-    comp_derivedvar #Compute derived variables and remove -9999
+    comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
+  
   return(gaugestats_join)
 }
 
@@ -431,7 +448,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                'lka_pc_cse',
                'lka_pc_use',
                'dor_pc_pva',
-               'gwt_cm_cav',
+               'gwt_m_cav',
                'ele_pc_rel',
                # 'sgr_dk_rav', #Don't use stream gradient as data are missing for all of Greenland due to shitty DEM
                'clz_cl_cmj',
@@ -513,6 +530,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   
   
   meta_format[, `:=`(
+    unit = substr(`Column(s)`, 5, 6),
     varcode = paste0(gsub('[-]{3}', '', `Column(s)`),
                      Keyscale, 
                      Keystat),
