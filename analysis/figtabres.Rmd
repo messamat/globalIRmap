@@ -32,6 +32,7 @@ library(patchwork)
 #remotes::install_github("zeehio/facetscales")
 library(facetscales)
 library(scales)
+library(kableExtra)
 
 #Define paths
 riveratlas_path <- file.path(datdir, 'HydroATLAS', 
@@ -88,7 +89,7 @@ riveratlas <- fread_cols(filestructure['in_riveratlas'],
 
 ```
 
-#Geographical distribution of reference gauging stations
+#Figure 1. Geographical distribution of reference streamgauging stations
 ```{r basic map, echo = FALSE, fig.width = 6,  dpi=300}
 ggrivers <- function() {
     ggplot() +
@@ -122,17 +123,18 @@ p_pr/p_ir
 
 ```
 
-#Environmental distribution of reference gauging stations
-Bernhard, is dor_pc_pva x 100 rather than x10?
+#Figure 2. Environmental distribution of reference streamgauging stations
+Bernhard, is dor_pc_pva x 100 rather than x10 (as written in doc)?
 
-```{r pressure, fig.width = 10, fig.height=6, dpi=300, message=FALSE}
+```{r pressure, fig.width = 6, fig.height=6, dpi=300, message=FALSE}
 #Radar plot of selected variables
 #names(riveratlas)
 
-varstoplot_hist <- c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_uyr", "dis_m3_pmn", "dis_m3_pyr", "dor_pc_pva",
-                     "for_pc_use", "gla_pc_use", "gwt_cm_cav", "inu_pc_umn", "ire_pc_use", "kar_pc_use", "lka_pc_use",
-                     "pet_mm_uyr", "snw_pc_uyr", "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr")
-
+varstoplot_hist <- c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_uyr", 
+                     "dis_m3_pmn", "dis_m3_pyr", "dor_pc_pva","for_pc_use", 
+                     "gla_pc_use", "gwt_m_cav", "inu_pc_umn", "ire_pc_use", 
+                     "kar_pc_use", "lka_pc_use", "pet_mm_uyr", "snw_pc_uyr", 
+                     "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr")
 
 formatscales <- function(in_df, varstoplot) {
   scales_x <- list(
@@ -148,7 +150,7 @@ formatscales <- function(in_df, varstoplot) {
     dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1)),
     for_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
     gla_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-    gwt_cm_cav = scale_x_continuous(), #Change that to gwt_m_cav
+    gwt_m_cav = scale_x_continuous(), #Change that to gwt_m_cav
     inu_pc_umn = scale_x_continuous(labels=percent_format(scale=1)),
     ire_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
     kar_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
@@ -190,16 +192,30 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent
                                                     Keyscale, 
                                                     Keystat, 
                                                     ' (',unit,')')]
+  gaugeformat <- as.data.table(in_gaugedt)[, `:=`(
+    ari_ix_cav = ari_ix_cav/100,
+    ari_ix_uav = ari_ix_uav/100,
+    cmi_ix_cmn = cmi_ix_cmn/100,
+    cmi_ix_uyr = cmi_ix_uyr/100,
+    dor_pc_pva = dor_pc_pva/100,
+    lka_pc_cse = lka_pc_cse/10,
+    lka_pc_use = lka_pc_use/10,
+    tmp_dc_cmn =  tmp_dc_cmn/10,
+    tmp_dc_cmx =  tmp_dc_cmx/10,
+    tmp_dc_cyr =  tmp_dc_cyr/10,
+    tmp_dc_uyr =  tmp_dc_uyr/10,
+    gwt_m_cav = gwt_cm_cav/100
+  )] %>%
+    .[, vartoplot2, with=F] 
   
-  gaugeformat <- as.data.table(in_gaugedt)[, vartoplot2, with=F] 
   rivformat <- as.data.table(in_rivdt)[, vartoplot, with=F]
-  
   
   penvhist <- ggplot(gaugeformat, aes_string(x=vartoplot)) +
     geom_histogram(data=rivformat, bins=20, fill='lightgray') + 
-    geom_histogram(bins=20, fill='darkgray') + #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
-    scale_fill_manual(values=c('#0F9FD6','#ff9b52'), 
-                      labels = c('Perennial', 'Intermittent'), name=NULL) +
+    geom_histogram(bins=20, fill='darkgray') +
+    #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
+    # scale_fill_manual(values=c('#0F9FD6','#ff9b52'), 
+    #                   labels = c('Perennial', 'Intermittent'), name=NULL) +
     scalesenvhist$scales_x[[vartoplot]] +
     scalesenvhist$scales_y[[vartoplot]] +
     scalesenvhist$coordcart[[vartoplot]] +
@@ -208,7 +224,7 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent
     theme_classic() + 
     theme(strip.background=element_rect(colour="white", fill='lightgray'),
           axis.title.y = element_blank())
-
+  
 
   if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
     penvhist <- penvhist + 
@@ -223,36 +239,65 @@ penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
                          in_rivdt = riveratlas,
                          in_predvars=predvars)
 do.call("grid.arrange", list(grobs=penvhist_grobs))
-
-
-# ggplot(mydf) +
-#   geom_point(aes(x = Subject, y = Value)) +
-#   facet_grid_sc(rows = vars(Magnitude), scales = list(y = scales_y))
-
-
-
-#   scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540', 
-#                        breaks=c(min(perennial_gauges$totalYears_kept), 100, max(perennial_gauges$totalYears_kept))) +
-#   coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F) 
-# 
-# ir_gauges <-  gaugepred[gaugepred$intermittent=='1',]
-# p_ir <- ggrivers() + 
-#   geom_sf(data=ir_gauges, aes(color=totalYears_kept), size=1, alpha=1/2) +
-#   scale_color_gradient(name='Years of data', low='#ff9b52', high='#a32d18', 
-#                        breaks=c(min(ir_gauges$totalYears_kept), 100, max(ir_gauges$totalYears_kept))) +
-# 
-# 
-# 
-#     geom_vline(data=gagesenvrec, aes(xintercept=WsArea, color=select),alpha=0.75, size=0.75) +
-#     geom_histogram(bins=50, fill='#878787', alpha=0.5) + 
-#     scale_x_log10(name=expression('Catchment area'~(km^2)),
-#                   breaks = c(1,10,100,1000,10000,100000),
-#                   labels = c(1,10,expression(10^2),expression(10^3),expression(10^4),expression(10^5)),
-#                   expand=c(0,0)) +
-#     scale_y_continuous(name='Number of stream reaches', expand=c(0,0)) + 
-#     scale_color_manual(values=c(notselRGB,selRGB))+
-#     theme_env() + 
-#     labs(subtitle = "(a)")
-
 ```
+
+#Environmental variables used in model training
+```{r variable figure, echo=FALSE } 
+predvars[varcode=='dis_mm_pvar', `:=`(
+  Category = 'Hydrology',
+  Attribute= 'Natural Discharge',
+  `Spatial representation`='p',
+  `Temporal/Statistical aggreg.`='mn/mx',
+  Source = 'WaterGAP v2.2',
+  Citation = 'Döll et al. 2003'
+)]
+
+predvars[varcode=='dis_mm_pvaryr', `:=`(
+  Category = 'Hydrology',
+  Attribute= 'Natural Discharge',
+  `Spatial representation`='p',
+  `Temporal/Statistical aggreg.`='mn/yr',
+  Source = 'WaterGAP v2.2',
+  Citation = 'Döll et al. 2003'
+)]
+
+predvars[varcode=='ele_pc_rel', `:=`(
+  Category = 'Physiography',
+  Attribute= 'Elevation',
+  `Spatial representation`='c',
+  `Temporal/Statistical aggreg.`='(cav-uav)/uav',
+  Source = 'EarthEnv-DEM90',
+  Citation = 'Robinson et al. 2014'
+)]
+
+
+predvars[varcode=='pre_mm_cvar', `:=`(
+  Category = 'Climate',
+  Attribute= 'Precipitation',
+  `Spatial representation`='c',
+  `Temporal/Statistical aggreg.`='mn/mx',
+  Source = 'WorldClim v1.4',
+  Citation = 'Hijmans et al. 2005'
+)]
+
+oldcolnames <- c('Spatial.representation',
+                 'Temporal.or.statistical.aggregation.or.other.association',
+                 'Source Data')
+newcolnames <- c('Spatial representation',
+             'Temporal/Statistical aggreg.',
+             'Source')
+
+predvars_format <- copy(predvars) %>%
+  setnames(oldcolnames, newcolnames) %>%
+  setorder(Category, Attribute, 
+           `Spatial representation`, `Temporal/Statistical aggreg.`)
+
+
+kable(predvars_format[,c('Category', 'Attribute', 
+                         newcolnames, 'Citation'), with=F]) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+```
+
+
+
 
