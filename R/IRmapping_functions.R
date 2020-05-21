@@ -300,8 +300,39 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
 }
 
 #------ weighted_sd -----------------
+#' Weighted standard deviation
+#'
+#' Computes a weighted standard deviation
+#'
+#' @param x An object containing the values whose weighted mean is to be
+#' computed.
+#' @param w An integer vector of weights the same length as x giving the
+#' weights to use for elements of x (weights are > 1, not decimals).
+#' @param na.rm	(logical) Whether NA values in x should be stripped before the
+#' computation proceeds.
+#'
+#' @return A length-one numeric vector.
+#'
+#' @examples
+#' wt <- c(5, 4, 3 ,2 , 1)
+#' x <- c(1, 2, 3, 4, 5)
+#' xm <- weighted.mean(x, wt)
+#' xsd <- weighted_sd(x, wt)
+#'
+#' @export
 
-weighted_sd <- function(x, w) {
+weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
+  if (na.rm) {
+    x <-  na.omit(x)
+    if (length(w) > length(x)) {
+      w <- w[-which(is.na(x))]
+    }
+  }
+
+  if (length(w)==0) {
+    w <- rep(1, length(x))
+  }
+
   #Compute weighted standard deviation
   return(sqrt(sum((w) * (x - weighted.mean(x, w)) ^ 2) / (sum(w) - 1)))
 }
@@ -318,8 +349,8 @@ extract_impperf_nestedrf <- function(nested_rflearner,
     sublrn <- nested_rflearner
   }
 
-  print(paste0("Computing variable importance p_values",
-           "for resampling instance hash #", sublrn$hash))
+  print(paste0("Computing variable importance for resampling instance hash #",
+               sublrn$hash))
 
   return(cbind(if (imp) {
     ####################### IF GraphLearner ####################################
@@ -388,19 +419,29 @@ weighted_vimportance_nestedrf <- function(rfresamp,
   #accuracy measure (not error measure — could be amended to be based on 1-error)
   varnames <- rfresamp$task$feature_names
 
-  out_vimportance <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
+  vimportance_all <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
                             extract_impperf_nestedrf,
                             imp=T, perf=T, pvalue=pvalue, pvalue_permutn) %>%
     do.call(rbind, .) %>%
-    cbind(., varnames) %>%
-    .[,
-      list(imp_wmean = weighted.mean(importance, classif.bacc), #Compute weighted mean
-           imp_wsd =  weighted_sd(importance, classif.bacc),
-           imp_pvalue = weighted.mean(pvalue, classif.bacc)), #Compute weighted sd
-      by=varnames]
+    cbind(., varnames)
+
+  out_vimportance <- vimportance_all[
+    , list(imp_wmean = weighted.mean(importance, classif.bacc), #Compute weighted mean
+           imp_wsd =  weighted_sd(importance, classif.bacc)), #Compute weighted sd
+    by=varnames]
+
+  if (pvalue) {
+    out_vimportance <- cbind(
+      out_vimportance,
+      vimportance_all[,
+                      list(imp_wmean = weighted.mean(pvalue, classif.bacc)), #Compute weighted mean of pvalue
+                      by=varnames]
+    )
+  }
 
   return(out_vimportance)
 }
+
 #------ extract_pd_nestedrf -----------------
 
 extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
@@ -1219,7 +1260,7 @@ ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
   #Get variable importance and format them
   varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res,
                                                 pvalue = FALSE) %>%
-    merge(., in_predvars, by.x='variable', by.y='varcode') %>%
+    merge(., in_predvars, by.x='varnames', by.y='varcode') %>%
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
 
   #Plot 'em
@@ -1463,3 +1504,5 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, 
   return(out_gaugep)
 }
 
+
+########## END #############
