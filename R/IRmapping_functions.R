@@ -155,25 +155,80 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   return(in_dt2)
 }
 
-threshold_misclass <- function(i, in_preds) {
+#------ threshold_misclass -----------------
+#' Threshold misclassification
+#'
+#' Compute the misclassification rate, sensitivity, and specificity of probability
+#' predictions to a binary classification problem from a random forest learner
+#' based on a given threshold.
+#'
+#' @param i (numeric) Threshold to be used for converting probabilities
+#'   predictions to binary predictions, limits=\[0,1\].
+#' @param in_preds Either:
+#' 1. a \link[mlr3]{PredictionClassif} or
+#' 2. a data.table of predictions for a set of CV repetitions as formatted by
+#' \code{\link{analyze_benchmark}}. The column of the predicted probability of
+#' getting a 'positive' must be called \code{prob.1}.
+#'
+#' @return A single-row data.table with four columns:
+#' \itemize{
+#'   \item i - the threshold used to compute the classification statistics
+#'   \item misclass - misclassification rate \[0-1\]
+#'   \item sens - sensitivity \[0-1\]
+#'   \item spec - specificity \[0-1\]
+#' }
+#'
+#' @details
+#' \itemize{
+#' \item Misclassification rate is the proportion of misclassified
+#' records
+#' \item Sensitivity is the proportion of actual positives (1) that are
+#' correctly identified as such (the proportion of intermittent rivers that
+#' are identified as intermittent)
+#' \item Specificity is the proportion of actual negatives that are correctly
+#' identified as such (the proportion of perennial rivers that are identified as
+#' perennial)
+#' } \cr
+#' See \url{https://en.wikipedia.org/wiki/Sensitivity_and_specificity}
+#'
+#' @section Warning:
+#' This function was only tested for the outputs of a probability random forest
+#' (using a classification framework) and a regression forest (using 0 or 1 as
+#' dummy continuous variables)
+#'
+#' @export
+
+threshold_misclass <- function(i=0.5, in_preds) {
+  #---- Get confusion matrix ----
   if (inherits(in_preds, 'PredictionClassif')) {
-    confu <- as.data.table(in_preds$set_threshold(1-i)$confusion)
+    confu <- as.data.table(in_preds$set_threshold(1-i)$confusion) #Get confusion matrix directly
   }
 
   if (is.data.table(in_preds)) {
+    #If task associated with predictions is a classification and has records
     if (in_preds[task_type == 'classif',.N] > 0) {
-      confu <- in_preds[, as.data.table(pred[[1]]$set_threshold(1-i)$confusion), #Threshold is based on prob.0, not prob.1, so need to use 1-i
-                        by=outf] %>%
+      #For each CV repetition:
+      #   1. set the probability threshold to compute a confusion matrix to 1-i
+      #     (i being the threshold to classify something as 1, set_threshold
+      #     being based on prob.0, not prob.1)
+      #   2. Compute confusion matrix
+      confu <- in_preds[, as.data.table(pred[[1]]$set_threshold(1-i)$confusion),
+        by=outf] %>%
+        #Aggregate confusion matrices across repetitions
         .[, .(N=sum(N)), by=.(response, truth)]
     }
 
+    #If task associated with predictions is a regression and has records
     if (in_preds[task_type == 'regr', .N] > 0) {
+      #Reclassify continuous predictions into binary response across all records
       confu <- in_preds[, response := fifelse(prob.1>=i, '1', '0')] %>%
         .[, truth := as.character(truth)] %>%
+        #Create aggregate confusion matrix
         .[, .N, by=.(response, truth)]
     }
   }
 
+  #---- Compute statistics based on confusion matrix and format into data.table----
   outvec <- data.table(
     i,
     misclas = confu[truth != response, sum(N)] / confu[, sum(N)],
@@ -182,9 +237,33 @@ threshold_misclass <- function(i, in_preds) {
   return(outvec)
 }
 
+#------ get_outerrsmp -----------------
+#' Get outer ResampleResult
+#'
+#' Extract the outer resampling \link[mlr3]{ResampleResult} from the output
+#' from \code{\link{selecttrain_rf}} with the option to grab the output from
+#' the spatial resampling strategy or not (when there are multiple resampling
+#' strategies).
+#'
+#' @param in_rftuned (list or \link[mlr3]{ResampleResult}) Output from
+#' \code{\link{selecttrain_rf}}.
+#' @param spatial_rsp (logical) Whether to return the results from the
+#' spatial resampling strategy if there is one.
+#'
+#' @details
+#' If \code{in_rftuned} is already a \link[mlr3]{ResampleResult}, then simply
+#' return it.
+#'
+#' @return a \link[mlr3]{ResampleResult}.
+#'
+#' @section Warning:
+#' This will only return the \link[mlr3]{ResampleResult} from a single resampling
+#' strategy.
+#'
+#' @export
 
 get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
-  #Adapt whether direct resample result or output from selecttrain_rf
+  #Adapt whether return resample result or output from selecttrain_rf
   if (inherits(in_rftuned, 'list')) {
     #If there is more than one type of outer resampling
     if (length(in_rftuned$rf_outer) > 0) {
@@ -197,7 +276,7 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
       if (spatial_rsp==TRUE) {
 
         if (length(sp_i)>0) {
-          rsmp_res <- in_rftuned$rf_outer[[sp_i]]
+          rsmp_res <- in_rftuned$rf_outer[[min(sp_i)]]
         } else { #But if there is no spatial resampling provided
           stop("spatial_rsp==TRUE but the in_rftuned does not include
                any Spatial Resampling")
@@ -213,17 +292,21 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
     } else {
       rsmp_res <- in_rftuned$rf_outer
     }
+  #If in_rftuned is alreadyh a ResampleResult, simply return it
   } else if (inherits(in_rftuned, "ResampleResult")) {
     rsmp_res <- in_rftuned
   }
   return(rsmp_res)
 }
 
+#------ weighted_sd -----------------
 
 weighted_sd <- function(x, w) {
   #Compute weighted standard deviation
   return(sqrt(sum((w) * (x - weighted.mean(x, w)) ^ 2) / (sum(w) - 1)))
 }
+
+#------ extract_impperf_nestedrf -----------------
 
 extract_impperf_nestedrf <- function(nested_rflearner,
                                      imp = TRUE, perf = TRUE,
@@ -297,6 +380,7 @@ extract_impperf_nestedrf <- function(nested_rflearner,
   }
   ))
 }
+#------ weighted_vimportance_nestedrf -----------------
 
 weighted_vimportance_nestedrf <- function(rfresamp,
                                           pvalue = TRUE, pvalue_permutn = 100) {
@@ -317,6 +401,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 
   return(out_vimportance)
 }
+#------ extract_pd_nestedrf -----------------
 
 extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
   "Create a plot matrix of partial dependence interactions"
@@ -344,6 +429,8 @@ extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
   return(pdout)
 }
 
+#------ fread_cols -----------------
+
 fread_cols <- function(file_name, cols_tokeep) {
   header <- fread(file_name, nrows = 1, header = FALSE)
   keptcols <- cols_tokeep[cols_tokeep %chin% unlist(header)]
@@ -353,6 +440,8 @@ fread_cols <- function(file_name, cols_tokeep) {
   fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
 }
 
+#------ get_oversamp_ratio -----------------
+
 get_oversamp_ratio <- function(in_task) {
   #When given an mlr3 task with binary classification target, gets which class is minority and the ratio
   return(
@@ -361,6 +450,8 @@ get_oversamp_ratio <- function(in_task) {
       .[, list(minoclass=get[1], ratio=N[2]/N[1])]
   )
 }
+
+#------ convert_clastoregrtask -----------------
 
 convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
   if (oversample) {
@@ -384,6 +475,8 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
 }
 
 #Not used
+#------ durfreq_parallel -----------------
+
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
                              reverse=FALSE) {
   #Run durfreq_indiv in parallel
@@ -414,6 +507,7 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
 }
 
 ##### -------------------- Workflow functions ---------------------------------
+#------ def_filestructure -----------------
 def_filestructure <- function() {
   # Get main directory for project
   rootdir <- find_root(has_dir("src"))
@@ -438,7 +532,7 @@ def_filestructure <- function() {
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir, in_riveratlas_meta=in_riveratlas_meta,
            out_gauge=out_gauge, in_riveratlas=in_riveratlas))
 }
-
+#------ read_gaugep -----------------
 read_gaugep <- function(in_filestructure, dist) {
   #Import gauge stations and only keep those < dist m from a HydroSHEDS reach
   return(st_read(dsn=dirname(in_filestructure['in_gaugep']),
@@ -446,7 +540,7 @@ read_gaugep <- function(in_filestructure, dist) {
            .[.$station_river_distance<dist,]
   )
 }
-
+#------ read_gauged_paths -----------------
 read_gauged_paths <- function(in_filestructure, in_gaugep) {
   #Get data paths of daily records for gauge stations
   fileNames <- file.path(in_filestructure['in_gaugedir'], paste(in_gaugep$GRDC_NO,  ".txt", sep=""))
@@ -455,7 +549,7 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) {
               'GRDC records do not exist...'))
   return(fileNames)
 }
-
+#------ comp_durfreq -----------------
 comp_durfreq <- function(path, maxgap, monthsel=NULL) {
   #For a given gauge discharge file (given by path), format and compute
   # firstYear      : num first year on full record
@@ -533,7 +627,7 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
   )
   return(gaugetab_all)
 }
-
+#------ format_gaugestats -----------------
 format_gaugestats <- function(in_gaugestats, in_gaugep) {
   #Format gaugestats into data.table
 
@@ -547,7 +641,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
 
   return(gaugestats_join)
 }
-
+#------ selectformat_predvars -----------------
 selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- List predictor variables ----
   predcols<- c(
@@ -684,7 +778,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 
   return(predcols_dt)
 }
-
+#------ create_tasks -----------------
 create_tasks <- function(in_gaugestats, in_predvars) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[!is.na(cly_pc_cav),
@@ -709,7 +803,7 @@ create_tasks <- function(in_gaugestats, in_predvars) {
                                           oversample=TRUE)
   return(list(classif=task_classif, regr=task_regr, regover=task_regrover))
 }
-
+#------ benchmark_classif -----------------
 benchmark_classif <- function(in_tasks,
                               insamp_nfolds, insamp_neval, insamp_nbatch,
                               outsamp_nrep, outsamp_nfolds) {
@@ -870,7 +964,7 @@ benchmark_classif <- function(in_tasks,
     )
   )
 }
-
+#------ benchmark_regr -----------------
 benchmark_regr <- function(in_tasks,
                            insamp_nfolds, insamp_neval, insamp_nbatch,
                            outsamp_nrep, outsamp_nfolds) {
@@ -970,7 +1064,7 @@ benchmark_regr <- function(in_tasks,
   )
 }
 
-
+#------ analyze_benchmark -----------------
 analyze_benchmark <- function(in_bm, in_measure) {
 
   print(in_bm$aggregate(in_measure))
@@ -1032,7 +1126,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
   return(list(bm_misclasscomp=do.call("grid.arrange", list(grobs=glist)),
               bm_boxcomp = boxcomp))
 }
-
+#------ benchmark_featsel -----------------
 benchmark_featsel <- function(in_rf, in_task, in_measure,
                               pcutoff = 0.1,
                               insamp_nfolds =  NULL, insamp_nevals = NULL,
@@ -1083,7 +1177,7 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
   )
 }
 
-
+#------ selecttrain_rf -----------------
 selecttrain_rf <- function(in_rf, in_task,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   #Prepare autotuner for full training
@@ -1116,6 +1210,9 @@ selecttrain_rf <- function(in_rf, in_task,
               task = in_task)) #Task
 }
 
+##### -------------------- Diagnostics functions -------------------------------
+
+#------ ggvimp -----------------
 ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
@@ -1134,6 +1231,7 @@ ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
     theme(axis.text.x = element_text(size=8))
 }
 
+#------ ggmisclass -----------------
 ggmisclass <-  function(in_predictions) {
   #Get predicted probabilities of intermittency for each gauge
   # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
@@ -1161,6 +1259,7 @@ ggmisclass <-  function(in_predictions) {
   return(gout)
 }
 
+#------ ggpd -----------------
 ggpd <- function (in_rftuned, in_predvars, colnums, ngrid,
                   parallel=T, spatial_rsp=FALSE) {
 
@@ -1231,6 +1330,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid,
   return(do.call("grid.arrange", list(grobs=tileplots_l)))
 }
 
+#------ gguncertainty -----------------
 gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
@@ -1318,6 +1418,7 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
   return(list(uncertainty_numplot, uncertainty_catplot))
 }
 
+#------ write_preds -----------------
 write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, predvars) {
   # ---- Output GRDC predictions as points ----
   in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
