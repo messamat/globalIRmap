@@ -1,48 +1,125 @@
 #Functions for intermittent river analysis
 
 ##### -------------------- Utility functions ---------------------------------
+
+#------ diny -----------------
+#' Number of days in the year
+#'
+#' Computes the number of days in a given year, taking in account leap years
+#'
+#' @param year Numeric or integer vector of the year (format: 4-digit year, %Y).
+#'   
+#' @return Number of days in that year.
+#'
+#' @examples
+#' ```{r}
+#' diny(1999)
+#' diny(2000)
+#' diny(2004)
+#' diny(2100)
+#' diny(1600)
+#' ```
+#' @export
 diny <- function(year) {
-  #Takes a year and returns the number of days within it (366 for leap years)
   365 + (year %% 4 == 0) - (year %% 100 == 0) + (year %% 400 == 0)
 }
 
-zero.lomf <- function(x, first=TRUE) {
-  #Finds the index, for each row, of the previous row with a non-zero value 
-  #Takes in a univariate time series with zeros'''
-  #If first value is zero, will asign that day as the previous day of flow 
+#------ zero_lomf -----------------
+#' Last \[non-zero\] Observation Moved Forward (lomf)
+#'
+#' Finds the index, for each row, of the previous row with a non-zero value
+#'
+#' @param x Numeric vector.
+#' @param first (logical) Whether to consider first value as a non-zero value
+#'   whose index is moved forward even if it is zero. This prevents having NAs
+#'   in the results and somewhat assumes that, for a time series, the day prior
+#'   to the first value is non-zero.
+#'
+#' @return Numeric vector of the indices of the previous non-zero for each
+#'   element of the input vector.
+#'
+#' @examples
+#' ```{r}
+#' test1 <- c(1,1,1,0,0,0,0,1,1)
+#' zero_lomf(test)
+#' test2 <- c(0,0,0,0,0,1,1,0,1)
+#' zero_lomf(test2, first=FALSE)
+#' zero_lomf(test2, first=TRUE)
+#' ```
+#' @export
+zero_lomf <- function(x, first=TRUE) {
   if (length(x) > 0) {
     non.zero.idx <- which(x != 0)
     if(first==T & x[1]==0)
       non.zero.idx=c(1,non.zero.idx)
-    rep.int(non.zero.idx, diff(c(non.zero.idx, length(x) + 1))) #Repeat index of previous row with non-NA as many times gap until next non-NA values
+    #Repeat index of previous row with non-zero as many times gap until next non-zero values
+    rep.int(non.zero.idx, diff(c(non.zero.idx, length(x) + 1))) 
   }
 }
 
-comp_derivedvar <- function(dt) {
+#------ comp_derivedvar -----------------
+#' Compute derived variables
+#'
+#' Format and compute derived a set of environmental variables from input
+#' dataset that contains
+#' \href{https://www.hydrosheds.org/page/hydroatlas}{HydroATLAS} variables for
+#' the purpose of predicting intermittency.
+#'
+#' @param dt data.table which contains rows as records and HydroATLAS
+#'   environmental variables as columns.
+#' @param copy (logical) whether to make a copy of \code{dt} (if TRUE) or to
+#'   modify it in place (if FALSE)
+#'
+#' @details This function only formats and compute derived variables deemed
+#'   relevant for the intermittency analysis. \n
+#'   Steps include: \n
+#'   1. Convert some -9999 that should be 0 after checking them
+#'   2. Count the number of -9999 values per column
+#'   3. Convert the rest of the -9999 values to NA
+#'   4. Compute a set of derived variables based on existing variables in 
+#'   HydroATLAS 
+#'   (e.g. \code{pre_mm_cvar= fifelse(pre_mm_cmx==0, 0, pre_mm_cmn/pre_mm_cmx)})
+#'   5. Correct scaling from RiverATLAS 
+#'   (e.g. Degree of regulation is out of 10,000 in HydroATLAS)
+#'
+#' ```
+#' @source Linke, S., Lehner, B., Dallaire, C. O., Ariwi, J., Grill, G., Anand,
+#'   M., ... & Tan, F. (2019). Global hydro-environmental sub-basin and river
+#'   reach characteristics at high spatial resolution. Scientific Data, 6(1),
+#'   1-15.
+#'   
+#' @export
+
+comp_derivedvar <- function(in_dt, copy=FALSE) {
+  if (copy) {
+    in_dt2 <- copy(in_dt)
+  } else {
+    in_dt2 <- in_dt
+  }
+  
   #---- Inspect and correct -9999 values ----
   print('Inspect and correct -9999 values')
   #check <- riveratlas[cmi_ix_uyr == -9999,] #All have precipitation = 0
-  dt[cmi_ix_uyr == -9999, cmi_ix_uyr := 0]
+  in_dt2[cmi_ix_uyr == -9999, cmi_ix_uyr := 0]
   
   #check <- riveratlas[snw_pc_cyr == -9999,] #One reach in the middle of the Pacific
-  dt[snw_pc_cyr == -9999, snw_pc_cyr:=0]
-  dt[snw_pc_cmx == -9999, snw_pc_cmx:=0]
+  in_dt2[snw_pc_cyr == -9999, snw_pc_cyr:=0]
+  in_dt2[snw_pc_cmx == -9999, snw_pc_cmx:=0]
   
-  #check <- dt[is.na(sgr_dk_rav),]
+  #check <- in_dt2[is.na(sgr_dk_rav),]
   
   print('Number of NA values per column')
-  colNAs<- dt[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+  colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
   print(colNAs)
   
   #Convert -9999 values to NA
-  for (j in which(sapply(dt,is.numeric))) { #Iterate through numeric column indices
-    set(dt,which(dt[[j]]==-9999),j, NA)} #Set those to 0 if -9999
-  
+  for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
+    set(in_dt2,which(in_dt2[[j]]==-9999),j, NA)} #Set those to 0 if -9999
   
   #---- Compute derived predictor variables ----
   print('Compute derived predictor variables')
   pre_mcols <- paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)) #Monthly precipitation columns
-  dt[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
+  in_dt2[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
             pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
      .SDcols= pre_mcols] %>% 
     #       min/max monthly catchment precip (while dealing with times when )
@@ -54,12 +131,14 @@ comp_derivedvar <- function(dt) {
              #catchment average elv - watershec average elev
              ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))] 
   
-  dt[, cmi_ix_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
+  in_dt2[, cmi_ix_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
      .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
     .[, swc_pc_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
       .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
   
-  dt[, `:=`(
+  
+  #Scale variables based on HydroATLAS documentation
+  in_dt2[, `:=`(
     ari_ix_cav = ari_ix_cav/100,
     ari_ix_uav = ari_ix_uav/100,
     cmi_ix_cmn = cmi_ix_cmn/100,
@@ -74,8 +153,7 @@ comp_derivedvar <- function(dt) {
     gwt_m_cav = gwt_cm_cav/100
   )]
   
-  
-  return(dt)
+  return(in_dt2)
 }
 
 threshold_misclass <- function(i, in_preds) {
@@ -104,6 +182,44 @@ threshold_misclass <- function(i, in_preds) {
     spec  = confu[truth=='0' & response==0, N]/confu[truth=='0', sum(N)])
   return(outvec)
 }
+
+
+get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
+  #Adapt whether direct resample result or output from selecttrain_rf
+  if (inherits(in_rftuned, 'list')) {
+    #If there is more than one type of outer resampling
+    if (length(in_rftuned$rf_outer) > 0) {
+      #Check which resampling is spatial — only works if one is spatial
+      sp_i <- which(unlist(lapply(in_rftuned$rf_outer, function(x) {
+        grepl('.*Resampling.*Sp.*', x$resampling$format())
+      })))
+      
+      #If user request that spatial resampling be used
+      if (spatial_rsp==TRUE) {
+        
+        if (length(sp_i)>0) {
+          rsmp_res <- in_rftuned$rf_outer[[sp_i]] 
+        } else { #But if there is no spatial resampling provided
+          stop("spatial_rsp==TRUE but the in_rftuned does not include 
+               any Spatial Resampling")
+        }
+        #If user didn't request spatial resampling to be used, grab the first 
+        #resampling that is not spatial
+      } else {
+        rsmp_res <- in_rftuned$rf_outer[[
+          min((1:length(in_rftuned$rf_outer))[-sp_i])]]  
+      }
+      
+      #If there is only one type of outer resampling
+    } else {
+      rsmp_res <- in_rftuned$rf_outer
+    }
+  } else if (inherits(in_rftuned, "ResampleResult")) {
+    rsmp_res <- in_rftuned 
+  }
+  return(rsmp_res)
+}
+
 
 weighted_sd <- function(x, w) {
   #Compute weighted standard deviation
@@ -283,7 +399,7 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
   
   return(as.data.table(rbindlist(foreach(j=pathlist, 
                                          .packages = c("data.table", "magrittr"), 
-                                         .export=c('comp_durfreq', 'zero.lomf', 'diny')) 
+                                         .export=c('comp_durfreq', 'zero_lomf', 'diny')) 
                                  %dopar% {
                                    if (is.null(monthsel_list)) {
                                      return(comp_durfreq(j, maxgap = 20))
@@ -362,7 +478,7 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
     setorder(GRDC_NO, dates)
   
   gaugetab[, year:=as.numeric(substr(dates, 1, 4))] %>% #Create year column and total number of years on record
-    .[, prevflowdate := gaugetab[zero.lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
+    .[, prevflowdate := gaugetab[zero_lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
     .[Original != 0, prevflowdate:=NA]
   
   #Compute number of missing days per year
@@ -436,65 +552,82 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
 
 selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- List predictor variables ----
-  predcols<- c('dis_m3_pyr',
-               'dis_m3_pmn',
-               'dis_m3_pmx',
-               'dis_mm_pvar',
-               'dis_mm_pvaryr',
-               'run_mm_cyr',
-               'inu_pc_umn',
-               'inu_pc_umx',
-               'inu_pc_cmn',
-               'lka_pc_cse',
-               'lka_pc_use',
-               'dor_pc_pva',
-               'gwt_m_cav',
-               'ele_pc_rel',
-               # 'sgr_dk_rav', #Don't use stream gradient as data are missing for all of Greenland due to shitty DEM
-               'clz_cl_cmj',
-               'tmp_dc_cyr',
-               'tmp_dc_cmn',
-               'tmp_dc_cmx',
-               'tmp_dc_uyr',
-               'pre_mm_uyr',
-               'pre_mm_cvar',
-               'pre_mm_cmn',
-               'pet_mm_uyr',
-               'ari_ix_uav',
-               'ari_ix_cav',
-               'cmi_ix_uyr',
-               'cmi_ix_cmn',
-               'snw_pc_uyr',
-               'snw_pc_cyr',
-               'snw_pc_cmx',
-               'glc_cl_cmj',
-               'pnv_cl_cmj',
-               'wet_pc_cg1',
-               'wet_pc_cg2',
-               'wet_pc_ug1',
-               'wet_pc_ug2',
-               'for_pc_use',
-               'for_pc_cse',
-               'ire_pc_use',
-               'ire_pc_cse',
-               'gla_pc_use',
-               'gla_pc_cse',
-               'prm_pc_use',
-               'prm_pc_cse',
-               'cly_pc_uav',
-               'cly_pc_cav',
-               'slt_pc_uav',
-               'slt_pc_cav',
-               'snd_pc_uav',
-               'snd_pc_cav',
-               'soc_th_uav',
-               'soc_th_cav',
-               'swc_pc_uyr',
-               'swc_pc_cyr',
-               'swc_pc_cmn',
-               'lit_cl_cmj',
-               'kar_pc_use',
-               'kar_pc_cse')
+  predcols<- c(
+    'ORD_STRA',
+    'dis_m3_pyr',
+    'dis_m3_pmn',
+    'dis_m3_pmx',
+    'dis_mm_pvar',
+    'dis_mm_pvaryr',
+    'run_mm_cyr',
+    'inu_pc_umn',
+    'inu_pc_umx',
+    'inu_pc_cmn',
+    'lka_pc_cse',
+    'lka_pc_use',
+    'dor_pc_pva',
+    'gwt_m_cav',
+    'ele_pc_rel',
+    # 'sgr_dk_rav', #Don't use stream gradient as data are missing for all of Greenland due to shitty DEM
+    'clz_cl_cmj',
+    'tmp_dc_cyr',
+    'tmp_dc_cmn',
+    'tmp_dc_cmx',
+    'tmp_dc_uyr',
+    'pre_mm_uyr',
+    'pre_mm_cvar',
+    'pre_mm_cmn',
+    'pet_mm_uyr',
+    'ari_ix_uav',
+    'ari_ix_cav',
+    'cmi_ix_uyr',
+    'cmi_ix_cmn',
+    'snw_pc_uyr',
+    'snw_pc_cyr',
+    'snw_pc_cmx',
+    'glc_cl_cmj',
+    'pnv_cl_cmj',
+    'wet_pc_cg1',
+    'wet_pc_cg2',
+    'wet_pc_ug1',
+    'wet_pc_ug2',
+    'for_pc_use',
+    'for_pc_cse',
+    'ire_pc_use',
+    'ire_pc_cse',
+    'gla_pc_use',
+    'gla_pc_cse',
+    'prm_pc_use',
+    'prm_pc_cse',
+    'cly_pc_uav',
+    'cly_pc_cav',
+    'slt_pc_uav',
+    'slt_pc_cav',
+    'snd_pc_uav',
+    'snd_pc_cav',
+    'soc_th_uav',
+    'soc_th_cav',
+    'swc_pc_uyr',
+    'swc_pc_cyr',
+    'swc_pc_cmn',
+    'lit_cl_cmj',
+    'kar_pc_use',
+    'kar_pc_cse',
+    
+    'ppd_pk_cav',
+    'ppd_pk_uav',
+    'urb_pc_cse',
+    'urb_pc_use',
+    'hft_ix_c93',
+    'hft_ix_u93',
+    'hft_ix_c09',
+    'hft_ix_u09',
+    'gdp_ud_cav',
+    'hdi_ix_cav')
+  
+  
+  
+  
   
   #Check that all columns are in dt
   message(paste(length(predcols[!(predcols %in% names(in_gaugestats))]), 
@@ -905,7 +1038,8 @@ analyze_benchmark <- function(in_bm, in_measure) {
 benchmark_featsel <- function(in_rf, in_task, in_measure,
                               pcutoff = 0.1,
                               insamp_nfolds =  NULL, insamp_nevals = NULL,
-                              outsamp_nrep = NULL, outsamp_nfolds =  NULL) {
+                              outsamp_nrep = NULL, outsamp_nfolds =  NULL,
+                              outsamp_nfolds_sp =  NULL) {
   #pcutoff is the p_value above which features are removes
   
   #Apply feature/variable selection
@@ -918,6 +1052,9 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
     vimp[imp_pvalue <= pcutoff, as.character(varnames)])
   task_featsel$id <- paste0(in_task$id, '_featsel')
   
+  if (is.null(outsamp_nfolds_sp)) {
+    outsamp_nfolds_sp = outsamp_nfolds
+  }
   
   #Set up outer resampling including 
   outer_resampling = rsmp("repeated_cv", 
@@ -926,7 +1063,7 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
   
   outer_resamplingsp = rsmp("repeated-spcv-coords",
                             repeats = outsamp_nrep,
-                            folds = outsamp_nfolds) #Create 20 folds (visualize)
+                            folds = outsamp_nfolds_sp) #Create 20 folds (visualize)
   
   #Run outer resampling and benchmarking on classification learners
   bmrdesign_featsel <- benchmark_grid(
@@ -953,6 +1090,7 @@ selecttrain_rf <- function(in_rf, in_task,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   #Prepare autotuner for full training
   lrn_autotuner <- in_rf$learners$learner[[1]]
+  subbm <- in_rf$clone()$filter(task_ids = in_task$id)
   
   if (!is.null(insamp_nfolds)) {
     lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
@@ -965,26 +1103,27 @@ selecttrain_rf <- function(in_rf, in_task,
   #Train learners
   lrn_autotuner$train(in_task)
   
-  #Return outer sampling object for selected model
-  outer_resampling_output <- in_rf$resample_result(
-    uhash=unique(as.data.table(in_rf)$uhash))
-  
+  #Return outer sampling object for selected model (or list of outer sampling objects)
+  uhashes <- unique(as.data.table(subbm)$uhash)
+  if (length(uhashes) == 1) {
+    outer_resampling_output <- subbm$resample_result(uhash=uhashes)
+  } else {
+    outer_resampling_output <- lapply(uhashes, function(x) {
+      subbm$resample_result(uhash=x)
+    }) 
+  }
+
   return(list(rf_outer = outer_resampling_output, #Resampling results
               rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
               task = in_task)) #Task
 }
 
-ggvimp <- function(in_rftuned, in_predvars) {
-  
-  #Adapt whether direct resample result or output from selecttrain_rf
-  if (inherits(in_rftuned, 'list')) {
-    rsmp_res <- in_rftuned$rf_outer
-  } else if (inherits(in_rftuned, "ResampleResult")) {
-    rsmp_res <- in_rftuned 
-  }
-  
+ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
+  rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+
   #Get variable importance and format them
-  varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res) %>% 
+  varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res,
+                                                pvalue = FALSE) %>% 
     merge(., in_predvars, by.x='variable', by.y='varcode') %>%
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
   
@@ -1024,12 +1163,16 @@ ggmisclass <-  function(in_predictions) {
   return(gout)
 }
 
-ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
+ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, 
+                  parallel=T, spatial_rsp=FALSE) {
+  
+  #Get outer resampling of interest
+  rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
   
   #Get partial dependence across all folds
-  nlearners <- in_rftuned$rf_outer$resampling$param_set$values$folds
-  datdf <- as.data.frame(in_rftuned$rf_outer$task$data()) #This may be shortened
-  varimp <- weighted_vimportance_nestedrf(in_rftuned$rf_outer)
+  nlearners <- rsmp_res$resampling$param_set$values$folds
+  datdf <- as.data.frame(rsmp_res$task$data()) #This may be shortened
+  varimp <- weighted_vimportance_nestedrf(rsmp_res)
   selcols <- as.character(varimp$variable[colnums])
   
   if (parallel) {
@@ -1037,7 +1180,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
                 "CV folds"))
     pd <- future.apply::future_lapply(seq_len(nlearners),
                                       extract_pd_nestedrf,
-                                      in_rftuned = in_rftuned$rf_outer,
+                                      in_rftuned = rsmp_res,
                                       datdf = datdf,
                                       selcols = selcols,
                                       ngrid = ngrid,
@@ -1049,7 +1192,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, parallel=T) {
                 "CV folds"))
     pd <- lapply(seq_len(nlearners),
                  extract_pd_nestedrf,
-                 in_rftuned = in_rftuned$rf_outer,
+                 in_rftuned = rsmp_res,
                  datdf = datdf,
                  selcols = selcols,
                  ngrid = ngrid)
