@@ -89,6 +89,7 @@ riveratlas <- fread_cols(filestructure['in_riveratlas'],
 
 ```
 
+
 #Figure 1. Geographical distribution of reference streamgauging stations
 ```{r basic map, echo = FALSE, fig.width = 6,  dpi=300}
 ggrivers <- function() {
@@ -123,9 +124,10 @@ p_pr/p_ir
 
 ```
 
+
+
 #Figure 2. Environmental distribution of reference streamgauging stations
 Bernhard, is dor_pc_pva x 100 rather than x10 (as written in doc)?
-
 ```{r pressure, fig.width = 6, fig.height=6, dpi=300, message=FALSE}
 #Radar plot of selected variables
 #names(riveratlas)
@@ -298,6 +300,13 @@ kable(predvars_format[,c('Category', 'Attribute',
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 ```
 
+
+Figure 3. Benchmark comparison of models: spatial and non-spatial cross-validation results. Balanced accuracy (including post-analysis pseudo bacc for regression RF), Brier’s score
+```{r models benchmarking, echo=FALSE}
+
+
+
+```
 
 
 

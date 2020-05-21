@@ -52,10 +52,12 @@ plan <- drake_plan(
   
   misclass_plot = ggmisclass(in_predictions=rftuned$rf_outer$prediction()),
   
-  vimp_plot = ggvimp(rftuned, predvars),
+  vimp_plot = ggvimp(rftuned, predvars, spatial_rsp=FALSE),
   
-  pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T),
+  pd_plot = ggpd(rftuned, predvars, colnums=1:5, ngrid=c(10,10), parallel=T,
+                 spatial_rsp=FALSE),
   
-  rfpreds = write_preds(filestructure, gaugep, gaugestats_format, rftuned, predvars)
+  rfpreds = write_preds(filestructure, gaugep, gaugestats_format, 
+                        rftuned, predvars, spatial_rsp=FALSE)
 )
                     
