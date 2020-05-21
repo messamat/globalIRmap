@@ -62,7 +62,7 @@ comp_derivedvar <- function(dt) {
   dt[, `:=`(
     ari_ix_cav = ari_ix_cav/100,
     ari_ix_uav = ari_ix_uav/100,
-    cmi_ix_cyr = cmi_ix_cyr/100,
+    cmi_ix_cmn = cmi_ix_cmn/100,
     cmi_ix_uyr = cmi_ix_uyr/100,
     dor_pc_pva = dor_pc_pva/100,
     lka_pc_cse = lka_pc_cse/10,
