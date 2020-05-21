@@ -434,7 +434,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
     out_vimportance <- cbind(
       out_vimportance,
       vimportance_all[,
-                      list(imp_wmean = weighted.mean(pvalue, classif.bacc)), #Compute weighted mean of pvalue
+                      list(imp_pvalue = weighted.mean(pvalue, classif.bacc)), #Compute weighted mean of pvalue
                       by=varnames]
     )
   }
