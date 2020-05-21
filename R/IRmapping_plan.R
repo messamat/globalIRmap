@@ -38,7 +38,8 @@ plan <- drake_plan(
                       in_measure = rfbm_classif$measure_classif,
                       pcutoff = 0.1,
                       insamp_nfolds =  2, insamp_nevals = 1,
-                      outsamp_nrep = 2, outsamp_nfolds =  10) 
+                      outsamp_nrep = 2, outsamp_nfolds =  10, 
+                      outsamp_nfolds_sp = 10) 
   ),
   
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
@@ -47,7 +48,7 @@ plan <- drake_plan(
                    in_task = rfeval_featsel$bm_tasks$task_classif,
                    insamp_nfolds = 2,
                    insamp_nevals = 2),
-    trigger =  trigger(condition = FALSE)),
+    trigger =  trigger(condition = TRUE)),
   
   misclass_plot = ggmisclass(in_predictions=rftuned$rf_outer$prediction()),
   
