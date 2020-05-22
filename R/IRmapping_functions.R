@@ -376,7 +376,7 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
 #' \code{p-value} is ignored for now.
 #'
 #' @seealso \link{weighted_vimportance_nestedrf}
-#' @section documentation to-do
+#' @section documentation to-do:
 #' Can add an example down the line, add source.
 #' @export
 
@@ -482,11 +482,11 @@ extract_impperf_nestedrf <- function(in_rflearner,
 #' @seealso \link{extract_impperf_nestedrf} and \link{ggvimp} and
 #' \link{benchmark_featsel}
 #'
-#' @section Warning
+#' @section Warning:
 #' Does not accept error measure for weighting
 #' - could be amended to be based on 1-error
 #'
-#' @section documentation to-do
+#' @section documentation to-do:
 #' Can add an example down the line, add source.
 #' @export
 
@@ -556,10 +556,10 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 #' @seealso \link{weighted_vimportance_nestedrf},
 #'  \link{ggpd}
 #'
-#' @section Warning
+#' @section Warning:
 #' Has only been tested on \link[mlr3learners]{mlr_learners_classif.ranger}
 #'
-#' @section documentation to-do
+#' @section documentation to-do:
 #' Can add an example down the line, add source.
 #'
 #' @export
@@ -625,8 +625,8 @@ fread_cols <- function(file_name, cols_tokeep) {
   paste('Importing', file_name, 'with ', length(keptcols),
         'columns out of ', length(cols_tokeep), 'supplied column names')
   #Reading in table
-  fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
   paste(missingcols, 'columns are not in the file...')
+  return(fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE))
 }
 
 #------ get_oversamp_ratio -----------------
@@ -648,7 +648,7 @@ fread_cols <- function(file_name, cols_tokeep) {
 #' @examples
 #' ```{r}
 #' in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
-#' task = tsk("in_dt", target='intermittent')
+#' task = mlr3::TaskClassif$new(id = "in_dt", backend = in_dt, target ='intermittent')
 #' get_oversamp_ratio(task)
 #' ```
 #'
@@ -666,6 +666,30 @@ get_oversamp_ratio <- function(in_task) {
 }
 
 #------ convert_clastoregrtask -----------------
+#' Convert classification task to regression task
+#'
+#' Convert a binary \link[mlr3]{TaskClassif} or
+#' \link[mlr3spatiotempcv]{TaskClassifST}
+#' to a \link[mlr3]{TaskRegr}, optionally oversampling the minority class first.
+#'
+#' @param in_task \link[mlr3]{TaskClassif} or \link[mlr3spatiotempcv]{TaskClassifST}
+#' @param in_id the id of the output task
+#' @param oversample (logical) whether to oversample minority class beforehand
+#' (this is not exactly equivalent to a PipeOp) but oversample PipeOp is not yet
+#' available for regression tasks. If TRUE, will oversample so that classes are
+#' equally represented in task.
+#'
+#' @return a \link[mlr3]{TaskRegr}
+#'
+#' @examples
+#' ```{r}
+#' in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
+#' task = mlr3::TaskClassif$new(id = "task_classif", backend = in_dt, target ='intermittent')
+#' convert_clastoregrtask(task, id="task_regr")
+#' ```
+#'
+#' @export
+
 
 convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
   if (oversample) {
@@ -690,38 +714,65 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
 
 #Not used
 #------ durfreq_parallel -----------------
-
+#' Parallel wrapper for \link{comp_durfreq}
+#'
+#' Wrapper to run \link{comp_durfreq} (which computes the annual mean number of zero
+#' flow days and frequency of zero-flow periods for a streamflow time series)
+#' in parallel across a list of time series (paths).
+#'
+#' @param pathlist vector or list of paths to time series formatted GRDC-style
+#' @inheritParams comp_durfreq
+#' @param monthsel_list  named list with names being the gauge ID (e.g. GRDC_NO)
+#' and values the selected months to compute the statistics over.
+#' @param reverse (logical) whether to use monthsel_list as excluding months
+#' rather than subsetting
+#'
+#' @return data.table with each row a gauging station and columns inherited
+#' from \link{comp_durfreq}
+#'
+#' @export
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
                              reverse=FALSE) {
-  #Run durfreq_indiv in parallel
-  #Can compute mean number of zero flow days, frequency of zero flow periods, and intermittency on selected months
-  #monthsel_list: named list with names being GRDC_NO and values the selected months
-  #reverse: whether to use monthsel_list as excluding months rather than subsetting
 
   cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
   on.exit(stopCluster(cl))
   doParallel::registerDoParallel(cl)
 
-  return(as.data.table(rbindlist(foreach(j=pathlist,
-                                         .packages = c("data.table", "magrittr"),
-                                         .export=c('comp_durfreq', 'zero_lomf', 'diny'))
-                                 %dopar% {
-                                   if (is.null(monthsel_list)) {
-                                     return(comp_durfreq(j, maxgap = 20))
-                                   } else {
-                                     monthsublist = monthsel_list[[strsplit(basename(j), '[.]')[[1]][1]]]
+  return(as.data.table(rbindlist(
+    foreach(j=pathlist,
+            .packages = c("data.table", "magrittr"),
+            .export=c('comp_durfreq', 'zero_lomf', 'diny'))
+    %dopar% {
+      if (is.null(monthsel_list)) {
+        return(comp_durfreq(j, maxgap = 20))
+      } else {
+        monthsublist = monthsel_list[[strsplit(basename(j), '[.]')[[1]][1]]]
 
-                                     #Run duration and frequency computation for subset of months
-                                     return(comp_durfreq(j, maxgap = maxgap,
-                                                         monthsel= if (reverse) setdiff(1:12, monthsublist) else monthsublist)
-                                     )
-                                   }
-                                 }
+        #Run duration and frequency computation for subset of months
+        return(comp_durfreq(j, maxgap = maxgap,
+                            monthsel= if (reverse) setdiff(1:12, monthsublist) else monthsublist)
+        )
+      }
+    }
   )))
 }
 
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
+#' Parallel wrapper for comp_durfreq
+#'
+#' Defines file structure for running RF prediction of global intermittency
+#'
+#' @return Named list with paths to directories and files as well as paths for
+#' analysis output
+#'
+#' @details all paths are relative to file in which project/package is contained. \cr
+#' Project must be contained in ~/project_name/src \cr
+#' Data must be contained in ~/project_name/data \cr
+#' A directory called ~/project_name/results must exist to write outputs
+#'
+#' @export
+#'
 def_filestructure <- function() {
   # Get main directory for project
   rootdir <- find_root(has_dir("src"))
@@ -747,6 +798,24 @@ def_filestructure <- function() {
            out_gauge=out_gauge, in_riveratlas=in_riveratlas))
 }
 #------ read_gaugep -----------------
+#' Read gauge points
+#'
+#' Import streamgauging station spatial data and attributes, only keeping those
+#' whose point representation is within a given distance from the river network.
+#'
+#' @param in_filestructure named list containing path to point data for gauging
+#' stations, named \code{in_gaugep}
+#' @param dist maximum distance from the river network beyond which gauging
+#' stations are excluded.
+#'
+#' @return object of class sf
+#'
+#' @details The distance from the river network must have been determined
+#' beforehand and be an attribute of the gauge stations point data called
+#' \code{station_river_distance}
+#'
+#' @export
+
 read_gaugep <- function(in_filestructure, dist) {
   #Import gauge stations and only keep those < dist m from a HydroSHEDS reach
   return(st_read(dsn=dirname(in_filestructure['in_gaugep']),
@@ -755,7 +824,20 @@ read_gaugep <- function(in_filestructure, dist) {
   )
 }
 #------ read_gauged_paths -----------------
-read_gauged_paths <- function(in_filestructure, in_gaugep) {
+#' Read file paths to gauge flow data
+#'
+#' Based on selection of gauges, create a list of paths to streamflow data
+#' associated with gauges.
+#'
+#' @inheritParams read_gaugep
+#' @param in_gaugep table containing column named \code{GRDC_NO} with the
+#' gauge IDs that will be used to generate file path.
+#'
+#' @return vector of paths to GRDC-formatted streamflow time series tables
+#'
+#' @export
+
+read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_NO' down the line
   #Get data paths of daily records for gauge stations
   fileNames <- file.path(in_filestructure['in_gaugedir'], paste(in_gaugep$GRDC_NO,  ".txt", sep=""))
   #Check whether any GRDC record does not exist
@@ -763,19 +845,36 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) {
               'GRDC records do not exist...'))
   return(fileNames)
 }
-#------ comp_durfreq -----------------
+################------ comp_durfreq continue doc -----------------------------------------
+#' Compute intermittency statistics for a gauging station
+#'
+#' Determine general characteristics of the whole time series and of the subset
+#' of years that have less than a given threshold of missing data as well as
+#' intermittency statistics. The intermittency statistics can be computed for a
+#' subset of months of the year (e.g. only winter months)
+#'
+#' @param path file path to a GRDC-formatted streamflow time series table
+#' @param maxgap maximum number of days with missing data beyond which a year is
+#' not used in the computation of statistics
+#' @param monthsel selected months to compute the statistics over
+#'
+#' @return One row data.table with the following columns: \cr
+#'   #For a given gauge discharge file (given by path), format and compute
+# firstYear      : num first year on full record
+# lastYear       : num last year on full record
+# totalYears     : int total number of years on full record
+# firstYear_kept : num first year on record with < maxgap missing days
+# lastYear_kept  : num first year on record with < maxgap missing days
+# totalYears_kept: int total number of years with < maxgap missing days
+# totaldays      : num total number of days with discharge data
+# sumDur         : int total number of days with discharge = 0
+# mDur           : num mean number of days/year with discharge = 0
+# mFreq          : num mean number of periods with discharge = 0 (with at least one day of flow between periods)
+#'
+#' @export
+
 comp_durfreq <- function(path, maxgap, monthsel=NULL) {
-  #For a given gauge discharge file (given by path), format and compute
-  # firstYear      : num first year on full record
-  # lastYear       : num last year on full record
-  # totalYears     : int total number of years on full record
-  # firstYear_kept : num first year on record with < maxgap missing days
-  # lastYear_kept  : num first year on record with < maxgap missing days
-  # totalYears_kept: int total number of years with < maxgap missing days
-  # totaldays      : num total number of days with discharge data
-  # sumDur         : int total number of days with discharge = 0
-  # mDur           : num mean number of days/year with discharge = 0
-  # mFreq          : num mean number of periods with discharge = 0 (with at least one day of flow between periods)
+
 
   gaugetab <- cbind(fread(path, header=T, skip = 40, sep=";",
                           colClasses=c('character', 'character', 'numeric', 'numeric', 'integer')),
@@ -1412,7 +1511,7 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
 selecttrain_rf <- function(in_rf, in_task,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   #Prepare autotuner for full training
-  lrn_autotuner <- in_rf$learners$learner[[1]]
+  lrn_autotuner <- in_rf$clone()$learners$learner[[1]]
   subbm <- in_rf$clone()$filter(task_ids = in_task$id)
 
   if (!is.null(insamp_nfolds)) {
@@ -1434,7 +1533,10 @@ selecttrain_rf <- function(in_rf, in_task,
   }
 
   #Train learners
-  ############# For the final training, use permutation-based importance##############
+  lrn_autotuner$param_set$values = mlr3misc::insert_named(
+    lrn_autotuner$param_set$values,
+    list(classif.ranger.importance = 'permutation')
+  )
   lrn_autotuner$train(in_task)
 
   return(list(rf_outer = outer_resampling_output, #Resampling results
@@ -1464,12 +1566,16 @@ ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
 }
 
 #------ ggmisclass -----------------
-ggmisclass <-  function(in_predictions) {
+ggmisclass <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
   #Get predicted probabilities of intermittency for each gauge
   # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
   #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
   #Get misclassification error, sensitivity, and specificity for different classification thresholds
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
+  if (!is.null(in_rftuned)) {
+    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+    in_predictions <- rsmp_res$prediction()
+  }
 
   threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
     setDT
@@ -1676,7 +1782,8 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
 }
 
 #------ write_preds -----------------
-write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, predvars) {
+write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned,
+                        in_predvars) {
   # ---- Output GRDC predictions as points ----
   in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
                 IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]]
@@ -1693,13 +1800,13 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned, 
            delete_dsn=T)
 
   # ---- Generate predictions to map on river network ----
-  cols_tokeep <-  c("HYRIV_ID", predvars[!is.na(ID),varcode],
-                    'ele_mt_cav','ele_mt_uav',
+  cols_tokeep <-  c("HYRIV_ID", in_predvars[!is.na(ID),varcode],
+                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav',
                     paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
                     paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
                     paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
 
-  riveratlas <- fread_cols(in_filestructure['in_riveratlas'],
+  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
                            cols_tokeep = cols_tokeep) %>%
     comp_derivedvar
 
