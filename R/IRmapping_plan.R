@@ -38,8 +38,8 @@ plan <- drake_plan(
                       in_measure = rfbm_classif$measure_classif,
                       pcutoff = 0.1,
                       insamp_nfolds =  2, insamp_nevals = 1,
-                      outsamp_nrep = 2, outsamp_nfolds =  10,
-                      outsamp_nfolds_sp = 10)
+                      outsamp_nrep = 2, outsamp_nfolds =  2,
+                      outsamp_nfolds_sp = 2)
   ),
 
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
@@ -47,17 +47,16 @@ plan <- drake_plan(
     selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
                    in_task = rfeval_featsel$bm_tasks$task_classif,
                    insamp_nfolds = 2,
-                   insamp_nevals = 2),
-    trigger =  trigger(condition = TRUE)),
+                   insamp_nevals = 2)),
 
-  misclass_plot = ggmisclass(in_predictions=rftuned$rf_outer$prediction()), #########NEED TO UPDATE THAT TO DEAL WITH MULTIPLE RF_OUTER, see ggvimp
+  misclass_plot = ggmisclass(in_rftuned=rftuned, spatial_rsp=FALSE),
 
   vimp_plot = ggvimp(rftuned, predvars, spatial_rsp=FALSE),
 
   pd_plot = ggpd(rftuned, predvars, colnums=1:10, nodupli=TRUE,
-                 ngrid=c(20,20), parallel=T, spatial_rsp=FALSE),
+                 ngrid=20, parallel=T, spatial_rsp=FALSE),
 
   rfpreds = write_preds(filestructure, gaugep, gaugestats_format,
-                        rftuned, predvars, spatial_rsp=FALSE)
+                        rftuned, predvars)
 )
 
