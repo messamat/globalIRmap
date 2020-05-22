@@ -119,8 +119,8 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   print('Compute derived predictor variables')
   pre_mcols <- paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)) #Monthly precipitation columns
   in_dt2[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
-            pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
-     .SDcols= pre_mcols] %>%
+                pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
+         .SDcols= pre_mcols] %>%
     #       min/max monthly catchment precip (while dealing with times when )
     .[, `:=`(pre_mm_cvar= fifelse(pre_mm_cmx==0, 0, pre_mm_cmn/pre_mm_cmx),
              #min/max monthly watershed discharge
@@ -131,7 +131,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
              ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))]
 
   in_dt2[, cmi_ix_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
-     .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
+         .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
     .[, swc_pc_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
       .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
 
@@ -213,7 +213,7 @@ threshold_misclass <- function(i=0.5, in_preds) {
       #     being based on prob.0, not prob.1)
       #   2. Compute confusion matrix
       confu <- in_preds[, as.data.table(pred[[1]]$set_threshold(1-i)$confusion),
-        by=outf] %>%
+                        by=outf] %>%
         #Aggregate confusion matrices across repetitions
         .[, .(N=sum(N)), by=.(response, truth)]
     }
@@ -292,7 +292,7 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
     } else {
       rsmp_res <- in_rftuned$rf_outer
     }
-  #If in_rftuned is alreadyh a ResampleResult, simply return it
+    #If in_rftuned is alreadyh a ResampleResult, simply return it
   } else if (inherits(in_rftuned, "ResampleResult")) {
     rsmp_res <- in_rftuned
   }
@@ -314,10 +314,12 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
 #' @return A length-one numeric vector.
 #'
 #' @examples
+#' ```{r}
 #' wt <- c(5, 4, 3 ,2 , 1)
 #' x <- c(1, 2, 3, 4, 5)
 #' xm <- weighted.mean(x, wt)
 #' xsd <- weighted_sd(x, wt)
+#' ```
 #'
 #' @export
 
@@ -401,7 +403,13 @@ extract_impperf_nestedrf <- function(in_rflearner,
           in_task <- in_rflearner$model$tuning_instance$task
           in_formula <- as.formula(paste0(in_task$target_names, '~.'))
 
-vv
+          importance_pvalues(
+            sublrn$model$classif.ranger$model,
+            method = "altmann",
+            num.permutations = pvalue_permutn,
+            data = in_task$data(),
+            formula= in_formula
+          )
 
         } else {
           data.table(importance=sublrn$model$classif.ranger$model$variable.importance)
@@ -511,10 +519,52 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 }
 
 #------ extract_pd_nestedrf -----------------
+#' Extract partial dependence (and performance) from a trained RF learner.
+#'
+#' Computes the marginal relationship between a subset of the predictors
+#' (here, two variables at a time) and the model’s predictions by averaging
+#' over the marginal distribution of the compliment of this subset of
+#' the predictors, taking in account the interaction between the chosen
+#' predictors.
+#'
+#' @param learner_id (integer) Index of the outer resampling instance to be
+#' analyzed.
+#' @param in_rftuned \link[mlr3]{ResampleResult} from a classification RF.
+#' @param datdf Data from the task that was used to train RF.
+#' @param selcols Character vector of the predictor variables to analyze.
+#' @param ngrid (integer) Number of values of the  predictor variables over
+#' which to compute the marginal relationship.
+#'
+#' @return A data.table with the following columns.
+#' \describe{
+#'   \item{value1} - value of the first predictor variable in the pair
+#'   \item{value2} - value of the second predictor variable in the pair
+#'   \item{0} - predicted probability of 0 (e.g. probability that the river
+#'   is perennial) at value1 and value2
+#'   \item{1} - predicted probability of 1 (e.g. probability that the river
+#'   is intermittent) at value1 and value2
+#'   \item{\[perf\]} - performance value (same for all rows), name changes
+#'   \item{var1} - name of the first predictor variable
+#'   \item{var2} - name of the second predictor variable
+#' }
+#'
+#'
+#' @details
+#' Also accept learners of class \link[mlr3pipelines]{GraphLearner}. \cr
+#' Uses \link[edarf]{partial_dependence} for computing.
+#'
+#' @seealso \link{weighted_vimportance_nestedrf},
+#'  \link{ggpd}
+#'
+#' @section Warning
+#' Has only been tested on \link[mlr3learners]{mlr_learners_classif.ranger}
+#'
+#' @section documentation to-do
+#' Can add an example down the line, add source.
+#'
+#' @export
 
-extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
-  "Create a plot matrix of partial dependence interactions"
-
+extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf, selcols, ngrid) {
   in_mod <- in_rftuned$learners[[learner_id]]
   #in_mod <- nestedresamp_ranger$learners[[1]]
 
@@ -524,7 +574,7 @@ extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
     in_fit <- in_mod$learner$model
   }
 
-  foldperf <- extract_impperf_nestedrf(in_mod, imp=F, perf=T)
+  foldperf <- extract_impperf_nestedrf(in_mod, imp=F, perf=T, pvalue=F)
 
   # selcols <- in_vimp_plot$data %>% #Can use that if extracting from tunredrf is expensive
   #   setorder(-imp_wmean) %>%
@@ -533,8 +583,10 @@ extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
   vargrid <- combn(selcols, 2, simplify=F) %>%
     do.call(rbind, .)
 
+  ngridvec <- c(ngrid, ngrid)
+
   pdcomb <- mapply(function(i, j) {
-    pdout <- edarf::partial_dependence(in_fit, vars = c(i, j), n = ngrid,
+    pdout <- edarf::partial_dependence(in_fit, vars = c(i, j), n = ngridvec,
                                        interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
       setDT %>%
       .[,(names(foldperf)) := foldperf] %>%
@@ -550,20 +602,62 @@ extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
 }
 
 #------ fread_cols -----------------
+#' fread columns
+#'
+#' Fast data.table-based reading of a subset of columns from a table
+#'
+#' @param file_name path of the table to be read
+#' @param cols_tokeep character vector, names of columns to read
+#'
+#' @return a data.table with the \code{cols_tokeep} that are found in the table
+#'
+#' @examples
+#' fread_cols(iris, c('Sepal.Length', 'Sepal.Width')
+#'
+#' @export
 
 fread_cols <- function(file_name, cols_tokeep) {
+  #Only read the first row from the file
   header <- fread(file_name, nrows = 1, header = FALSE)
+  #Check which columns are in the table
   keptcols <- cols_tokeep[cols_tokeep %chin% unlist(header)]
   missingcols <- cols_tokeep[!(cols_tokeep %chin% unlist(header))]
   paste('Importing', file_name, 'with ', length(keptcols),
         'columns out of ', length(cols_tokeep), 'supplied column names')
+  #Reading in table
   fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE)
+  paste(missingcols, 'columns are not in the file...')
 }
 
 #------ get_oversamp_ratio -----------------
+#' Get oversample ratio
+#'
+#' Identify minority class and compute ratio between the number of observations
+#' in the majority and the minority classes of a binary
+#' \link[mlr3]{TaskClassif }.
+#'
+#' @param in_task binary \link[mlr3]{TaskClassif }
+#'
+#' @return named list with following items:
+#' \describe{
+#' \item{minoclass} - Value of minority class (e.g. '1' for intermittent rivers)
+#' \item{ratio} - numeric ratio between number of items in majority and minority
+#' class
+#' }
+#'
+#' @examples
+#' ```{r}
+#' in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
+#' task = tsk("in_dt", target='intermittent')
+#' get_oversamp_ratio(task)
+#' ```
+#'
+#' @export
+
+#When given an mlr3 task with binary classification target, gets which class is minority and the ratio
+
 
 get_oversamp_ratio <- function(in_task) {
-  #When given an mlr3 task with binary classification target, gets which class is minority and the ratio
   return(
     in_task$data()[, .N, by=get(in_task$target_names)] %>%
       setorder(N) %>%
@@ -849,17 +943,17 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 
   #Get predictor variable names
   metaall <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'],
-                       sheet='Overall') %>%
+                               sheet='Overall') %>%
     setDT
 
   metascale <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'],
-                         sheet='scale') %>%
+                                 sheet='scale') %>%
     setDT %>%
     setnames(c('Key','Spatial representation'),
              c('Keyscale', 'Spatial.representation'))
 
   metastat <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'],
-                        sheet='stat') %>%
+                                sheet='stat') %>%
     setDT %>%
     setnames(c('Key','Temporal or statistical aggregation or other association'),
              c('Keystat', 'Temporal.or.statistical.aggregation.or.other.association'))
@@ -867,10 +961,10 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   meta_format <- as.data.table(expand.grid(`Column(s)`=metaall$`Column(s)`,
                                            Keyscale=metascale$Keyscale,
                                            Keystat=metastat$Keystat)) %>%
-                .[metaall, on='Column(s)'] %>%
-                .[metascale, on = 'Keyscale'] %>%
-                .[metastat, on = 'Keystat',
-                  allow.cartesian=TRUE]
+    .[metaall, on='Column(s)'] %>%
+    .[metascale, on = 'Keyscale'] %>%
+    .[metastat, on = 'Keystat',
+      allow.cartesian=TRUE]
 
 
 
@@ -959,8 +1053,8 @@ benchmark_classif <- function(in_tasks,
   #https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_classbalancing.html
   #Sampling happens only during training phase.
   po_over <- mlr3pipelines::po("classbalancing", id = "oversample", adjust = "minor",
-                              reference = "minor", shuffle = TRUE,
-                              ratio = imbalance_ratio)
+                               reference = "minor", shuffle = TRUE,
+                               ratio = imbalance_ratio)
   #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
 
   #Create mlr3 pipe operator to put a higher class weight on minority class
@@ -1329,9 +1423,6 @@ selecttrain_rf <- function(in_rf, in_task,
     lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
   }
 
-  #Train learners
-  lrn_autotuner$train(in_task)
-
   #Return outer sampling object for selected model (or list of outer sampling objects)
   uhashes <- unique(as.data.table(subbm)$uhash)
   if (length(uhashes) == 1) {
@@ -1341,6 +1432,10 @@ selecttrain_rf <- function(in_rf, in_task,
       subbm$resample_result(uhash=x)
     })
   }
+
+  #Train learners
+  ############# For the final training, use permutation-based importance##############
+  lrn_autotuner$train(in_task)
 
   return(list(rf_outer = outer_resampling_output, #Resampling results
               rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
@@ -1397,9 +1492,9 @@ ggmisclass <-  function(in_predictions) {
     scale_x_continuous(expand=c(0,0), name='Threshold') +
     scale_y_continuous(expand=c(0,0), name='Value') +
     scale_color_brewer(palette='Dark2',  #colorblind friendly
-                          labels=c('Misclassification rate',
-                                   'Sensitivity (true positives)',
-                                   'Specificity (true negatives)')) +
+                       labels=c('Misclassification rate',
+                                'Sensitivity (true positives)',
+                                'Specificity (true negatives)')) +
     theme_bw()
 
   #Plot it
@@ -1416,7 +1511,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
   #Get partial dependence across all folds
   nlearners <- rsmp_res$resampling$param_set$values$folds
   datdf <- as.data.frame(rsmp_res$task$data()) #This may be shortened
-  varimp <- weighted_vimportance_nestedrf(rsmp_res)
+  varimp <- weighted_vimportance_nestedrf(rsmp_res, pvalue=FALSE)
 
   if (nodupli) {
     selcols <- as.character(
