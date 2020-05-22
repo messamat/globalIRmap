@@ -338,15 +338,54 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
 }
 
 #------ extract_impperf_nestedrf -----------------
+#' Extract variable importance and performance from a trained RF learner
+#'
+#' Computes the performance, variable importance and associated p-value from
+#' either a trained \link[mlr3]{AutoTuner} or a trained \link[mlr3]{Learner}.
+#'
+#' @param in_rflearner An \link[mlr3]{AutoTuner} or a trained
+#' \link[mlr3]{Learner}.
+#' @param imp (logical) Whether to compute variable importance.
+#' @param perf (logical) Whether to compute the performance measure.
+#' @param pvalue (logical) Whether to compute p-values.
+#' @param pvalue_permutn (integer) number of permutations to use in p-value
+#' calculations
+#'
+#' @return A data.table with, when all logicals are TRUE, the following columns.
+#' \describe{
+#'   \item{varnames} - predictor variable name
+#'   \item{imp} - variable importance value
+#'   \item{pvalue} - variable importance p-value
+#'   \item{\[perf\]} - performance value (same for all rows), name changes
+#' }
+#'
+#' @details
+#' Accepts both a trained \link[mlr3]{AutoTuner} or a trained \
+#' link[mlr3]{Learner} of class \link[mlr3learners]{mlr_learners_classif.ranger}
+#' or \link[mlr3learners.partykit]{mlr_learners_classif.cforest}. \cr
+#'
+#' Also accept learners of class \link[mlr3pipelines]{GraphLearner} \cr
+#'
+#' If \code{p-value==TRUE} and \link[mlr3learners]{mlr_learners_classif.ranger},
+#' then compute p-values with \link[ranger]{importance_pvalues} with Altmann
+#' permutation method using \code{pvalue_permutn} permutations. \cr
+#'
+#' If \link[mlr3learners.partykit]{mlr_learners_classif.cforest} is provided,
+#' \code{p-value} is ignored for now.
+#'
+#' @seealso \link{weighted_vimportance_nestedrf}
+#' @section documentation to-do
+#' Can add an example down the line, add source.
+#' @export
 
-extract_impperf_nestedrf <- function(nested_rflearner,
+extract_impperf_nestedrf <- function(in_rflearner,
                                      imp = TRUE, perf = TRUE,
                                      pvalue = TRUE, pvalue_permutn = 100) {
-  #Get variable importance and performance measure for one instance of a resampled rf learner
-  if (inherits(nested_rflearner, "AutoTuner")) {
-    sublrn <- nested_rflearner$model$learner
+
+  if (inherits(in_rflearner, "AutoTuner")) {
+    sublrn <- in_rflearner$model$learner
   } else {
-    sublrn <- nested_rflearner
+    sublrn <- in_rflearner
   }
 
   print(paste0("Computing variable importance for resampling instance hash #",
@@ -359,16 +398,10 @@ extract_impperf_nestedrf <- function(nested_rflearner,
       if ('classif.ranger' %in% names(sublrn$model)) {
 
         if (pvalue == TRUE) {
-          in_task <- nested_rflearner$model$tuning_instance$task
+          in_task <- in_rflearner$model$tuning_instance$task
           in_formula <- as.formula(paste0(in_task$target_names, '~.'))
 
-          importance_pvalues(
-            sublrn$model$classif.ranger$model,
-            method = "altmann",
-            num.permutations = pvalue_permutn,
-            data = in_task$data(),
-            formula= in_formula
-          )
+vv
 
         } else {
           data.table(importance=sublrn$model$classif.ranger$model$variable.importance)
@@ -377,46 +410,80 @@ extract_impperf_nestedrf <- function(nested_rflearner,
 
       else if ('classif.cforest' %in% names(sublrn$model)) {
         if (pvalue == TRUE) {
-          warning("p_value calculation is only available for ranger classification rf, ignoring p_value")
+          warning("p_value calculation is only available for ranger classification rf, ignoring p_value.
+                  In addition, default parameters were used in partykit::varimp, adjust as needed.")
         }
         data.table(importance=
                      partykit::varimp(sublrn$model$classif.cforest$model,
-                                      nperm = 1L,
+                                      nperm = 1,
                                       OOB = TRUE,
-                                      risk = c("loglik", "misclassification"),
+                                      risk = "misclassification",
                                       conditional = FALSE,
                                       threshold = .2))
       }
     } else { ####################### IF direct model ####################################
       if (pvalue == TRUE) { #If want pvalue associated with predictor variables
-        in_task <- nested_rflearner$model$task
+        in_task <- in_rflearner$model$task
         in_formula <- as.formula(paste0(in_task$target_names, '~.'))
 
         importance_pvalues(
-          nested_rflearner$model,
+          in_rflearner$model,
           method = "altmann",
           num.permutations = pvalue_permutn,
           data = in_task$data(),
           formula= in_formula
         )
       } else { #If pvalue == FALSE
-        data.table(importance= nested_rflearner$model$learner$importance())
+        data.table(importance= in_rflearner$model$learner$importance())
       }
 
     }
   },
   if (perf) {
-    outperf <- nested_rflearner$tuning_result$perf
+    outperf <- in_rflearner$tuning_result$perf
     data.table(outperf) %>% setnames(names(outperf))
   }
   ))
 }
 #------ weighted_vimportance_nestedrf -----------------
+#' Weighted mean of variable importance for resampled RF learner
+#'
+#' Compute mean and standard deviation of variable importance and mean of
+#' p-value across resampling instances (e.g. folds and repetitions) weighted by
+#' resampling prediction accuracy.
+#'
+#' @param rfresamp the \link[mlr3]{ResampleResult} from a classification RF
+#' of type \link[mlr3learners]{mlr_learners_classif.ranger}
+#' or \link[mlr3learners.partykit]{mlr_learners_classif.cforest}
+#' @inheritParams extract_impperf_nestedrf
+#'
+#' @return A data.table with, when all logicals are TRUE, the following columns.
+#' \describe{
+#'   \item{varnames} - predictor variable name
+#'   \item{imp_wmean} - weighted mean of variable importance across resampling
+#'   instances
+#'   \item{imp_wsd} - weighted standard deviation of variable importance across
+#'   resampling instances
+#'   \item{pvalue_wmean} -weighted mean of variable p-value across resampling
+#'   instances
+#' }
+#'
+#' @details
+#' See \link{extract_impperf_nestedrf} for more details on computations.
+#'
+#' @seealso \link{extract_impperf_nestedrf} and \link{ggvimp} and
+#' \link{benchmark_featsel}
+#'
+#' @section Warning
+#' Does not accept error measure for weighting
+#' - could be amended to be based on 1-error
+#'
+#' @section documentation to-do
+#' Can add an example down the line, add source.
+#' @export
 
 weighted_vimportance_nestedrf <- function(rfresamp,
                                           pvalue = TRUE, pvalue_permutn = 100) {
-  #Compute weighted mean and standard deviation of variable importance based on
-  #accuracy measure (not error measure — could be amended to be based on 1-error)
   varnames <- rfresamp$task$feature_names
 
   vimportance_all <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
@@ -425,6 +492,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
     do.call(rbind, .) %>%
     cbind(., varnames)
 
+  ####!!!!!!!!!!Adapt to allow for other measure than classif.bacc!!!!!!!!######
   out_vimportance <- vimportance_all[
     , list(imp_wmean = weighted.mean(importance, classif.bacc), #Compute weighted mean
            imp_wsd =  weighted_sd(importance, classif.bacc)), #Compute weighted sd
@@ -435,7 +503,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
       out_vimportance,
       vimportance_all[,
                       list(imp_pvalue = weighted.mean(pvalue, classif.bacc)), #Compute weighted mean of pvalue
-                      by=varnames]
+                      by=varnames][, !'varnames']
     )
   }
 
@@ -1161,23 +1229,17 @@ analyze_benchmark <- function(in_bm, in_measure) {
   }
 
   tasklearner_unique <- preds[, expand.grid(unique(task), unique(learner))] %>%
-    setnames(c('task', 'learner'))
+    setnames(c('task', 'learner')) %>%
+    setDT
 
-  tasklearner_unique[, learner := data.table::fcase(
-    learner == 'classif.ranger.tuned' ~
-      'default RF',
-    learner == 'oversample.classif.ranger.tuned' ~
-      'default RF - oversampled',
-    learner == 'classweights.classif.ranger.tuned' ~
-      'default RF - weighted classes',
-    learner == 'classif.cforest' ~
-      'CIF',
-    learner == 'oversample.classif.cforest' ~
-      'CIF - oversampled',
-    learner == 'classweights.classif.cforest' ~
-      'CIF - weighted classes',
-  )
-  ]
+  tasklearner_unique[, learner_format := dplyr::case_when(
+    learner == 'classif.ranger.tuned'~'default RF',
+    learner == 'oversample.classif.ranger.tuned'~'default RF - oversampled',
+    learner == 'classweights.classif.ranger.tuned'~'default RF - weighted classes',
+    learner == 'classif.cforest'~'CIF',
+    learner == 'oversample.classif.cforest'~'CIF - oversampled',
+    learner == 'classweights.classif.cforest'~'CIF - weighted classes',
+  )]
 
   glist <- lapply(1:nrow(tasklearner_unique), function(tsklrn) {
     print(tasklearner_unique[tsklrn,])
@@ -1186,7 +1248,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
 
     gout <- ggmisclass(in_predictions = subpred) +
       ggtitle(paste(tasklearner_unique$task[tsklrn],
-                    tasklearner_unique$learner[tsklrn])) +
+                    tasklearner_unique$learner_format[tsklrn])) +
       labs(x='Threshold', y='Value')
 
     if (tsklrn < nrow(tasklearner_unique)) {
@@ -1210,8 +1272,8 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
 
   #Apply feature/variable selection
   vimp <- weighted_vimportance_nestedrf(
-    rfresamp = in_rf$resample_result(
-      uhash=unique(as.data.table(in_rf)$uhash))) %>%
+    rfresamp = in_rf$resample_result(uhash=unique(as.data.table(in_rf)$uhash)),
+    pvalue = TRUE) %>%
     .[,imp_wmeanper := imp_wmean/sum(imp_wmean)]
 
   task_featsel <- in_task$clone()$select(
@@ -1240,7 +1302,8 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
   bmrout_featsel <- benchmark(
     bmrdesign_featsel, store_models = TRUE)
 
-  bm_analysis <- analyze_benchmark(bmrout_featsel, in_measure = in_measure)
+  bm_analysis <- analyze_benchmark(in_bm = bmrout_featsel,
+                                   in_measure = in_measure)
 
   return(list(
     bm_classif = bmrout_featsel,
@@ -1327,16 +1390,16 @@ ggmisclass <-  function(in_predictions) {
     geom_line(size=1.2) +
     geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
     geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
-    annotate('text', x=(balanced_thresh$i-0.05), y=0.5,
+    annotate('text', x=(balanced_thresh$i), y=0.4,
              label=balanced_thresh$i, angle=-90) +
-    annotate('text', x=0.7, y=(balanced_thresh$spec+0.05),
-             label=round(balanced_thresh$sens,2), angle=-90) +
+    annotate('text', x=0.9, y=(balanced_thresh$spec),
+             label=round(balanced_thresh$sens,2)) +
     scale_x_continuous(expand=c(0,0), name='Threshold') +
     scale_y_continuous(expand=c(0,0), name='Value') +
-    scale_color_distiller(palette='Dark2',  #colorblind friendly
+    scale_color_brewer(palette='Dark2',  #colorblind friendly
                           labels=c('Misclassification rate',
                                    'Sensitivity (true positives)',
-                                   'Specificity (true negatives)'))
+                                   'Specificity (true negatives)')) +
     theme_bw()
 
   #Plot it
