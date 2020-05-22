@@ -845,7 +845,7 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_
               'GRDC records do not exist...'))
   return(fileNames)
 }
-################------ comp_durfreq continue doc -----------------------------------------
+#------ comp_durfreq -------------------------------
 #' Compute intermittency statistics for a gauging station
 #'
 #' Determine general characteristics of the whole time series and of the subset
@@ -859,17 +859,20 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_
 #' @param monthsel selected months to compute the statistics over
 #'
 #' @return One row data.table with the following columns: \cr
-#'   #For a given gauge discharge file (given by path), format and compute
-# firstYear      : num first year on full record
-# lastYear       : num last year on full record
-# totalYears     : int total number of years on full record
-# firstYear_kept : num first year on record with < maxgap missing days
-# lastYear_kept  : num first year on record with < maxgap missing days
-# totalYears_kept: int total number of years with < maxgap missing days
-# totaldays      : num total number of days with discharge data
-# sumDur         : int total number of days with discharge = 0
-# mDur           : num mean number of days/year with discharge = 0
-# mFreq          : num mean number of periods with discharge = 0 (with at least one day of flow between periods)
+#' \describe{
+#' \item{GRDC_NO} - (char) unique identifier for the gauge
+#' \item{firstYear} - (num) first year on full record
+#' \item{lastYear} - (num) last year on full record
+#' \item{totalYears} - (int) total number of years on full record
+#' \item{firstYear_kept} - (num) first year on record with < maxgap missing days
+#' \item{lastYear_kept} - (num) first year on record with < maxgap missing days
+#' \item{totalYears_kept} - (int) total number of years with < maxgap missing days
+#' \item{totaldays} - (num) total number of days with discharge data
+#' \item{sumDur} - (int) total number of days with discharge = 0
+#' \item{mDur} - (num) mean number of days/year with discharge = 0
+#' \item{mFreq} - (num) mean number of periods with discharge = 0
+#' (with at least one day of flow between periods)
+#' }
 #'
 #' @export
 
@@ -940,7 +943,24 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
   )
   return(gaugetab_all)
 }
-#------ format_gaugestats -----------------
+#------ format_gaugestats --------------------------------------------------------
+#' Format gauge statistics
+#'
+#' Format gauge attributes, s
+#'
+#' @param path file path to a GRDC-formatted streamflow time series table
+#' @param maxgap maximum number of days with missing data beyond which a year is
+#' not used in the computation of statistics
+#' @param monthsel selected months to compute the statistics over
+#'
+#' @return One row data.table with the following columns: \cr
+#' \describe{
+#' \item{GRDC_NO} - (char) unique identifier for the gauge
+#' \item{firstYear} - (num) first year on full record
+#' }
+#'
+#' @export
+
 format_gaugestats <- function(in_gaugestats, in_gaugep) {
   #Format gaugestats into data.table
 
@@ -1018,7 +1038,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'lit_cl_cmj',
     'kar_pc_use',
     'kar_pc_cse',
-
     'ppd_pk_cav',
     'ppd_pk_uav',
     'urb_pc_cse',
@@ -1029,9 +1048,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'hft_ix_u09',
     'gdp_ud_cav',
     'hdi_ix_cav')
-
-
-
 
 
   #Check that all columns are in dt
@@ -1503,7 +1519,8 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
     bm_tasks = list(task_classif=in_task,
                     task_classif_featsel = task_featsel),
     measure_classif = in_measure,
-    bm_analysis = bm_analysis)
+    bm_analysis = bm_analysis,
+    vimp = vimp)
   )
 }
 
