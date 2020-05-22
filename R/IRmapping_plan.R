@@ -17,14 +17,14 @@ plan <- drake_plan(
   tasks = create_tasks(in_gaugestats = gaugestats_format, in_predvars = predvars),
 
   rfbm_classif = benchmark_classif(in_tasks = tasks,
-                                   insamp_nfolds = 2, insamp_neval = 5,
+                                   insamp_nfolds = 5, insamp_neval = 100,
                                    insamp_nbatch = parallel::detectCores(logical=FALSE),
-                                   outsamp_nrep = 1, outsamp_nfolds = 2),
+                                   outsamp_nrep = 2, outsamp_nfolds = 3),
 
   rfbm_regr = benchmark_regr(in_tasks = tasks,
-                             insamp_nfolds = 2, insamp_neval = 5,
+                             insamp_nfolds = 5, insamp_neval = 100,
                              insamp_nbatch = parallel::detectCores(logical=FALSE),
-                             outsamp_nrep = 1, outsamp_nfolds = 2),
+                             outsamp_nrep = 2, outsamp_nfolds = 3),
 
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure),
@@ -36,18 +36,18 @@ plan <- drake_plan(
     benchmark_featsel(in_rf = rfbm_classif$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
                       in_task = rfbm_classif$bm_tasks$task_classif,
                       in_measure = rfbm_classif$measure_classif,
-                      pcutoff = 0.1,
-                      insamp_nfolds =  2, insamp_nevals = 1,
-                      outsamp_nrep = 2, outsamp_nfolds =  2,
-                      outsamp_nfolds_sp = 2)
+                      pcutoff = 0.05,
+                      insamp_nfolds =  5, insamp_nevals = 100,
+                      outsamp_nrep = 10, outsamp_nfolds =  3,
+                      outsamp_nfolds_sp = 50)
   ),
 
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
   rftuned = target(
     selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
                    in_task = rfeval_featsel$bm_tasks$task_classif,
-                   insamp_nfolds = 2,
-                   insamp_nevals = 2)),
+                   insamp_nfolds = 5,
+                   insamp_nevals = 100)),
 
   misclass_plot = ggmisclass(in_rftuned=rftuned, spatial_rsp=FALSE),
 
