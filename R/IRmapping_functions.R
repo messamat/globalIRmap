@@ -462,12 +462,23 @@ extract_pd_nestedrf <- function(learner_id, in_rftuned, datdf, selcols, ngrid) {
   #   setorder(-imp_wmean) %>%
   #   .[colnums, variable]
 
-  pdout <- edarf::partial_dependence(in_fit, vars = selcols, n = ngrid,
-                                     interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
-    setDT %>%
-    .[,(names(foldperf)) := foldperf]
+  vargrid <- combn(selcols, 2, simplify=F) %>%
+    do.call(rbind, .)
 
-  return(pdout)
+  pdcomb <- mapply(function(i, j) {
+    pdout <- edarf::partial_dependence(in_fit, vars = c(i, j), n = ngrid,
+                                       interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
+      setDT %>%
+      .[,(names(foldperf)) := foldperf] %>%
+      .[, `:=`(var1=i, var2=j)] %>%
+      setnames(c(i,j), c('value1', 'value2'))
+
+
+    return(pdout)
+  }, vargrid[,1], vargrid[,2], SIMPLIFY = FALSE) %>%
+    do.call(rbind, .)
+
+  return(pdcomb)
 }
 
 #------ fread_cols -----------------
@@ -1152,16 +1163,38 @@ analyze_benchmark <- function(in_bm, in_measure) {
   tasklearner_unique <- preds[, expand.grid(unique(task), unique(learner))] %>%
     setnames(c('task', 'learner'))
 
+  tasklearner_unique[, learner := data.table::fcase(
+    learner == 'classif.ranger.tuned' ~
+      'default RF',
+    learner == 'oversample.classif.ranger.tuned' ~
+      'default RF - oversampled',
+    learner == 'classweights.classif.ranger.tuned' ~
+      'default RF - weighted classes',
+    learner == 'classif.cforest' ~
+      'CIF',
+    learner == 'oversample.classif.cforest' ~
+      'CIF - oversampled',
+    learner == 'classweights.classif.cforest' ~
+      'CIF - weighted classes',
+  )
+  ]
+
   glist <- lapply(1:nrow(tasklearner_unique), function(tsklrn) {
     print(tasklearner_unique[tsklrn,])
     subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
                        learner == tasklearner_unique$learner[tsklrn],]
-    return(ggplotGrob(
-      ggmisclass(in_predictions = subpred) +
-        ggtitle(paste(tasklearner_unique$task[tsklrn],
-                      tasklearner_unique$learner[tsklrn]))
-    )
-    )
+
+    gout <- ggmisclass(in_predictions = subpred) +
+      ggtitle(paste(tasklearner_unique$task[tsklrn],
+                    tasklearner_unique$learner[tsklrn])) +
+      labs(x='Threshold', y='Value')
+
+    if (tsklrn < nrow(tasklearner_unique)) {
+      gout <- gout +
+        theme(legend.position = 'none')
+    }
+
+    return(ggplotGrob(gout))
   })
 
   return(list(bm_misclasscomp=do.call("grid.arrange", list(grobs=glist)),
@@ -1289,11 +1322,21 @@ ggmisclass <-  function(in_predictions) {
               'and Specificity =', round(balanced_thresh$spec,2),
               'at a classification threshold of', balanced_thresh$i))
 
-  gout <- ggplot(melt(threshold_confu_dt, id.vars='i'), aes(x=i, y=value, color=variable)) +
+  gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
+                 aes(x=i, y=value, color=variable, linetype=variable)) +
     geom_line(size=1.2) +
-    geom_vline(xintercept=balanced_thresh$i) +
-    scale_x_continuous(expand=c(0,0)) +
-    scale_y_continuous(expand=c(0,0)) +
+    geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
+    geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
+    annotate('text', x=(balanced_thresh$i-0.05), y=0.5,
+             label=balanced_thresh$i, angle=-90) +
+    annotate('text', x=0.7, y=(balanced_thresh$spec+0.05),
+             label=round(balanced_thresh$sens,2), angle=-90) +
+    scale_x_continuous(expand=c(0,0), name='Threshold') +
+    scale_y_continuous(expand=c(0,0), name='Value') +
+    scale_color_distiller(palette='Dark2',  #colorblind friendly
+                          labels=c('Misclassification rate',
+                                   'Sensitivity (true positives)',
+                                   'Specificity (true negatives)'))
     theme_bw()
 
   #Plot it
@@ -1301,7 +1344,7 @@ ggmisclass <-  function(in_predictions) {
 }
 
 #------ ggpd -----------------
-ggpd <- function (in_rftuned, in_predvars, colnums, ngrid,
+ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                   parallel=T, spatial_rsp=FALSE) {
 
   #Get outer resampling of interest
@@ -1311,7 +1354,14 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid,
   nlearners <- rsmp_res$resampling$param_set$values$folds
   datdf <- as.data.frame(rsmp_res$task$data()) #This may be shortened
   varimp <- weighted_vimportance_nestedrf(rsmp_res)
-  selcols <- as.character(varimp$variable[colnums])
+
+  if (nodupli) {
+    selcols <- as.character(
+      varimp$varnames[!duplicated(substr(varimp$varnames, 1,3))][colnums])
+  } else {
+    selcols <- as.character(
+      varimp$varnames[colnums])
+  }
 
   if (parallel) {
     print(paste("Computing partial dependence with future.apply across", nlearners,
@@ -1340,35 +1390,43 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid,
   pdformat <- do.call(rbind, pd) %>%
     setDT %>%
     .[, list(mean1 = weighted.mean(`1`, classif.bacc)),
-      by= selcols]
+      by= c('var1', 'var2', 'value1', 'value2')] %>%
+    .[, variables := paste(var1, var2)]
 
   vargrid <- t(combn(1:length(selcols), 2))
   #leglims <- pdformat[, c(min(mean1), max(mean1))]
 
   #Iterate over every pair of variables
-  tileplots_l <- mapply(function(i, j) {
-    print(paste0('Generating plot', i , j))
-    xvar <- selcols[i]
-    yvar <- selcols[j]
 
-    pdbivar <- pdformat[, list(bimean = mean(mean1)), by=c(xvar, yvar)]
+  tileplots_l <- pdformat[,list(list(ggplotGrob(
+    ggplot(.SD, aes(x=value1, y=value2)) +
+      geom_tile(aes(fill = mean1)) +
+      scale_fill_distiller(palette='Grey') +
+      geom_jitter(data=datdf,
+                  aes_string(color='intermittent', x=eval(var1),y=eval(var2)),
+                  alpha=1/3) +
+      scale_color_manual(values=c('#0F9FD6','#ff9b52')) +
+      labs(x=stringr::str_wrap(in_predvars[varcode==eval(var1), varname],
+                               width = 20),
+           y=stringr::str_wrap(in_predvars[varcode==eval(var2), varname],
+                               width = 20)) +
+      theme_bw() +
+      theme(text = element_text(size=12))
+  )))
+  , by=.(var1, var2)]
 
-    ggplotGrob(
-      ggplot(pdbivar, aes_string(x=xvar, y=yvar)) +
-        geom_tile(aes(fill = bimean)) +
-        scale_fill_distiller(palette='Spectral') + # , limits=leglims
-        geom_jitter(data=datdf, aes(color=intermittent)) +
-        labs(x=stringr::str_wrap(in_predvars[varcode==xvar, varname],
-                                 width = 20),
-             y=stringr::str_wrap(in_predvars[varcode==yvar, varname],
-                                 width = 20)) +
-        theme_bw() +
-        theme(text = element_text(size=12))
-    )
-  }, vargrid[,1], vargrid[,2]
-  )
-  #Plot, only keeping unique combinations by grabbing lower triangle of plot matrix
-  return(do.call("grid.arrange", list(grobs=tileplots_l)))
+  pagelayout <- rep(list(1:9), nrow(tileplots_l) %/% 9)
+  if (nrow(tileplots_l) %% 9 > 0) {
+    pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <- 1:(nrow(tileplots_l) %% 9)
+  }
+
+  tileplots_multipl <- lapply(pagelayout, function(page) {
+    print(page)
+    return(do.call("grid.arrange", list(grobs=(tileplots_l[page,V1]))))
+  })
+
+  plot(tileplots_multipl[[1]])
+  return(tileplots_multipl)
 }
 
 #------ gguncertainty -----------------
