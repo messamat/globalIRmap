@@ -342,30 +342,52 @@ bp_dat <- rbindlist(list(bp_classif1, bp_regr1, bp_classif2), fill=TRUE)
 
 #Compute bbrier and time adj
 bm_timeadj <- function(bmres) {
-  lrns_dt <- as.data.table(bmres$learners)
+  lrns_dt <- as.data.table(bmres$data)
   
   nevals_inner <- lapply(lrns_dt$learner, function(lrn) {
     
-    
+    #If innver sampling
     if ('instance_args' %in% names(lrn)) {
-      nevals <- lrn$instance_args$resampling$iters*
-        lrn$instance_args$terminator$param_set$get_values()$n_evals
+      param_ranges <- as.list(
+        paste0(lrn$instance_args$param_set$lower,
+               '-',
+               lrn$instance_args$param_set$upper))
+      names(param_ranges) <- lrn$instance_args$param_set$ids()
+      
+      
+      inner_smp  <- cbind(
+        as.data.table(
+          lrn$instance_args$resampling$param_set$get_values()),
+        as.data.table(
+          lrn$instance_args$terminator$param_set$get_values())
+      ) %>%
+        .[, nruns := prod(.SD)] %>%
+        cbind(as.data.table(param_ranges))
+      
+    #If no inner sampling
     } else {
-      nevals <- 1
-    }
-    return(nevals)
+      inner_smp <- data.table(nruns = 1) 
+      
+      as.data.table(lrn$param_set)[, tstrsplit(id, '.', fixed=TRUE)]
+      lrn$param_set
+      
+    } 
+    return(inner_smp)
   }) %>%
-    unlist
+    rbindlist(., fill=T) %>%
+    setnames(names(.), paste0('inner_', names(.)))
   
   
-  
-  lrns_time <- lrns_dt[, nevals_in := nevals_inner] %>%
-    .[, list(nevals_in=mean(nevals_in)), by=learner_id]
+  lrns_time <- cbind(lrns_dt, nevals_inner) %>%
+    .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
+    .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
+    .[, resampling_id := unlist(lapply(resampling, function(x) x$id))]
     
   bm_ttot <- as.data.table(bmres$aggregate(list(msr('time_train'),
                                                msr('time_predict')))) %>%
-    .[lrns_time, on='learner_id'] %>%
-    .[, time_train := time_train/nevals_in]
+    .[lrns_time, on=c('learner_id', 'task_id', 'resampling_id')] %>%
+    unique(by='nr') %>%
+    .[, time_train := time_train/inner_nruns]
   
   return(bm_ttot)
 }
@@ -392,7 +414,27 @@ rsmp_auc <- function(bmres, rsmp_i) {
   return(auc)
 }
 
-bm_time_aucbbrier <- function(bmres) {
+rsmp_bacc <- function(bmres, rsmp_i, threshold) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred <- rsmp$prediction()
+  
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    prob_resp <- rsmp_pred$prob[,'1']
+  }
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    prob_resp <- rsmp_pred$response
+  }
+  
+  response <- as.data.table(prob_resp)[
+    , c(fifelse(prob_resp>=threshold, '1', '0'))] 
+  
+  bacc <- mlr3measures::bacc(factor(as.character(rsmp_pred$truth), 
+                                    levels=c('0', '1')),
+                             factor(response, levels=c('0','1')))
+  return(data.table(bacc=bacc, threshold=threshold))
+}
+
+bm_msrtab <- function(bmres, threshold) {
   bbrier_vec <- lapply(1:bmres$n_resample_results, function(i) {
     rsmp_bbrier(bmres=bmres, rsmp_i=i)
   }) %>%
@@ -403,19 +445,61 @@ bm_time_aucbbrier <- function(bmres) {
   }) %>%
     unlist   
   
+  outer_smp <- lapply(bmres$resamplings$resampling, function(rsmp_design) {
+    as.data.table(rsmp_design$param_set$get_values()) %>%
+      setnames(names(.), paste0('outer_', names(.))) %>%
+      .[, resampling_id := rsmp_design$id]
+  }) %>% 
+    rbindlist(use.names=T)
+
+  bacc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    baccthresh <- ldply(seq(0,1,0.01), function(threshold) {
+      rsmp_bacc(bmres, rsmp_i=i, threshold=threshold)}) %>%
+      setorder(bacc) %>%
+      setDT %>%
+      .[, .SD[.N, .(bacc, threshold)]]
+  }) %>%
+    rbindlist
+  
   #Get time and add to bbrier
   moddt <- bm_timeadj(bmres) %>%
-        .[,`:=`(bbrier = bbrier_vec,
-                auc = auc_vec)]
+    cbind(., outer_smp) %>%
+    cbind(., bacc_vec) %>%
+    .[,`:=`(bbrier = bbrier_vec,
+            auc = auc_vec)]
   
   return(moddt)
 }
 
-tbbrier_classif1 <- bm_time_aucbbrier(rfbm_classif$bm_classif)
-tbbrier_regr1 <- bm_time_aucbbrier(rfbm_regr$bm_regr)
-tbbrier_classif2 <- bm_time_aucbbrier(rfeval_featsel$bm_classif)
-metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2))
+tbbrier_classif1 <- bm_msrtab(rfbm_classif$bm_classif) %>%
+  .[, `:=`(cat = 'Algorithm selection',
+           type = 'Classification')]  %>%
+  .[, learner_format := dplyr::case_when(
+    learner_id == 'classif.ranger.tuned'~'default RF',
+    learner_id == 'oversample.classif.ranger.tuned'~'default RF - oversampled',
+    learner_id == 'classweights.classif.ranger.tuned'~'default RF - weighted classes',
+    learner_id == 'classif.cforest'~'CIF',
+    learner_id == 'oversample.classif.cforest'~'CIF - oversampled',
+    learner_id == 'classweights.classif.cforest'~'CIF - weighted classes',
+  )]
+  
+tbbrier_regr1 <- bm_msrtab(rfbm_regr$bm_regr) %>%
+  .[, `:=`(cat = 'Algorithm selection',
+           type = 'Regression')] %>%
+    .[, learner_format := dplyr::case_when(
+    task_id == 'inter_regr' ~'MAXSTAT',
+    task_id == 'inter_regrover' ~'MAXSTAT - oversampled'
+  )]
 
+tbbrier_classif2 <- bm_msrtab(rfeval_featsel$bm_classif) %>%
+  .[, `:=`(cat = 'Predictor selection',
+           type = 'Classification')] %>%
+    .[, learner_format := dplyr::case_when(
+    task_id == 'inter_basicsp' ~ 'default RF - oversampled - all variables',
+    task_id == 'inter_basicsp_featsel' ~ 'default RF - oversampled - selected variables'
+  )]
+
+metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2))
 
 
 
