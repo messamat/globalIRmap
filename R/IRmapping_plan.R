@@ -49,12 +49,17 @@ plan <- drake_plan(
                    insamp_nfolds = 5,
                    insamp_nevals = 100)),
 
-  misclass_plot = ggmisclass(in_rftuned=rftuned, spatial_rsp=FALSE),
+  misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
 
-  vimp_plot = ggvimp(rftuned, predvars, spatial_rsp=FALSE),
+  vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 
-  pd_plot = ggpd(rftuned, predvars, colnums=1:10, nodupli=TRUE,
-                 ngrid=20, parallel=T, spatial_rsp=FALSE),
+  pd_plot = ggpd(rftuned, predvars, colnums=1:10, nodupli = TRUE,
+                 ngrid = 20, parallel = T, spatial_rsp = FALSE),
+
+  uncertainty_plot = gguncertainty(in_rftuned = rftuned,
+                                   in_gaugestats = gaugestats_format,
+                                   in_predvars = predvars,
+                                   spatial_rsp = FALSE),
 
   rfpreds = write_preds(filestructure, gaugep, gaugestats_format,
                         rftuned, predvars)
