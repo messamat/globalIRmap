@@ -1147,6 +1147,7 @@ benchmark_classif <- function(in_tasks,
   #Create basic learner
   lrn_ranger <- mlr3::lrn('classif.ranger',
                           num.trees = 500,
+                          sample.fraction = 0.632,
                           replace = FALSE,
                           splitrule = 'gini',
                           predict_type = 'prob',
@@ -1159,8 +1160,10 @@ benchmark_classif <- function(in_tasks,
   # mtry = sqrt(nvar), fraction = 0.632
   lrn_cforest <- mlr3::lrn('classif.cforest',
                            ntree = 500,
+                           fraction = 0.632,
+                           replace = FALSE,
                            alpha = 0.05,
-                           replace = F,
+                           mtry = round(sqrt(length(task_classif$feature_names))),
                            predict_type = "prob")
 
   #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
@@ -1197,7 +1200,7 @@ benchmark_classif <- function(in_tasks,
                    upper = 0.8)
     ))
 
-    in_split =in_lrn$param_set$get_values()[
+    in_split = in_lrn$param_set$get_values()[
       grep(".*split(rule|stat)", prmset, value=T)]
 
     if (in_split == 'maxstat') {
@@ -1217,6 +1220,8 @@ benchmark_classif <- function(in_tasks,
                      lower = 0.01, upper = 0.1)
       )
     }
+
+    return(tune_rf)
   }
 
   #Define inner resampling strategy
@@ -1308,6 +1313,8 @@ benchmark_regr <- function(in_tasks,
   #of variables with many values over those with few categories
   lrn_ranger_maxstat <- mlr3::lrn('regr.ranger',
                                   num.trees=500,
+                                  sample.fraction = 0.632,
+                                  min.node.size = 10,
                                   replace=FALSE,
                                   splitrule = 'maxstat',
                                   importance = 'impurity_corrected',
@@ -1320,9 +1327,11 @@ benchmark_regr <- function(in_tasks,
 
     tune_rf <- ParamSet$new(list(
       ParamInt$new(grep(".*mtry", prmset, value=T),
-                   lower = 1, upper = 11),
+                   lower = 5,
+                   upper = floor(length(task_classif$feature_names)/2)), #Half number of features
       ParamDbl$new(grep(".*fraction", prmset, value=T),
-                   lower = 0.2, upper = 0.8)
+                   lower = 0.2,
+                   upper = 0.8)
     ))
 
     in_split =in_lrn$param_set$get_values()[
@@ -1564,7 +1573,7 @@ selecttrain_rf <- function(in_rf, in_task,
 ##### -------------------- Diagnostics functions -------------------------------
 
 #------ ggvimp -----------------
-ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
+ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
   #Get variable importance and format them
@@ -1574,10 +1583,13 @@ ggvimp <- function(in_rftuned, in_predvars, spatial_rsp=FALSE) {
     .[, varname := factor(varname, levels=varname[order(-imp_wmean)])]
 
   #Plot 'em
-  ggplot(varimp_basic[1:30,],aes(x=varname)) +
+  ggplot(varimp_basic[1:varnum,],aes(x=varname)) +
     geom_bar(aes(y=imp_wmean), stat = 'identity') +
     geom_errorbar(aes(ymin=imp_wmean-2*imp_wsd, ymax=imp_wmean+2*imp_wsd)) +
-    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 10)) +
+    scale_x_discrete(name='Predictor',
+                     labels = function(x) stringr::str_wrap(x, width = 10)) +
+    scale_y_continuous(name='Variable importance', expand=c(0,0)) +
+    coord_cartesian(ylim=c(0,100)) +
     theme_classic() +
     theme(axis.text.x = element_text(size=8))
 }
@@ -1711,7 +1723,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 }
 
 #------ gguncertainty -----------------
-gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
+gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
@@ -1771,7 +1783,7 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
     theme(legend.position = c(0.8, 0.1))
 
 
-  #Plot numeric variables
+  #Plot categorical variables
   predmelt_cat <- predattri[, c('GRDC_NO', 'intermittent', 'preduncert',
                                 'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
     melt(id.vars=c('GRDC_NO', 'intermittent', 'preduncert'))
@@ -1795,7 +1807,8 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars) {
     theme_bw() +
     theme(legend.position = c(0.8, 0.1))
 
-  return(list(uncertainty_numplot, uncertainty_catplot))
+  return(list(uncertainty_numplot=uncertainty_numplot,
+              uncertainty_catplot=uncertainty_catplot))
 }
 
 #------ write_preds -----------------
