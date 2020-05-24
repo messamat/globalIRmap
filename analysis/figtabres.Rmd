@@ -86,7 +86,6 @@ riveratlas <- fread_cols(filestructure['in_riveratlas'],
                          cols_tokeep = cols_tokeep) %>%
   comp_derivedvar
 
-
 ```
 
 
@@ -328,7 +327,113 @@ loadd(rfbm_classif)
 loadd(rfbm_regr)
 loadd(rfeval_featsel)
 
-plot(bmcheck_classif$bm_misclasscomp)
+
+bp_classif1 <- bmcheck_classif$bm_boxcomp$data %>%
+  .[, `:=`(cat = 'Algorithm selection',
+           type = 'Classification RF')]
+bp_regr1 <- bmcheck_regr$bm_boxcomp$data %>%
+  .[, `:=`(cat = 'Algorithm selection',
+           type = 'Regression RF')]
+bp_classif2 <- rfeval_featsel$bm_analysis$bm_boxcomp$data %>%
+  .[, `:=`(cat = 'Predictor selection',
+           type = 'Classification RF')]
+bp_dat <- rbindlist(list(bp_classif1, bp_regr1, bp_classif2), fill=TRUE)
+
+
+#Compute bbrier and time adj
+bm_timeadj <- function(bmres) {
+  lrns_dt <- as.data.table(bmres$learners)
+  
+  nevals_inner <- lapply(lrns_dt$learner, function(lrn) {
+    
+    
+    if ('instance_args' %in% names(lrn)) {
+      nevals <- lrn$instance_args$resampling$iters*
+        lrn$instance_args$terminator$param_set$get_values()$n_evals
+    } else {
+      nevals <- 1
+    }
+    return(nevals)
+  }) %>%
+    unlist
+  
+  
+  
+  lrns_time <- lrns_dt[, nevals_in := nevals_inner] %>%
+    .[, list(nevals_in=mean(nevals_in)), by=learner_id]
+    
+  bm_ttot <- as.data.table(bmres$aggregate(list(msr('time_train'),
+                                               msr('time_predict')))) %>%
+    .[lrns_time, on='learner_id'] %>%
+    .[, time_train := time_train/nevals_in]
+  
+  return(bm_ttot)
+}
+
+rsmp_bbrier <- function(bmres, rsmp_i) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) - 
+                     rsmp_pred$prob[,'1'])^2)/length(rsmp_pred$row_ids)
+  }
+  
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) - 
+                     rsmp_pred$response)^2)/length(rsmp_pred$row_ids)
+  }
+  return(bbrier)
+}
+
+rsmp_auc <- function(bmres, rsmp_i) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  auc <- Metrics::auc(rsmp_pred$truth, rsmp_pred$response) 
+  return(auc)
+}
+
+bm_time_aucbbrier <- function(bmres) {
+  bbrier_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    rsmp_bbrier(bmres=bmres, rsmp_i=i)
+  }) %>%
+    unlist   
+  
+  auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    rsmp_auc(bmres=bmres, rsmp_i=i)
+  }) %>%
+    unlist   
+  
+  #Get time and add to bbrier
+  moddt <- bm_timeadj(bmres) %>%
+        .[,`:=`(bbrier = bbrier_vec,
+                auc = auc_vec)]
+  
+  return(moddt)
+}
+
+tbbrier_classif1 <- bm_time_aucbbrier(rfbm_classif$bm_classif)
+tbbrier_regr1 <- bm_time_aucbbrier(rfbm_regr$bm_regr)
+tbbrier_classif2 <- bm_time_aucbbrier(rfeval_featsel$bm_classif)
+metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2))
+
+
+
+
+
+ggplot(bp_classif, aes(x=interaction(task_id, learner_id), y=classif.bacc)) + 
+         geom_boxplot() + 
+  facet_wrap(~cat, scales='free_x') + 
+  theme_classic()
+
+  theme_classic()
+bp_classif2 <- plot(rfeval_featsel$bm_analysis$bm_boxcomp)
+bp_regr <- plot(bmcheck_regr$bm_boxcomp)
+  
+  
+  
+  plot(bmcheck_classif$bm_misclasscomp)
+
+
 plot(bmcheck_classif$bm_boxcomp)
 plot(rfeval_featsel$bm_analysis$bm_misclasscomp)
 plot(rfeval_featsel$bm_analysis$bm_boxcomp)
@@ -344,9 +449,12 @@ as.data.table(rfbm_classif$bm_classif$aggregate(msr('time_both')))
 as.data.table(rfbm_classif$bm_classif$aggregate(msr('classif.acc')))
 as.data.table(rfbm_classif$bm_classif$aggregate(msr('classif.bacc')))
 as.data.table(rfbm_classif$bm_classif$aggregate(msr('classif.auc')))
-rfbm_classif$bm_classif$aggregate(msr('classif.bbrier'))
 
 #Check time with featset
+
+#Table with name of model, reference, parameters tested, 
+#time to run, performance (first round, just CV), # of features
+#with multiple levels (one for initial selection, the other for feature selection) (second, CV + spCV)
 
 
 
