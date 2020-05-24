@@ -35,34 +35,83 @@ loadd(rfeval_featsel)
 
 
 
-bmres <- rfbm_classif$bm_classif
-check <- lapply(1:bmres$n_resample_results, function(i) {
-  print(i)
-  rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
 
-  baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
-    print(threshold_class)
-    cbind(
-      rsmp_bacc(bmres, rsmp_i=i, threshold_class=threshold_class),
-      threshold_misclass(i=threshold_class, in_preds=rsmp_preds)
-    ) %>%
-      .[, i:=NULL]
+threshold_dat <- function(bmres) {
+  bmres_dt <- as.data.table(bmres) %>%
+    .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
+    .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
+    .[, resampling_id := unlist(lapply(resampling, function(x) x$id))] %>%
+    unique(by='uhash')
+
+  if (bmres$task_type == 'regr') {
+    preds <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
+      preds <- bmres_dt$prediction[[rsmp_i]]$test %>%
+        as.data.table %>%
+        .[, `:=`(outf = bmres_dt$iteration[[rsmp_i]],
+                 task = bmres_dt$task[[rsmp_i]]$id,
+                 task_type = bmres$task_type,
+                 learner = bmres_dt$learner[[rsmp_i]]$id)]
+      return(preds)
+    }) %>%
+      do.call(rbind, .)
+
+    if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
+      preds[, prob.1 := response]
+    }
+  }
+
+  outtab <- lapply(1:bmres$n_resample_results, function(rsmp_i) {
+    print(rsmp_i)
+    rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
+
+    if (bmres$task_type == 'regr') {
+      rsmp_preds <- preds
+    }
+
+    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
+      print(threshold_class)
+      cbind(
+        rsmp_bacc(bmres, rsmp_i=rsmp_i, threshold_class=threshold_class),
+        threshold_misclass(i=threshold_class, in_preds=rsmp_preds)
+      ) %>%
+        .[, i:=NULL]
+    }) %>%
+      setDT %>%
+      cbind(bmres_dt[rsmp_i, .(learner_id, task_id, resampling_id)])
+    return(baccthresh)
   }) %>%
-    setDT
-  return(baccthresh)
-})
+    rbindlist
 
-gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
-               aes(x=i, y=value, color=variable, linetype=variable)) +
+
+  outtab_melt <- melt(outtab, id.vars=c('threshold_class',
+                                        'learner_id', 'task_id', 'resampling_id'))
+  return(outtab_melt)
+}
+
+thresh_classif1 <- threshold_dat(bmres = rfbm_classif$bm_classif)%>%
+  format_modelcompdat('classif1')
+thresh_regr1 <- threshold_dat(bmres = rfbm_regr$bm_regr)%>%
+  format_modelcompdat('regr1')
+thresh_classif2 <- threshold_dat(bmres = rfeval_featsel$bm_classif) %>%
+  format_modelcompdat('classif2')
+
+format_modelcompdat(thresh_classif1, 'classif1')
+format_modelcompdat(thresh_regr1, 'regr1')
+format_modelcompdat(thresh_classif2, 'classif2')
+
+threshplot_datall <- rbindlist(list(thresh_classif1, thresh_regr1, thresh_classif2))
+
+
+gout <- ggplot(thresh_classif1[variable %in% c('sens', 'spec'),],
+               aes(x=threshold_class, y=value,
+                   color=interaction(learner_id, task_id, resampling_id),
+                   linetype=variable)) +
   geom_line(size=1.2) +
-  geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
-  geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
-  annotate('text', x=(balanced_thresh$i), y=0.4,
-           label=balanced_thresh$i, angle=-90) +
-  annotate('text', x=0.9, y=(balanced_thresh$spec),
-           label=round(balanced_thresh$sens,2)) +
   scale_x_continuous(expand=c(0,0), name='Threshold') +
-  scale_y_continuous(expand=c(0,0), name='Value') +
+  scale_y_continuous(expand=c(0,0), name='Value')
+
+
++
   scale_color_brewer(palette='Dark2',  #colorblind friendly
                      labels=c('Misclassification rate',
                               'Sensitivity (true positives)',
@@ -70,6 +119,12 @@ gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
   theme_bw()
 
 
+geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
+  geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
+  annotate('text', x=(balanced_thresh$i), y=0.4,
+           label=balanced_thresh$i, angle=-90) +
+  annotate('text', x=0.9, y=(balanced_thresh$spec),
+           label=round(balanced_thresh$sens,2)) +
 
 
 

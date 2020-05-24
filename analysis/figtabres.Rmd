@@ -89,7 +89,7 @@ riveratlas <- fread_cols(filestructure['in_riveratlas'],
 ```
 
 
-#Figure 1. Geographical distribution of reference streamgauging stations
+#Main text - Figure 1. Geographical distribution of reference streamgauging stations
 ```{r basic map, echo = FALSE, fig.width = 6,  dpi=300}
 ggrivers <- function() {
     ggplot() +
@@ -128,7 +128,7 @@ p_pr/p_ir
 
 ```
 
-#Environmental variables used in model training
+#Methods - Table 1. Environmental variables used in model training  + variable selection results
 ```{r variable figure, echo=FALSE } 
 predvars[varcode=='dis_mm_pvar', `:=`(
   Category = 'Hydrology',
@@ -190,7 +190,7 @@ kable(predvars_format[,c('Category', 'Attribute',
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 ```
 
-#Figure 2. Environmental distribution of reference streamgauging stations
+#Methods - Figure 1. Environmental distribution of reference streamgauging stations
 Bernhard, is dor_pc_pva x 100 rather than x10 (as written in doc)?
 ```{r envdistrib, fig.width = 6, fig.height=6, dpi=300, message=FALSE}
 #Radar plot of selected variables
@@ -312,32 +312,14 @@ do.call("grid.arrange", list(grobs=penvhist_grobs))
 ```
 
 
-Figure 3. Benchmark comparison of models: spatial and non-spatial cross-validation results. Balanced accuracy (including post-analysis pseudo bacc for regression RF), Brier’s score
-```{r models benchmarking, echo=FALSE}
-
-#Set of box plots with annotations comparing algorithms and 
-#with vs. without feature selection in terms of performance
-#and time to run, and including spatial vs non-spatial. 
-
-#Set of threshold analysis (ROC curves)
+#Methods - Table 2. Specification and benchmark comparison of models
+```{r models benchmarking table, echo=FALSE}
 cached()
 bmcheck_classif <- readd(bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif)
 bmcheck_regr <- readd(bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr)
 loadd(rfbm_classif)
 loadd(rfbm_regr)
 loadd(rfeval_featsel)
-
-
-bp_classif1 <- bmcheck_classif$bm_boxcomp$data %>%
-  .[, `:=`(cat = 'Algorithm selection',
-           type = 'Classification RF')]
-bp_regr1 <- bmcheck_regr$bm_boxcomp$data %>%
-  .[, `:=`(cat = 'Algorithm selection',
-           type = 'Regression RF')]
-bp_classif2 <- rfeval_featsel$bm_analysis$bm_boxcomp$data %>%
-  .[, `:=`(cat = 'Predictor selection',
-           type = 'Classification RF')]
-bp_dat <- rbindlist(list(bp_classif1, bp_regr1, bp_classif2), fill=TRUE)
 
 rsmp_bbrier <- function(bmres, rsmp_i) {
   rsmp <- bmres$resample_result(rsmp_i)
@@ -368,6 +350,7 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
+  
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
@@ -552,33 +535,47 @@ bm_msrtab <- function(bmres) {
   return(moddt)
 }
 
+format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2')) {
+  if (typecomp == 'classif1') {
+    bmres[, `:=`(selection = 'Algorithm',
+                 type = 'Classif.')]  %>%
+      .[, learner_format := dplyr::case_when(
+        learner_id == 'classif.ranger.tuned'~'default RF',
+        learner_id == 'oversample.classif.ranger.tuned'~'default RF-oversampled',
+        learner_id == 'classweights.classif.ranger.tuned'~'default RF-weighted classes',
+        learner_id == 'classif.cforest'~'CIF',
+        learner_id == 'oversample.classif.cforest'~'CIF-oversampled',
+        learner_id == 'classweights.classif.cforest'~'CIF-weighted classes',
+      )]
+    
+  } else if (typecomp == 'regr1') {
+    bmres[, `:=`(selection = 'Algorithm',
+                 type = 'Regr.')] %>%
+      .[, learner_format := dplyr::case_when(
+        task_id == 'inter_regr' ~'MAXSTAT',
+        task_id == 'inter_regrover' ~'MAXSTAT-oversampled'
+      )]
+    
+  } else if (typecomp == 'classif2') {
+    bmres[, `:=`(selection = 'Predictors',
+                 type = 'Classif.')] %>%
+      .[, learner_format := dplyr::case_when(
+        task_id == 'inter_basicsp' ~ 'default RF-oversampled-all variables',
+        task_id == 'inter_basicsp_featsel' ~ 'default RF-oversampled-selected variables'
+      )]
+  } else {
+    stop('typecomp is not recognized')
+  }
+}
+
 tbbrier_classif1 <- bm_msrtab(rfbm_classif$bm_classif) %>%
-  .[, `:=`(selection = 'Algorithm',
-           type = 'Classif.')]  %>%
-  .[, learner_format := dplyr::case_when(
-    learner_id == 'classif.ranger.tuned'~'default RF',
-    learner_id == 'oversample.classif.ranger.tuned'~'default RF-oversampled',
-    learner_id == 'classweights.classif.ranger.tuned'~'default RF-weighted classes',
-    learner_id == 'classif.cforest'~'CIF',
-    learner_id == 'oversample.classif.cforest'~'CIF-oversampled',
-    learner_id == 'classweights.classif.cforest'~'CIF-weighted classes',
-  )]
+  format_modelcompdat('classif1')
 
-tbbrier_regr1 <- bm_msrtab(rfbm_regr$bm_regr) %>%
-  .[, `:=`(selection = 'Algorithm',
-           type = 'Regr.')] %>%
-  .[, learner_format := dplyr::case_when(
-    task_id == 'inter_regr' ~'MAXSTAT',
-    task_id == 'inter_regrover' ~'MAXSTAT-oversampled'
-  )]
+tbbrier_regr1 <- bm_msrtab(rfbm_regr$bm_regr)  %>%
+  format_modelcompdat('regr1')
 
-tbbrier_classif2 <- bm_msrtab(rfeval_featsel$bm_classif) %>%
-  .[, `:=`(selection = 'Predictors',
-           type = 'Classif.')] %>%
-  .[, learner_format := dplyr::case_when(
-    task_id == 'inter_basicsp' ~ 'default RF-oversampled-all variables',
-    task_id == 'inter_basicsp_featsel' ~ 'default RF-oversampled-selected variables'
-  )]
+tbbrier_classif2 <- bm_msrtab(rfeval_featsel$bm_classif)  %>%
+  format_modelcompdat('classif2')
 
 metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2),
                          fill = TRUE, use.names = TRUE)
@@ -614,48 +611,50 @@ results_table <- metrics_dat[, .(selection, learner_format,
 
 kable(results_table) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-
-
-
-
-
-
-
-
-
-
-
-ggplot(bp_classif, aes(x=interaction(task_id, learner_id), y=classif.bacc)) +
-  geom_boxplot() +
-  facet_wrap(~cat, scales='free_x') +
-  theme_classic()
-
-bp_classif2 <- plot(rfeval_featsel$bm_analysis$bm_boxcomp)
-bp_regr <- plot(bmcheck_regr$bm_boxcomp)
-  
-plot(bmcheck_classif$bm_misclasscomp)
-plot(bmcheck_classif$bm_boxcomp)
-plot(rfeval_featsel$bm_analysis$bm_misclasscomp)
-plot(rfeval_featsel$bm_analysis$bm_boxcomp)
-
-plot(bmcheck_regr$bm_misclasscomp)
-plot(bmcheck_regr$bm_boxcomp)
-
-
-
-
-# #Remove legends in bm_misclasscom
-# legend <- gg_grod$grobs[[15]]; 
-# # Make b pink; 
-# legend$grobs[[1]]$grobs[[7]]$gp$col <- "pink";
-# legend$grobs[[1]]$grobs[[8]]$gp$col <- "pink"; 
-# # Remove a; 
-# legend$grobs[[1]]$grobs[3:5] <- list(nullGrob(), nullGrob(), nullGrob())
 ```
 
-Figure 4. Variable importance for top 20 variables + variable selection results
+#Methods - Figure 2. Benchmark comparison of models through curves
+```{r models benchmarking curves, echo=FALSE}
+bmcheck_classif <- readd(bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif)
+bmcheck_regr <- readd(bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr)
+loadd(rfbm_classif)
+loadd(rfbm_regr)
+loadd(rfeval_featsel)
 
-Table S1. Variable selection benchmarking results
+
+glist <- lapply(1:nrow(tasklearner_unique), function(tsklrn) {
+  print(tasklearner_unique[tsklrn,])
+  subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
+                     learner == tasklearner_unique$learner[tsklrn],]
+
+  gout <- ggmisclass(in_predictions = subpred) +
+    ggtitle(paste(tasklearner_unique$task[tsklrn],
+                  tasklearner_unique$learner_format[tsklrn])) +
+    labs(x='Threshold', y='Value')
+
+  if (tsklrn < nrow(tasklearner_unique)) {
+    gout <- gout +
+      theme(legend.position = 'none')
+  }
+
+  return(ggplotGrob(gout))
+})
 
 
 
+
+```
+
+#Main text - Figure 2. Variable importance for top 20 variables
+```{r models benchmarking curves, echo=FALSE}
+loadd(vimp_plot)
+```
+
+#Methods - Figure 3. Predictions uncertainty by variable and spatially
+```{r prediction uncertainty by variable}
+uncertainty_plot
+```
+
+#Main text - Figure 3. Predictions for gauges and full network
+```{r prediction maps - probability}
+```
