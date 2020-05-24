@@ -29,7 +29,7 @@ plan <- drake_plan(
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure),
     transform = map(in_bm = c(rfbm_classif$bm_classif, rfbm_regr$bm_regr),
-                    in_measure = c(rfbm_classif$measure_classif, rfbm_regr$meassure_regr))
+                    in_measure = c(rfbm_classif$measure_classif, rfbm_regr$measure_regr))
   ),
 
   rfeval_featsel = target(
