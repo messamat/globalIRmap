@@ -553,35 +553,73 @@ bm_msrtab <- function(bmres) {
 }
 
 tbbrier_classif1 <- bm_msrtab(rfbm_classif$bm_classif) %>%
-  .[, `:=`(cat = 'Algorithm selection',
-           type = 'Classification')]  %>%
+  .[, `:=`(selection = 'Algorithm',
+           type = 'Classif.')]  %>%
   .[, learner_format := dplyr::case_when(
     learner_id == 'classif.ranger.tuned'~'default RF',
-    learner_id == 'oversample.classif.ranger.tuned'~'default RF - oversampled',
-    learner_id == 'classweights.classif.ranger.tuned'~'default RF - weighted classes',
+    learner_id == 'oversample.classif.ranger.tuned'~'default RF-oversampled',
+    learner_id == 'classweights.classif.ranger.tuned'~'default RF-weighted classes',
     learner_id == 'classif.cforest'~'CIF',
-    learner_id == 'oversample.classif.cforest'~'CIF - oversampled',
-    learner_id == 'classweights.classif.cforest'~'CIF - weighted classes',
+    learner_id == 'oversample.classif.cforest'~'CIF-oversampled',
+    learner_id == 'classweights.classif.cforest'~'CIF-weighted classes',
   )]
 
 tbbrier_regr1 <- bm_msrtab(rfbm_regr$bm_regr) %>%
-  .[, `:=`(cat = 'Algorithm selection',
-           type = 'Regression')] %>%
+  .[, `:=`(selection = 'Algorithm',
+           type = 'Regr.')] %>%
   .[, learner_format := dplyr::case_when(
     task_id == 'inter_regr' ~'MAXSTAT',
-    task_id == 'inter_regrover' ~'MAXSTAT - oversampled'
+    task_id == 'inter_regrover' ~'MAXSTAT-oversampled'
   )]
 
 tbbrier_classif2 <- bm_msrtab(rfeval_featsel$bm_classif) %>%
-  .[, `:=`(cat = 'Predictor selection',
-           type = 'Classification')] %>%
+  .[, `:=`(selection = 'Predictors',
+           type = 'Classif.')] %>%
   .[, learner_format := dplyr::case_when(
-    task_id == 'inter_basicsp' ~ 'default RF - oversampled - all variables',
-    task_id == 'inter_basicsp_featsel' ~ 'default RF - oversampled - selected variables'
+    task_id == 'inter_basicsp' ~ 'default RF-oversampled-all variables',
+    task_id == 'inter_basicsp_featsel' ~ 'default RF-oversampled-selected variables'
   )]
 
 metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2),
                          fill = TRUE, use.names = TRUE)
+
+#Continue formatting table
+metrics_dat[is.na(ntree), ntree := numtrees]
+metrics_dat[is.na(fraction), fraction := samplefraction]
+metrics_dat[, `minor_weight|ratio` := fifelse(is.na(minor_weight), 
+                                              ratio, minor_weight)]
+
+
+#Create model specification tables
+setup_table <- metrics_dat[, .(selection, type, learner_format, 
+                               inner_folds, inner_n_evals,
+                               alpha, mtry, minnodesize, fraction, 
+                               `minor_weight|ratio`, npredictors, 
+                               outer_repeats, outer_folds)] %>%
+  .[!grepl('(CIF)|(MAXSTAT)', learner_format), alpha := NA] %>%
+  .[grepl('MAXSTAT', learner_format), minnodesize := NA] %>%
+  unique(by='learner_format')
+
+kable(setup_table) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+#Create model results table
+results_table <- metrics_dat[, .(selection, learner_format, 
+                                 resampling_id, outer_repeats, outer_folds,
+                                 time_train=round(time_train),
+                                 time_predict=round(time_predict),
+                                 bacc=round(bacc, 3), threshold_class, 
+                                 bbrier=round(bbrier, 3), auc=round(auc, 3)
+                                 )]
+
+kable(results_table) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+
+
+
+
+
 
 
 
@@ -592,30 +630,13 @@ ggplot(bp_classif, aes(x=interaction(task_id, learner_id), y=classif.bacc)) +
   facet_wrap(~cat, scales='free_x') +
   theme_classic()
 
-
-
-
-
-
-
-
-
-
-
-
-
 bp_classif2 <- plot(rfeval_featsel$bm_analysis$bm_boxcomp)
 bp_regr <- plot(bmcheck_regr$bm_boxcomp)
   
-  
-  
-  plot(bmcheck_classif$bm_misclasscomp)
-
-
+plot(bmcheck_classif$bm_misclasscomp)
 plot(bmcheck_classif$bm_boxcomp)
 plot(rfeval_featsel$bm_analysis$bm_misclasscomp)
 plot(rfeval_featsel$bm_analysis$bm_boxcomp)
-
 
 plot(bmcheck_regr$bm_misclasscomp)
 plot(bmcheck_regr$bm_boxcomp)
@@ -623,28 +644,13 @@ plot(bmcheck_regr$bm_boxcomp)
 
 
 
-as.data.table(rfbm_classif$bm_classif$aggregate(msr('time_both')))
-as.data.table(rfbm_classif$bm_classif$aggregate(msr('classif.acc')))
-as.data.table(rfbm_classif$bm_classif$aggregate(msr('classif.bacc')))
-as.data.table(rfbm_classif$bm_classif$aggregate(msr('classif.auc')))
-
-#Check time with featset
-
-#Table with name of model, reference, parameters tested, 
-#time to run, performance (first round, just CV), # of features
-#with multiple levels (one for initial selection, the other for feature selection) (second, CV + spCV)
-
-
-
-
-
-#Remove legends in bm_misclasscom
-legend <- gg_grod$grobs[[15]]; 
-# Make b pink; 
-legend$grobs[[1]]$grobs[[7]]$gp$col <- "pink";
-legend$grobs[[1]]$grobs[[8]]$gp$col <- "pink"; 
-# Remove a; 
-legend$grobs[[1]]$grobs[3:5] <- list(nullGrob(), nullGrob(), nullGrob())
+# #Remove legends in bm_misclasscom
+# legend <- gg_grod$grobs[[15]]; 
+# # Make b pink; 
+# legend$grobs[[1]]$grobs[[7]]$gp$col <- "pink";
+# legend$grobs[[1]]$grobs[[8]]$gp$col <- "pink"; 
+# # Remove a; 
+# legend$grobs[[1]]$grobs[3:5] <- list(nullGrob(), nullGrob(), nullGrob())
 ```
 
 Figure 4. Variable importance for top 20 variables + variable selection results
