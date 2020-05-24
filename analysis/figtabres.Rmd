@@ -615,39 +615,95 @@ kable(results_table) %>%
 
 #Methods - Figure 2. Benchmark comparison of models through curves
 ```{r models benchmarking curves, echo=FALSE}
-bmcheck_classif <- readd(bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif)
-bmcheck_regr <- readd(bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr)
-loadd(rfbm_classif)
-loadd(rfbm_regr)
-loadd(rfeval_featsel)
+threshold_dat <- function(bmres) {
+  bmres_dt <- as.data.table(bmres) %>%
+    .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
+    .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
+    .[, resampling_id := unlist(lapply(resampling, function(x) x$id))] %>%
+    unique(by='uhash')
 
+  if (bmres$task_type == 'regr') {
+    preds <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
+      preds <- bmres_dt$prediction[[rsmp_i]]$test %>%
+        as.data.table %>%
+        .[, `:=`(outf = bmres_dt$iteration[[rsmp_i]],
+                 task = bmres_dt$task[[rsmp_i]]$id,
+                 task_type = bmres$task_type,
+                 learner = bmres_dt$learner[[rsmp_i]]$id)]
+      return(preds)
+    }) %>%
+      do.call(rbind, .)
 
-glist <- lapply(1:nrow(tasklearner_unique), function(tsklrn) {
-  print(tasklearner_unique[tsklrn,])
-  subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
-                     learner == tasklearner_unique$learner[tsklrn],]
-
-  gout <- ggmisclass(in_predictions = subpred) +
-    ggtitle(paste(tasklearner_unique$task[tsklrn],
-                  tasklearner_unique$learner_format[tsklrn])) +
-    labs(x='Threshold', y='Value')
-
-  if (tsklrn < nrow(tasklearner_unique)) {
-    gout <- gout +
-      theme(legend.position = 'none')
+    if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
+      preds[, prob.1 := response]
+    }
   }
 
-  return(ggplotGrob(gout))
-})
+  outtab <- lapply(1:bmres$n_resample_results, function(rsmp_i) {
+    print(rsmp_i)
+    rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
+
+    if (bmres$task_type == 'regr') {
+      rsmp_preds <- preds
+    }
+
+    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
+      print(threshold_class)
+      cbind(
+        rsmp_bacc(bmres, rsmp_i=rsmp_i, threshold_class=threshold_class),
+        threshold_misclass(i=threshold_class, in_preds=rsmp_preds)
+      ) %>%
+        .[, i:=NULL]
+    }) %>%
+      setDT %>%
+      cbind(bmres_dt[rsmp_i, .(learner_id, task_id, resampling_id)])
+    return(baccthresh)
+  }) %>%
+    rbindlist
 
 
+  outtab_melt <- melt(outtab, id.vars=c('threshold_class',
+                                        'learner_id', 'task_id', 'resampling_id'))
+  return(outtab_melt)
+}
+
+thresh_classif1 <- threshold_dat(bmres = rfbm_classif$bm_classif)%>%
+  format_modelcompdat('classif1')
+thresh_regr1 <- threshold_dat(bmres = rfbm_regr$bm_regr)%>%
+  format_modelcompdat('regr1')
+thresh_classif2 <- threshold_dat(bmres = rfeval_featsel$bm_classif) %>%
+  format_modelcompdat('classif2')
+
+format_modelcompdat(thresh_classif1, 'classif1')
+format_modelcompdat(thresh_regr1, 'regr1')
+format_modelcompdat(thresh_classif2, 'classif2') 
+
+threshplot_datall <- rbindlist(list(thresh_classif1, thresh_regr1, thresh_classif2)) %>%
+  .[, list(value_mean = mean(value)), by=.(threshold_class, variable, learner_format, selection)]
 
 
+ggthresh_benchmark <- ggplot(threshplot_datall[variable %in% c('sens', 'spec'),],
+                             aes(x=threshold_class, y=value_mean,
+                                 linetype=variable,
+                                 gourp=learner_format,
+                                 color=learner_format)) +
+  geom_line(size=1.2) +
+  #scale_color_brewer(palette='Dark2') +
+  scale_linetype(labels=c('Sensitivity (true positives)',
+                          'Specificity (true negatives)')) +
+  scale_x_continuous(expand=c(0,0), name='Threshold') +
+  scale_y_continuous(expand=c(0,0), name='Value') +
+  facet_wrap(~selection) + 
+  theme_bw() + 
+  theme(panel.spacing = unit(0.75, "cm"), 
+        legend.title = element_blank())
+
+ggthresh_benchmark
 ```
 
 #Main text - Figure 2. Variable importance for top 20 variables
-```{r models benchmarking curves, echo=FALSE}
-loadd(vimp_plot)
+```{r models benchmarking curves, fig.width=12, fig.heecho=FALSE}
+ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE)
 ```
 
 #Methods - Figure 3. Predictions uncertainty by variable and spatially
