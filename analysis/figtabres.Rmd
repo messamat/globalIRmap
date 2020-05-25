@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 rootdir <- rprojroot::find_root(rprojroot::has_dir("src")) 
 srcdir <- file.path(rootdir, 'src', 'globalIRmap')
 datdir <- file.path(rootdir, 'data')
+resdir <- file.path(rootdir, 'results')
 
 #Source packages functions
 library(drake)
@@ -26,6 +27,8 @@ library("rnaturalearth")
 library("rnaturalearthdata")
 library(rgeos)
 library(rgdal)
+library(gstat)
+library(raster)
 library(cowplot)
 library(maps)
 library(patchwork)
@@ -33,10 +36,12 @@ library(patchwork)
 library(facetscales)
 library(scales)
 library(kableExtra)
+library(viridis)
 
 #Define paths
 riveratlas_path <- file.path(datdir, 'HydroATLAS', 
                              'RiverATLAS_v10.gdb', 'RiverATLAS_v10') 
+gaugebufras <- file.path(resdir, 'GRDCstations_bufras.tif')
 
 #Source analysis outputs
 loadd(predvars)
@@ -46,7 +51,7 @@ loadd(gaugestats_format)
 #Define Winkel Tripel projection
 crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
 
-#Get mapping
+#Get mapping basemaps
 wcountries <- rnaturalearth::ne_countries(scale = "medium", returnclass = "sf")
 wland <- rnaturalearth::ne_download(scale = 110, type = 'land', category = 'physical')
 wlakes <- rnaturalearth::ne_download(scale = 110, type = 'lakes', category = 'physical')
@@ -61,6 +66,10 @@ sfformat_wintri <- function(in_sp) {
 grat_wintri <- 
   st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
   st_transform(crs = crs_wintri)
+
+
+#---- Import HydroSHEDS landmask raster ----------------------------------------
+hydromask <- raster(hydrosheds_mask)
 
 #---- Import and format river network lines, keeping a subset of columns and only for river orders > 4 --------
 riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
@@ -96,12 +105,13 @@ ggrivers <- function() {
     geom_sf(data = grat_wintri, color = alpha("black", 1/5), size = 0.25/.pt) + 
     geom_sf(data=sfformat_wintri(wland), alpha=1/2, color=NA) +
     geom_sf(data=sfformat_wintri(wlakes),  alpha=1/3, fill='black', color=NA) +
-    geom_sf(data=riv_simple[riv_simple$ORD_STRA < 6,][1:10000,],
-            aes(size=ORD_STRA), color=alpha('black', 1/20), show.legend = F) +
-    geom_sf(data=riv_simple[riv_simple$ORD_STRA >= 6,][1:10000,],
-            aes(size=ORD_STRA), color=alpha('black', 1/10), show.legend = F) +
+    # geom_sf(data=riv_simple[riv_simple$ORD_STRA < 6,][1:10000,],
+    #         aes(size=ORD_STRA), color=alpha('black', 1/20), show.legend = F) +
+    # geom_sf(data=riv_simple[riv_simple$ORD_STRA >= 6,][1:10000,],
+    #         aes(size=ORD_STRA), color=alpha('black', 1/10), show.legend = F) +
     scale_size_continuous(range=c(0.2, 1.0)) +
-    coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-16500000, 16500000), ylim=c(-7000000,8700000)) +
     theme_map() + 
     theme(legend.position=c(0.1,0),
           legend.direction="horizontal",
@@ -114,15 +124,19 @@ perennial_gauges <- gaugepred[gaugepred$intermittent=='0',]
 p_pr <- ggrivers() + 
   geom_sf(data=perennial_gauges, aes(color=totalYears_kept), size=1, alpha=0.8) +
   scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540', 
-                       breaks=c(min(perennial_gauges$totalYears_kept), 100, max(perennial_gauges$totalYears_kept))) +
-  coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F) 
+                       breaks=c(min(perennial_gauges$totalYears_kept), 100 , 
+                                max(perennial_gauges$totalYears_kept))) +
+  coord_sf(datum = NA, expand=F,
+           xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
 
 ir_gauges <-  gaugepred[gaugepred$intermittent=='1',]
 p_ir <- ggrivers() + 
   geom_sf(data=ir_gauges, aes(color=totalYears_kept), size=1, alpha=0.8) +
   scale_color_gradient(name='Years of data', low='#ff9b52', high='#a32d18', 
-                       breaks=c(min(ir_gauges$totalYears_kept), 100, max(ir_gauges$totalYears_kept))) +
-  coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F)
+                       breaks=c(min(ir_gauges$totalYears_kept), 100, 
+                                max(ir_gauges$totalYears_kept))) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
 
 p_pr/p_ir
 
@@ -706,11 +720,100 @@ ggthresh_benchmark
 ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE)
 ```
 
-#Methods - Figure 3. Predictions uncertainty by variable and spatially
+#Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
 ```{r prediction uncertainty by variable}
 uncertainty_plot
 ```
 
-#Main text - Figure 3. Predictions for gauges and full network
+#Main text - Figure 3 A. Geographic errors and uncertainty in predictions
+```{r prediction uncertainty by variable}
+loadd(gaugep)
+
+#Get 
+rsmp_res <- get_outerrsmp(rftuned, spatial_rsp=TRUE)
+predsp <- rsmp_res$prediction() %>% 
+  as.data.table %>%
+  .[, list(IRpredprob_spcv = 100*mean(prob.1),
+           IRpredcoefcv_spcv = sd(100*prob.1, na.rm=T)/mean(100*prob.1, na.rm=T)), 
+    by=.(row_id, truth)] %>%
+  .[, prederror := IRpredprob_spcv-100*as.numeric(as.character(truth))] %>%
+  .[, prederror_abs := abs(prederror)] %>%
+  .[, IRpedcat_spcv := as.character(fifelse(IRpredprob_spcv > 40, 1, 0))] %>%
+  setorder(row_id) %>%
+  cbind(gaugestats_format[!is.na(cly_pc_cav), list(GRDC_NO=GRDC_NO)]) 
+
+predsp_gaugep <- merge(gaugep, predsp, by='GRDC_NO') %>%
+  .[order(.[,'prederror_abs']$prederror_abs),]
+
+qplot(predsp_gaugep$prederror)
+
+p_pr <- ggrivers() + 
+  geom_sf(data=predsp_gaugep, aes(color=IRpedcat_spcv), alpha=1) +
+  scale_size_continuous(range=c(0.2, 2)) +
+  coord_sf(datum = NA, expand=F,
+           xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
+p_pr
+
+
+#-------------- Kriging interpolation of errors --------------------------------
+#Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
+crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
+  as_Spatial()
+  
+# Compute the sample variogram; note that the f.1 trend model is one of the
+# parameters passed to variogram(). This tells the function to create the 
+# variogram on the de-trended data.
+var_smpl <- gstat::variogram(prederror ~ 1, predsp_gaugep_df, 
+                             cutoff=50000, width=500, cressie=TRUE) #cloud=T)
+
+ggplot(var_smpl, aes(x=dist, y=gamma)) + 
+  geom_point(alpha=1/3) + 
+  coord_cartesian(expand=F) +
+  scale_y_log10() +
+  theme_classic()
+
+  # scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
+  #              labels=c(0,100,1000,10000,25000,50000, 100000)) +
+
+# Compute the variogram model by passing the nugget, sill and range values
+# to fit.variogram() via the vgm() function.
+varmods <- as.character(vgm()[,'short'])
+dat.fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = FALSE,
+                          vgm(varmods[!(varmods %in% c('Pow', 'Int'))]), 
+                          fit.kappa = TRUE)
+# The following plot allows us to assess the fit
+plot(var_smpl, dat.fit)
+
+# Convert hydromask to SpatialGrid
+grd_proj <- projectRaster(hydromask, crs=crs_aeqd, res=500) %>%
+  as('SpatialGrid')
+
+# Plot the map
+tm_shape(r.m) + 
+  tm_raster(n=10, palette="RdBu", auto.palette.mapping=FALSE, 
+            title="Predicted precipitation \n(in inches)") +
+  tm_shape(P) + tm_dots(size=0.2) +
+  tm_legend(legend.outside=TRUE)
+
+
+predsp_over <- predsp_gaugep[predsp_gaugep$prederror > 0,] 
+p_pr <- ggrivers() + 
+  geom_sf(data=predsp_over, aes(color=IRpredprob_spcv, size=prederror_abs), alpha=1) +
+  scale_color_distiller(palette='PuRd', direction = 1) +
+  scale_size_continuous(range=c(0.2, 2)) +
+  coord_sf(datum = NA, expand=F,
+           xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
+p_pr
+
+
+  scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540', 
+                       breaks=c(min(perennial_gauges$totalYears_kept), 100, max(perennial_gauges$totalYears_kept))) +
+  coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F) 
+
+
+```
+
+#Main text - Figure 3 B. Predictions for gauges and full network
 ```{r prediction maps - probability}
 ```
