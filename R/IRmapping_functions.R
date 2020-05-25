@@ -792,10 +792,13 @@ def_filestructure <- function() {
   out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas attribute data1
   in_riveratlas <- file.path(resdir, 'RiverATLAS_v10tab.csv')
+  # River atlas predictions table
+  out_riveratlas <- file.path(resdir, 'RiverATLAS_predbasic800.csv')
 
   return(c(rootdir=rootdir, datdir=datdir, resdir=resdir, outgdb=outgdb,
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir, in_riveratlas_meta=in_riveratlas_meta,
-           out_gauge=out_gauge, in_riveratlas=in_riveratlas))
+           out_gauge=out_gauge, in_riveratlas=in_riveratlas,
+           out_riveratlas = out_riveratlas))
 }
 #------ read_gaugep -----------------
 #' Read gauge points
@@ -1851,11 +1854,10 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned,
 
   riveratlas[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
   fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],
-         file.path(in_filestructure['resdir'], 'RiverATLAS_predbasic800.csv'))
+         in_filestructure['out_riveratlas'])
 
   # --------- Return data for plotting ------------------------
   return(out_gaugep)
 }
-
 
 ########## END #############
