@@ -75,6 +75,13 @@
       "Repository": "CRAN",
       "Hash": "d57ac35220b39c591388ab3a080f9cbe"
     },
+    "Metrics": {
+      "Package": "Metrics",
+      "Version": "0.1.4",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "1fdc9b3adfe2e2f8f77c22a59cf322ec"
+    },
     "R6": {
       "Package": "R6",
       "Version": "2.4.1",
@@ -428,6 +435,18 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "ec8ca05cffcc70569eaaad8469d2a3a7"
+    },
+    "facetscales": {
+      "Package": "facetscales",
+      "Version": "0.1.0.9000",
+      "Source": "GitHub",
+      "RemoteType": "github",
+      "RemoteHost": "api.github.com",
+      "RemoteRepo": "facetscales",
+      "RemoteUsername": "zeehio",
+      "RemoteRef": "master",
+      "RemoteSha": "f374846a1fc56c0e5b6004df587e2c502b819608",
+      "Hash": "cced3fe706047d145739a3a873f6bd50"
     },
     "fansi": {
       "Package": "fansi",
@@ -793,12 +812,26 @@
       "Repository": "CRAN",
       "Hash": "ad24d1fd9ed431543f4633bb083e194a"
     },
+    "lubridate": {
+      "Package": "lubridate",
+      "Version": "1.7.8",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "6c04c31012c1be39783bebbbfc27b3a3"
+    },
     "magrittr": {
       "Package": "magrittr",
       "Version": "1.5",
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "1bb58822a20301cee84a41678e25d9b7"
+    },
+    "maps": {
+      "Package": "maps",
+      "Version": "3.3.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "392212982257ea03c37b63547dc871b4"
     },
     "maptools": {
       "Package": "maptools",
@@ -918,6 +951,13 @@
       "RemoteSha": "f540f96317825fe9ed92f7edb9f90ac4a0b16c68",
       "Hash": "c1b8c8c7dc82d3ee3bcef382eca8aff0"
     },
+    "mlr3tuning": {
+      "Package": "mlr3tuning",
+      "Version": "0.1.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "b30a7449e9d1a71f38f0815ffded6f6e"
+    },
     "mlr3viz": {
       "Package": "mlr3viz",
       "Version": "0.1.1",
@@ -1001,6 +1041,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "cd6eb1b79927ac9ceb81a4d6d9c0099a"
+    },
+    "patchwork": {
+      "Package": "patchwork",
+      "Version": "1.0.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "16eee5b5edc41eec5af1149ccdc6b2c9"
     },
     "pbkrtest": {
       "Package": "pbkrtest",
@@ -1204,6 +1251,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "093584b944440c5cd07a696b3c8e0e4c"
+    },
+    "rgdal": {
+      "Package": "rgdal",
+      "Version": "1.4-8",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "a60887cdff80ba8a4b34a624b281b448"
     },
     "rgeos": {
       "Package": "rgeos",
@@ -1477,6 +1531,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "ce4f6271baa94776db692f1cb2055bee"
+    },
+    "visNetwork": {
+      "Package": "visNetwork",
+      "Version": "2.0.9",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "12545f2acf49d1d346d075580122d89c"
     },
     "webshot": {
       "Package": "webshot",
