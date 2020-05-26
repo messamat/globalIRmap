@@ -1711,17 +1711,19 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
   )))
   , by=.(var1, var2)]
 
-  pagelayout <- rep(list(1:9), nrow(tileplots_l) %/% 9)
+
+
+  pagelayout <-   lapply(1:(nrow(tileplots_l) %/% 9), function(p_i) {
+    (p_i-1)*9+(1:9)
+  })
   if (nrow(tileplots_l) %% 9 > 0) {
-    pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <- 1:(nrow(tileplots_l) %% 9)
+    pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <- (p_i-1)*9+(1:(nrow(tileplots_l) %% 9))
   }
 
   tileplots_multipl <- lapply(pagelayout, function(page) {
     print(page)
     return(do.call("grid.arrange", list(grobs=(tileplots_l[page,V1]))))
   })
-
-  plot(tileplots_multipl[[1]])
   return(tileplots_multipl)
 }
 
