@@ -41,9 +41,28 @@ library(viridis)
 #Define paths
 riveratlas_path <- file.path(datdir, 'HydroATLAS', 
                              'RiverATLAS_v10.gdb', 'RiverATLAS_v10') 
-gaugebufras <- file.path(resdir, 'GRDCstations_bufras.tif')
+
+bufras_vec <- file.path(resdir, 'bufrasdir',
+                        grep('bufras_T[0-9]{1-3}proj[.]tif$', 
+                             list.files(file.path(resdir, 'bufrasdir')),
+                             value=T))
 
 #Source analysis outputs
+cached()
+history_last <- drake_history(analyze = TRUE) %>%
+  setDT %>%
+  .[, built := as_datetime(built)] %>%
+  setorder(built) %>%
+  .[, .SD[.N,], by=target]
+
+cache <- drake_cache()
+rfbm_regr<- cache$get_value(history_last[target=='rfbm_regr',hash])
+rfbm_classif<- cache$get_value(history_last[target=='rfbm_classif',hash])
+bmcheck_classif <- cache$get_value(history_last[target=='bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif', hash])
+bmcheck_regr<- cache$get_value(history_last[target=='bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr', hash])
+rfeval_featsel <- cache$get_value(history_last[target=='rfeval_featsel',hash])
+rftuned <- cache$get_value(history_last[target=='rftuned',hash])
+
 loadd(predvars)
 loadd(filestructure)
 loadd(gaugestats_format)
@@ -67,18 +86,14 @@ grat_wintri <-
   st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
   st_transform(crs = crs_wintri)
 
-
-#---- Import HydroSHEDS landmask raster ----------------------------------------
-hydromask <- raster(hydrosheds_mask)
-
 #---- Import and format river network lines, keeping a subset of columns and only for river orders > 4 --------
-riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
-riv_lines <- st_read(dsn = dirname(riveratlas_path), 
-                      layer = basename(riveratlas_path),
-                      query = riv_query)
-
-riv_wintri <- sfformat_wintri(riv_lines)
-riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
+# riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
+# riv_lines <- st_read(dsn = dirname(riveratlas_path), 
+#                       layer = basename(riveratlas_path),
+#                       query = riv_query)
+# 
+# riv_wintri <- sfformat_wintri(riv_lines)
+# riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
 
 #---- Import and format streamgauges --------
 gaugepred <- st_read(filestructure['out_gauge']) %>%
@@ -86,7 +101,7 @@ gaugepred <- st_read(filestructure['out_gauge']) %>%
 
 #---- Import and format river network attributes ------------------------------
 cols_tokeep <-  c("HYRIV_ID", predvars[!is.na(ID),varcode],
-                  'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav',
+                  'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
                   paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
                   paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
                   paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
@@ -243,7 +258,9 @@ formatscales <- function(in_df, varstoplot) {
     hdi_ix_cav = scale_x_continuous(),
     hft_ix_c09 = scale_x_continuous(),
     ORD_STRA = scale_x_continuous()
-  )
+  ) %>%
+    .[(names(.) %in% names(in_df)) & names(.) %in% varstoplot] 
+  #Only keep those variables that are actually in df and that we want to plot
   
   scales_y <- unlist(rep(list(scale_y_log10(expand=c(0,0))), labels = scientific_format(),
                          length(scales_x)), 
@@ -255,6 +272,7 @@ formatscales <- function(in_df, varstoplot) {
     coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var)), max(get(var)))])
   }) %>%
     setNames(names(scales_x))
+  
   coordcart[['clz_cl_cmj']] <-  coord_cartesian(
     xlim=c(1,max(in_df$clz_cl_cmj)))
   
@@ -262,7 +280,7 @@ formatscales <- function(in_df, varstoplot) {
   return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
 }
 
-scalesenvhist <- formatscales(riveratlas, varstoplot)
+scalesenvhist <- formatscales(in_df=riveratlas, varstoplot=varstoplot_hist)
 
 
 ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent=TRUE) {
@@ -328,13 +346,6 @@ do.call("grid.arrange", list(grobs=penvhist_grobs))
 
 #Methods - Table 2. Specification and benchmark comparison of models
 ```{r models benchmarking table, echo=FALSE}
-cached()
-bmcheck_classif <- readd(bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif)
-bmcheck_regr <- readd(bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr)
-loadd(rfbm_classif)
-loadd(rfbm_regr)
-loadd(rfeval_featsel)
-
 rsmp_bbrier <- function(bmres, rsmp_i) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
@@ -406,19 +417,22 @@ bm_paramstime <- function(bmres) {
 
         #Merge default and set params, keeping set ones when present
         if (ncol(def)==1) {
-          graphparams <- value
+          tabmerge <- value
         } else if (ncol(value)==1) {
-          graphparams <- def
+          tabmerge <- def
         } else {
-          graphparams <- merge(def, value[, .(variable, value, po_id)],
+          tabmerge <- merge(def, value[, .(variable, value, po_id)],
                                by=c('po_id', 'variable'),
                                all.x=T, all.y=T) %>%
             .[is.na(value.y), value.y := value.x] %>%
             setnames('value.y', 'value') %>%
-            .[, value.x := NULL] %>%
+            .[, value.x := NULL] 
+        }
+        
+          graphparams <- tabmerge %>%
             .[, variable := gsub('[.]', '', variable)] %>%
             unique(by='variable')
-        }
+          
         return(graphparams)
       }) %>%
         rbindlist(use.names=TRUE)
@@ -432,12 +446,18 @@ bm_paramstime <- function(bmres) {
       #Get set param
       value <- as.data.table(po$param_set$values) %>%
         melt(id.vars=integer())
-
+      
+      if (def[,.N]>0 & value[,.N]>0) {
+        tabmerge <- merge(def, value, by='variable', all.x=T, all.y=T)%>%
+          .[is.na(value.y), value.y := value.x] %>%
+          setnames('value.y', 'value') %>%
+          .[, value.x := NULL] 
+      } else {
+        tabmerge <- rbind(def, value)
+      }
+      
       #Merge default and set params, keeping set ones when present
-      paramtab <- merge(def, value, by='variable', all.x=T, all.y=T) %>%
-        .[is.na(value.y), value.y := value.x] %>%
-        setnames('value.y', 'value') %>%
-        .[, value.x := NULL] %>%
+      paramtab <- tabmerge %>%
         .[, variable := gsub('[.]', '', variable)] %>%
         unique(by='variable') #Models are not consistent in their use of dots
     }
@@ -716,7 +736,7 @@ ggthresh_benchmark
 ```
 
 #Main text - Figure 2. Variable importance for top 20 variables
-```{r models benchmarking curves, fig.width=12, fig.heecho=FALSE}
+```{r variable importance, fig.width=12, fig.heecho=FALSE}
 ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE)
 ```
 
@@ -726,7 +746,7 @@ uncertainty_plot
 ```
 
 #Main text - Figure 3 A. Geographic errors and uncertainty in predictions
-```{r prediction uncertainty by variable}
+```{r prediction uncertainty by geography, eval = FALSE}
 loadd(gaugep)
 
 #Get 
@@ -779,15 +799,24 @@ ggplot(var_smpl, aes(x=dist, y=gamma)) +
 # Compute the variogram model by passing the nugget, sill and range values
 # to fit.variogram() via the vgm() function.
 varmods <- as.character(vgm()[,'short'])
-dat.fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = FALSE,
+dat_fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = FALSE,
                           vgm(varmods[!(varmods %in% c('Pow', 'Int'))]), 
                           fit.kappa = TRUE)
 # The following plot allows us to assess the fit
-plot(var_smpl, dat.fit)
+plot(var_smpl, dat_fit)
 
-# Convert hydromask to SpatialGrid
-grd_proj <- projectRaster(hydromask, crs=crs_aeqd, res=500) %>%
+# Import gauge buffer mask
+bufmask <- raster(bufras_vec[[1]]) %>%
   as('SpatialGrid')
+  
+  
+#Predict error
+kmod <- gstat(formula=prederror~1, locations=predsp_gaugep_df, model=dat_fit)
+kp <- predict(kmod, bufmask)
+## [using ordinary kriging]
+spplot(kp)
+
+
 
 # Plot the map
 tm_shape(r.m) + 
