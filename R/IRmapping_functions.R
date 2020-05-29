@@ -1110,7 +1110,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 
   return(predcols_dt)
 }
-#------ create_tasks -----------------
+#------ create_tasks  -----------------
 create_tasks <- function(in_gaugestats, in_predvars) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[!is.na(cly_pc_cav),
@@ -1135,6 +1135,213 @@ create_tasks <- function(in_gaugestats, in_predvars) {
                                           oversample=TRUE)
   return(list(classif=task_classif, regr=task_regr, regover=task_regrover))
 }
+
+#------ create_learners -----------------
+create_baselearners <- function(in_task) {
+  #---------- Create learners --------------------------------------------------
+  lrns <- list()
+
+  if (inherits(in_task, 'TaskClassif')) {
+    #Compute ratio of intermittent to perennial observations
+    imbalance_ratio <- get_oversamp_ratio(in_task)$ratio
+
+    #Create basic learner
+    lrns[['lrn_ranger']] <- mlr3::lrn('classif.ranger',
+                                      num.trees = 500,
+                                      sample.fraction = 0.632,
+                                      replace = FALSE,
+                                      splitrule = 'gini',
+                                      predict_type = 'prob',
+                                      importance = 'impurity_corrected',
+                                      respect.unordered.factors = 'order')
+
+    #print(lrn_ranger$param_set)
+
+    #Create a conditional inference forest learner with default parameters
+    # mtry = sqrt(nvar), fraction = 0.632
+    lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
+                                       ntree = 500,
+                                       fraction = 0.632,
+                                       replace = FALSE,
+                                       alpha = 0.05,
+                                       mtry = round(sqrt(length(in_task$feature_names))),
+                                       predict_type = "prob")
+
+    #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
+    #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
+    #https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_classbalancing.html
+    #Sampling happens only during training phase.
+    po_over <- mlr3pipelines::po("classbalancing", id = "oversample", adjust = "minor",
+                                 reference = "minor", shuffle = TRUE,
+                                 ratio = imbalance_ratio)
+    #table(po_over$train(list(in_task))$output$truth()) #Make sure that oversampling worked
+
+    #Create mlr3 pipe operator to put a higher class weight on minority class
+    po_classweights <- mlr3pipelines::po("classweights", minor_weight = imbalance_ratio)
+
+    #Create graph learners so that oversampling happens systematically upstream of all training
+    lrns[['lrn_ranger_overp']] <- mlr3pipelines::GraphLearner$new(
+      po_over %>>% lrns[['lrn_ranger']])
+    lrns[['lrn_cforest_overp']] <- mlr3pipelines::GraphLearner$new(
+      po_over %>>% lrns[['lrn_cforest']])
+
+    #Create graph learners so that class weighin happens systematically upstream of all training
+    lrns[['lrn_ranger_weight']] <- mlr3pipelines::GraphLearner$new(
+      po_classweights %>>% lrns[['lrn_ranger']])
+    lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
+      po_classweights  %>>% lrns[['lrn_cforest']])
+  }
+
+
+  if (inherits(in_task, 'TaskRegr')) {
+    #Create regression learner with maxstat
+    lrns[['lrn_ranger_maxstat']] <- mlr3::lrn('regr.ranger',
+                                              num.trees=500,
+                                              sample.fraction = 0.632,
+                                              min.node.size = 10,
+                                              replace=FALSE,
+                                              splitrule = 'maxstat',
+                                              importance = 'impurity_corrected',
+                                              respect.unordered.factors = 'order')
+  }
+
+  return(lrns)
+}
+
+#------ set_tuning -----------------
+set_tuning <- function(in_learner, nfeatures,
+                       insamp_nfolds, insamp_neval, insamp_nbatch) {
+
+  #Define paramet space to explore
+  regex_tuneset <- function(in_lrn) {
+    prmset <- names(in_lrn$param_set$tags)
+
+    tune_rf <- ParamSet$new(list(
+      ParamInt$new(grep(".*mtry", prmset, value=T),
+                   lower = 5,
+                   upper = floor(nfeatures/2)), #Half number of features
+      ParamDbl$new(grep(".*fraction", prmset, value=T),
+                   lower = 0.2,
+                   upper = 0.8)
+    ))
+
+    in_split =in_lrn$param_set$get_values()[
+      grep(".*split(rule|stat)", prmset, value=T)]
+
+    if (in_split == 'maxstat') {
+      tune_rf$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)],
+                     lower = 0.01, upper = 0.1)
+      )
+
+    } else if (any(grepl(".*min.node.size", prmset))) {
+      tune_rf$add(
+        ParamInt$new(prmset[grep(".*min.node.size", prmset)],
+                     lower = 1, upper = 10)
+      )
+    } else if (any(grepl(".*splitstat", prmset))) {
+      tune_rf$add(
+        ParamDbl$new(prmset[grep(".*alpha", prmset)],
+                     lower = 0.01, upper = 0.1)
+      )
+    }
+  }
+
+  #Define inner resampling strategy
+  rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
+
+  #Define termination rule
+  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
+
+  if (in_learner$task_type == 'classif') {
+    if (grepl('classif[.]cforest$', in_learner$id)) {
+      learnertune <- in_learner
+    } else if (grepl('classif[.]ranger$', in_learner$id)) {
+      learnertune <- AutoTuner$new(learner= in_learner,
+                                   resampling = rcv_rf,
+                                   measures = in_measures$classif,
+                                   tune_ps = regex_tuneset(in_learner),
+                                   terminator = evalsn,
+                                   tuner =  tnr("random_search",
+                                                batch_size = insamp_nbatch)) #batch_size determines level of parallelism
+    } else{
+      stop('The classification learner provided is not configurable with this workflow yet...')
+    }
+  } else if (in_learner$task_type == 'regr') {
+    learnertune <- AutoTuner$new(learner= lrn_ranger_maxstat,
+                                 resampling = rcv_rf,
+                                 measures = in_measures$regr,
+                                 tune_ps = regex_tuneset(lrn_ranger_maxstat),
+                                 terminator = evalsn,
+                                 tuner =  tnr("random_search",
+                                              batch_size = insamp_nbatch))
+  }
+
+  learnertune$id <- in_learner$id
+}
+
+#------ instantiate resampling ---------------
+set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
+  #repeated_cv or repeated-spcv-coords
+  outer_resampling = rsmp(rsmp_id,
+                          repeats = outsamp_nrep,
+                          folds = outsamp_nfolds)
+  outer_resampling$instantiate(in_task)
+
+  return(outer_resampling)
+}
+
+#------ resample_learner ------------------
+#Directly run resample function from mlr3 on in_task, in_learner, in_resampling
+
+
+#------ combined resample results into benchmark results -------------
+combine_bm <- function(in_resampleresults) {
+  #When tried as_benchmark_result.ResampleResult, got "Error in setcolorder(data, slots) :
+  # x has some duplicated column name(s): uhash. Please remove or rename the
+  # duplicate(s) and try again.". SO use this instead
+  if (length(in_resampleresults) > 1) {
+    bmres_list <- lapply(in_resampleresults,
+                         function(rsmpres) {
+                           BenchmarkResult$new(rsmpres$data)})
+
+    bmrbase = bmres_list[[1]]
+    for (i in 2:length(bmres_list)) {
+      if (in_resampleresults[[i]]$task$task_type ==
+          in_resampleresults[[1]]$task$task_type) {
+        bmrbase$combine(bmres_list[[i]])
+      } else {
+        warning('ResampleResult #', i,
+                'is not of the same task type as the first ResampleResult you provided, skipping...')
+      }
+    }
+  } else {
+    warning('You provided only one resample result to combine_bm,
+            simply returning output from as_benchmark_result...')
+    bmrbase = BenchmarkResult$new(in_resampleresults[[1]])
+  }
+
+
+
+
+
+    return(
+    list(
+      bm_res = nestedresamp_bmrout_classif,
+      bm_tasks = list(task_classif=task_classif),
+      measure = measure_rf_class
+    )
+  )
+
+  list(
+    bm_regr = nestedresamp_bmrout_regr,
+    bm_tasks = list(task_regr=task_regr,
+                    task_regrover=task_regrover),
+    measure_regr = measure_rf_reg
+  )
+  )
+}
+
 #------ benchmark_classif -----------------
 benchmark_classif <- function(in_tasks,
                               insamp_nfolds, insamp_neval, insamp_nbatch,
@@ -1203,7 +1410,7 @@ benchmark_classif <- function(in_tasks,
                    upper = 0.8)
     ))
 
-    in_split = in_lrn$param_set$get_values()[
+    in_split =in_lrn$param_set$get_values()[
       grep(".*split(rule|stat)", prmset, value=T)]
 
     if (in_split == 'maxstat') {
@@ -1223,8 +1430,6 @@ benchmark_classif <- function(in_tasks,
                      lower = 0.01, upper = 0.1)
       )
     }
-
-    return(tune_rf)
   }
 
   #Define inner resampling strategy
@@ -1246,7 +1451,6 @@ benchmark_classif <- function(in_tasks,
                   terminator = evalsn,
                   tuner =  tnr("random_search",
                                batch_size = insamp_nbatch)), #batch_size determines level of parallelism
-
 
     #Standard ranger rf with oversampling
     AutoTuner$new(learner= lrn_ranger_overp,

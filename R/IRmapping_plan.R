@@ -16,38 +16,73 @@ plan <- drake_plan(
 
   tasks = create_tasks(in_gaugestats = gaugestats_format, in_predvars = predvars),
 
-  rfbm_classif = benchmark_classif(in_tasks = tasks,
-                                   insamp_nfolds = 5, insamp_neval = 100,
-                                   insamp_nbatch = parallel::detectCores(logical=FALSE),
-                                   outsamp_nrep = 2, outsamp_nfolds = 3),
+  baselearners = target(
+    create_baselearners(in_task = task),
+    transform = map(task = tasks$classif, tasks$regr)
+  ),
 
-  rfbm_regr = benchmark_regr(in_tasks = tasks,
-                             insamp_nfolds = 5, insamp_neval = 100,
-                             insamp_nbatch = parallel::detectCores(logical=FALSE),
-                             outsamp_nrep = 2, outsamp_nfolds = 3),
+  measures = target(list(classif = msr("classif.bacc"),
+                         regr = msr("regr.mae"))
+  ),
+
+  tuningset = target(
+    set_tuning(in_learner = lrn,
+               in_measures = measures,
+               nfeatures = length(tasks$classif$feature_names),
+               insamp_nfolds = 5, insamp_neval = 100,
+               insamp_nbatch = parallel::detectCores(logical=FALSE)),
+    transform = map(lrn = unlist(baselearners, recursive=F))
+  ),
+
+  resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
+                                   in_task = tasks$classif,
+                                   outsamp_nrep = 1,
+                                   outsamp_nfolds = 2),
+
+  rfresampled_classif = target(
+    resample(task = tasks$classif, learner = learner, resampling = resamplingset,
+             store_models = TRUE),
+    dynamic = map(baselearners[[1]])
+  ),
+
+  rfresampled_regr = target(
+    resample(task = tasks$regr, learner = learner, resampling = resamplingset,
+             store_models = TRUE),
+    dynamic = map(baselearners[[2]])
+  ),
+
+  rfbm_classif = target(
+    combine_bm(in_resampleresults = rsmp_res),
+    dynamic = map(rfresampled_classif)
+  ),
+
+  rfbm_regr = target(
+    combine_bm(in_resampleresults = rsmp_res),
+    dynamic = map(rfresampled_regr)
+  ),
 
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure),
-    transform = map(in_bm = c(rfbm_classif$bm_classif, rfbm_regr$bm_regr),
-                    in_measure = c(rfbm_classif$measure_classif, rfbm_regr$measure_regr))
+    transform = map(in_bm = c(rfbm_classif, rfbm_regr),
+                    in_measure = c(measures$classif, measures$regr))
   ),
 
   rfeval_featsel = target(
-    benchmark_featsel(in_rf = rfbm_classif$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
-                      in_task = rfbm_classif$bm_tasks$task_classif,
-                      in_measure = rfbm_classif$measure_classif,
+    benchmark_featsel(in_rf = rfbm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
+                      in_task = tasks$task_classif,
+                      in_measure = measures$classif,
                       pcutoff = 0.05,
-                      insamp_nfolds =  5, insamp_nevals = 100,
-                      outsamp_nrep = 10, outsamp_nfolds =  3,
-                      outsamp_nfolds_sp = 50)
+                      insamp_nfolds =  2, insamp_nevals = 1,
+                      outsamp_nrep = 1, outsamp_nfolds =  2,
+                      outsamp_nfolds_sp = 2)
   ),
 
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
   rftuned = target(
     selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
-                   in_task = rfeval_featsel$bm_tasks$task_classif,
-                   insamp_nfolds = 5,
-                   insamp_nevals = 100)),
+                   in_task = tasks$task_classif,
+                   insamp_nfolds = 2,
+                   insamp_nevals = 1)),
 
   misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
 
