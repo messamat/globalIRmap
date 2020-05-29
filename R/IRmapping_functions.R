@@ -1136,7 +1136,7 @@ create_tasks <- function(in_gaugestats, in_predvars) {
   return(list(classif=task_classif, regr=task_regr, regover=task_regrover))
 }
 
-#------ create_learners -----------------
+#------ create_baselearners -----------------
 create_baselearners <- function(in_task) {
   #---------- Create learners --------------------------------------------------
   lrns <- list()
@@ -1321,25 +1321,7 @@ combine_bm <- function(in_resampleresults) {
     bmrbase = BenchmarkResult$new(in_resampleresults[[1]])
   }
 
-
-
-
-
-    return(
-    list(
-      bm_res = nestedresamp_bmrout_classif,
-      bm_tasks = list(task_classif=task_classif),
-      measure = measure_rf_class
-    )
-  )
-
-  list(
-    bm_regr = nestedresamp_bmrout_regr,
-    bm_tasks = list(task_regr=task_regr,
-                    task_regrover=task_regrover),
-    measure_regr = measure_rf_reg
-  )
-  )
+  return(bmrbase)
 }
 
 #------ benchmark_classif -----------------
