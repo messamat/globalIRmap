@@ -17,27 +17,27 @@ plan <- drake_plan(
   tasks = create_tasks(in_gaugestats = gaugestats_format, in_predvars = predvars),
 
   baselearners = target(
-    create_baselearners(in_task = taskbase),
-    transform = map(taskbase = list(tasks$classif, tasks$regr),
-                    .names= c('baselearners.classif', 'baselearners.regr'))
-  ),
+    create_baselearners(tasks),
+    dynamic = map(tasks)),
 
   measures = target(list(classif = msr("classif.bacc"),
                          regr = msr("regr.mae"))
   ),
 
-  ############## NOT WORKING YET #########################
+  #Almost woorking
   tuningset = target(
-    set_tuning(in_learner = learnertune,
+    set_tuning(in_learner = baselearners,
                in_measures = measures,
                nfeatures = length(tasks$classif$feature_names),
                insamp_nfolds = 5, insamp_neval = 100,
                insamp_nbatch = parallel::detectCores(logical=FALSE)),
-    transform = map(learnertune= unlist(baselearners, recursive=F))
+    dynamic = map(baselearners)
   )
 )
 
-,
+
+
+#,
 #
 #   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
 #                                    in_task = tasks$classif,

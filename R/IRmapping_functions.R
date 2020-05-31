@@ -1141,6 +1141,10 @@ create_baselearners <- function(in_task) {
   #---------- Create learners --------------------------------------------------
   lrns <- list()
 
+  if (is.list(in_task)) {
+    in_task <- in_task[[1]]
+  }
+
   if (inherits(in_task, 'TaskClassif')) {
     #Compute ratio of intermittent to perennial observations
     imbalance_ratio <- get_oversamp_ratio(in_task)$ratio
@@ -1209,8 +1213,12 @@ create_baselearners <- function(in_task) {
 }
 
 #------ set_tuning -----------------
-set_tuning <- function(in_learner, nfeatures,
+set_tuning <- function(in_learner, in_measures, nfeatures,
                        insamp_nfolds, insamp_neval, insamp_nbatch) {
+
+  if (is.list(in_learner)) {
+    in_learner <- in_learner[[1]]
+  }
 
   #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
