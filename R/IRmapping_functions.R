@@ -1276,16 +1276,18 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
       stop('The classification learner provided is not configurable with this workflow yet...')
     }
   } else if (in_learner$task_type == 'regr') {
-    learnertune <- AutoTuner$new(learner= lrn_ranger_maxstat,
+    learnertune <- AutoTuner$new(learner= in_learner,
                                  resampling = rcv_rf,
                                  measures = in_measures$regr,
-                                 tune_ps = regex_tuneset(lrn_ranger_maxstat),
+                                 tune_ps = regex_tuneset(in_learner),
                                  terminator = evalsn,
                                  tuner =  tnr("random_search",
                                               batch_size = insamp_nbatch))
   }
 
   learnertune$id <- in_learner$id
+
+  return(learnertune)
 }
 
 #------ instantiate resampling ---------------
@@ -1301,6 +1303,19 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
 
 #------ resample_learner ------------------
 #Directly run resample function from mlr3 on in_task, in_learner, in_resampling
+dynamic_resample <- function(task, learner, resampling, type,
+                             store_models = TRUE) {
+  if (is.list(learner)) {
+    learner <- learner[[1]]
+  }
+
+  if ((learner$task_type == 'classif' & type=='classif') |
+      (learner$task_type == 'regr' & type=='regr')) {
+    resmp_rs <- resample(task, learner, resampling, store_models)
+    return(resmp_rs)
+  }
+}
+
 
 
 #------ combined resample results into benchmark results -------------

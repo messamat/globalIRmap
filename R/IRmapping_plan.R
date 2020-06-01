@@ -20,44 +20,47 @@ plan <- drake_plan(
     create_baselearners(tasks),
     dynamic = map(tasks)),
 
+  #Subdivide the baselearners dynamic targets from 3 to 8
+  seplearners = target(readd(baselearners, subtarget_list = FALSE)),
+
   measures = target(list(classif = msr("classif.bacc"),
                          regr = msr("regr.mae"))
   ),
 
-  #Almost woorking
-  tuningset = target(
-    set_tuning(in_learner = baselearners,
+  autotuningset = target(
+    set_tuning(in_learner = seplearners,
                in_measures = measures,
                nfeatures = length(tasks$classif$feature_names),
-               insamp_nfolds = 5, insamp_neval = 100,
-               insamp_nbatch = parallel::detectCores(logical=FALSE)),
-    dynamic = map(baselearners)
+               insamp_nfolds = 2, insamp_neval = 1,
+               insamp_nbatch = parallel::detectCores(logical=FALSE)
+               ),
+    dynamic = map(seplearners)
+  ),
+
+  resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
+                                   in_task = tasks$classif,
+                                   outsamp_nrep = 1,
+                                   outsamp_nfolds = 2),
+
+  rfresampled_classif = target(
+    dynamic_resample(task = tasks$classif,
+                     learner = autotuningset,
+                     resampling = resamplingset,
+                     store_models = TRUE,
+                     type = 'classif'),
+    dynamic = map(autotuningset)
   )
 )
 
 
-
-#,
-#
-#   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
-#                                    in_task = tasks$classif,
-#                                    outsamp_nrep = 1,
-#                                    outsamp_nfolds = 2),
-#
-#   rfresampled_classif = target(
-#     resample(task = tasks$classif,
-#              learner =learners_classif,
+#  rfresampled_regr = target(
+#     resample(task = tasks$regr,
+#              learner = autotuningset,
 #              resampling = resamplingset,
 #              store_models = TRUE),
-#     transform = map(learners_classif = baselearners[[1]])
+#     dynamic = map(autotuningset)
 #   ),
-#
-#   rfresampled_regr = target(
-#     resample(task = tasks$regr, learner = learners_regr, resampling = resamplingset,
-#              store_models = TRUE),
-#     transform = map(learners_regr = baselearners[[2]])
-#   ),
-#
+
 #   rfbm_classif = target(
 #     combine_bm(in_resampleresults = rsmps_classif),
 #     transform = map(rsmps_classif = rfresampled_classif)
