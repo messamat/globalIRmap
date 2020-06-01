@@ -759,7 +759,7 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
 
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
-#' Parallel wrapper for comp_durfreq
+#' Define file structure
 #'
 #' Defines file structure for running RF prediction of global intermittency
 #'
@@ -773,6 +773,8 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
 #'
 #' @export
 #'
+#'
+
 def_filestructure <- function() {
   # Get main directory for project
   rootdir <- find_root(has_dir("src"))
@@ -788,6 +790,10 @@ def_filestructure <- function() {
   in_gaugedir <-  file.path(datdir, 'GRDCdat_day')
   # River atlas formatted variables
   in_riveratlas_meta <- file.path(datdir, 'HydroATLAS', 'HydroATLAS_metadata_MLM.xlsx')
+  #Average monthly discharge for HydroSHEDS network
+  in_monthlynetdischarge <- file.path(datdir, 'HydroSHEDS',
+                                      'HS_discharge_monthly.gdb',
+                                      'Hydrosheds_discharge_monthly')
   # Output geopackage of hydrometric stations with appended predicted intermittency class
   out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas attribute data1
@@ -797,9 +803,22 @@ def_filestructure <- function() {
 
   return(c(rootdir=rootdir, datdir=datdir, resdir=resdir, outgdb=outgdb,
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir, in_riveratlas_meta=in_riveratlas_meta,
+           in_monthlynetdischarge = in_monthlynetdischarge,
            out_gauge=out_gauge, in_riveratlas=in_riveratlas,
            out_riveratlas = out_riveratlas))
 }
+
+#------ read_monthlydis -------------
+read_monthlydis <- function(in_filestructure) {
+  monthlydischarge <- as.data.frame(st_read(
+    dsn = dirname(in_filestructure['in_monthlynetdischarge']),
+    layer = basename(in_filestructure['in_monthlynetdischarge'])
+  )) %>%
+    .[, c(paste0('DIS_', str_pad(seq(1, 12), 2, pad=0), '_CMS'),
+          'REACH_ID')]
+  return(monthlydischarge)
+}
+
 #------ read_gaugep -----------------
 #' Read gauge points
 #'
@@ -819,13 +838,20 @@ def_filestructure <- function() {
 #'
 #' @export
 
-read_gaugep <- function(in_filestructure, dist) {
+read_gaugep <- function(in_filestructure, dist, in_monthlydischarge) {
   #Import gauge stations and only keep those < dist m from a HydroSHEDS reach
-  return(st_read(dsn=dirname(in_filestructure['in_gaugep']),
-                 layer=basename(in_filestructure['in_gaugep'])) %>%
-           .[.$station_river_distance<dist,]
-  )
+
+  gaugep <- st_read(dsn = dirname(in_filestructure['in_gaugep']),
+                    layer = basename(in_filestructure['in_gaugep'])) %>%
+    .[.$station_river_distance<dist,]
+
+  gaugep_monthlydischarge <- merge(gaugep, in_monthlydischarge,
+                                   by.x = 'HYRIV_ID', by.y = 'REACH_ID',
+                                   all.x=TRUE, all.y=FALSE)
+
+  return(gaugep_monthlydischarge)
 }
+
 #------ read_gauged_paths -----------------
 #' Read file paths to gauge flow data
 #'
@@ -972,7 +998,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
     setDT %>%
     .[as.data.table(in_gaugep), on='GRDC_NO'] %>%
     .[!is.na(totalYears_kept) & totalYears_kept>=10,] %>% # Only keep stations with at least 10 years of data
-    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(Shape))] %>%
+    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
 
   return(gaugestats_join)
@@ -980,7 +1006,12 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
 #------ selectformat_predvars -----------------
 selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- List predictor variables ----
+  monthlydischarge_preds <- paste0('DIS_C',
+                                   str_pad(seq(1, 12), 2, pad=0),
+                                   '_CMS')
+
   predcols<- c(
+    monthlydischarge_preds,
     'ORD_STRA',
     'dis_m3_pyr',
     'dis_m3_pmn',
@@ -1049,7 +1080,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'hft_ix_u93',
     'hft_ix_c09',
     'hft_ix_u09',
-    'gdp_ud_cav',
     'hdi_ix_cav')
 
 
@@ -1084,8 +1114,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     .[metastat, on = 'Keystat',
       allow.cartesian=TRUE]
 
-
-
   meta_format[, `:=`(
     unit = substr(`Column(s)`, 5, 6),
     varcode = paste0(gsub('[-]{3}', '', `Column(s)`),
@@ -1099,10 +1127,14 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   addedvars <- data.table(varname=c('Precipitation catchment Annual min/max',
                                     'Discharge watershed Annual min/max',
                                     'Discharge watershed Annual min/average',
-                                    'Elevation catchment average - watershed average'),
+                                    'Elevation catchment average - watershed average',
+                                    monthlydischarge_preds),
                           varcode=c('pre_mm_cvar',
                                     'dis_mm_pvar', 'dis_mm_pvaryr',
-                                    'ele_pc_rel'))
+                                    'ele_pc_rel',
+                                    paste0('Discharge watershed ', month.name)
+                                    )
+                          )
 
   predcols_dt <- merge(data.table(varcode=predcols),
                        rbind(meta_format, addedvars, fill=T),
@@ -1301,22 +1333,29 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
   return(outer_resampling)
 }
 
-#------ resample_learner ------------------
+#------ dynamic_resample ------------------
 #Directly run resample function from mlr3 on in_task, in_learner, in_resampling
-dynamic_resample <- function(task, learner, resampling, type,
+dynamic_resample <- function(in_task, in_learner, in_resampling, type,
                              store_models = TRUE) {
-  if (is.list(learner)) {
-    learner <- learner[[1]]
+  if (is.list(in_learner)) {
+    in_learner <- in_learner[[1]]
   }
 
-  if ((learner$task_type == 'classif' & type=='classif') |
-      (learner$task_type == 'regr' & type=='regr')) {
-    resmp_rs <- resample(task, learner, resampling, store_models)
+  if (is.list(in_task)) {
+    in_task <- in_task[[1]]
+  }
+
+  if (inherits(in_learner, 'BenchmarkResult')) {
+    print(('BenchmarkResults was provided, getting the learner...'))
+    in_learner <- in_learner$learners$learner[[1]]
+  }
+
+  if ((in_learner$task_type == 'classif' & type=='classif') |
+      (in_learner$task_type == 'regr' & type=='regr')) {
+    resmp_rs <- resample(in_task, in_learner, in_resampling, store_models)
     return(resmp_rs)
   }
 }
-
-
 
 #------ combined resample results into benchmark results -------------
 combine_bm <- function(in_resampleresults) {
@@ -1324,9 +1363,14 @@ combine_bm <- function(in_resampleresults) {
   # x has some duplicated column name(s): uhash. Please remove or rename the
   # duplicate(s) and try again.". SO use this instead
   if (length(in_resampleresults) > 1) {
-    bmres_list <- lapply(in_resampleresults,
-                         function(rsmpres) {
-                           BenchmarkResult$new(rsmpres$data)})
+    bmres_list <- lapply(
+      in_resampleresults[!sapply(in_resampleresults, is.null)],
+      function(rsmpres) {
+        if (!is.null(rsmpres)) {
+          as_benchmark_result(rsmpres)
+        }
+      })
+    #BenchmarkResult$new(rsmpres$data)})
 
     bmrbase = bmres_list[[1]]
     for (i in 2:length(bmres_list)) {
@@ -1617,9 +1661,6 @@ benchmark_regr <- function(in_tasks,
 #------ analyze_benchmark -----------------
 analyze_benchmark <- function(in_bm, in_measure) {
 
-  print(in_bm$aggregate(in_measure))
-  boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure)
-
   print(paste('It took',
               in_bm$aggregate(msr('time_both'))$time_both,
               'seconds to train and predict with the',
@@ -1629,6 +1670,9 @@ analyze_benchmark <- function(in_bm, in_measure) {
   bmdt <- as.data.table(in_bm)
 
   if (in_bm$task_type == 'regr') {
+    print(in_bm$aggregate(in_measure$regr))
+    boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure$regr)
+
     preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
       preds <- bmdt$prediction[[rsmp_i]]$test %>%
         as.data.table %>%
@@ -1647,6 +1691,9 @@ analyze_benchmark <- function(in_bm, in_measure) {
 
 
   if (in_bm$task_type == 'classif') {
+    print(in_bm$aggregate(in_measure$classif))
+    boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure$classif)
+
     preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
       preds <- data.table(outf = bmdt$iteration[[rsmp_i]],
                           task = bmdt$task[[rsmp_i]]$id,
@@ -1692,14 +1739,8 @@ analyze_benchmark <- function(in_bm, in_measure) {
   return(list(bm_misclasscomp=do.call("grid.arrange", list(grobs=glist)),
               bm_boxcomp = boxcomp))
 }
-#------ benchmark_featsel -----------------
-benchmark_featsel <- function(in_rf, in_task, in_measure,
-                              pcutoff = 0.1,
-                              insamp_nfolds =  NULL, insamp_nevals = NULL,
-                              outsamp_nrep = NULL, outsamp_nfolds =  NULL,
-                              outsamp_nfolds_sp =  NULL) {
-  #pcutoff is the p_value above which features are removes
-
+#------ select_features ------------------
+select_features <- function(in_rf, in_task, pcutoff) {
   #Apply feature/variable selection
   vimp <- weighted_vimportance_nestedrf(
     rfresamp = in_rf$resample_result(uhash=unique(as.data.table(in_rf)$uhash)),
@@ -1710,37 +1751,38 @@ benchmark_featsel <- function(in_rf, in_task, in_measure,
     vimp[imp_pvalue <= pcutoff, as.character(varnames)])
   task_featsel$id <- paste0(in_task$id, '_featsel')
 
-  if (is.null(outsamp_nfolds_sp)) {
-    outsamp_nfolds_sp = outsamp_nfolds
-  }
+  return(list(in_task, task_featsel))
+}
+
+#------ benchmark_featsel -----------------
+benchmark_featsel <- function(in_rf, in_task, in_resampling) {
+  #pcutoff is the p_value above which features are removes
+
+
 
   #Set up outer resampling including
-  outer_resampling = rsmp("repeated_cv",
-                          repeats = outsamp_nrep,
-                          folds = outsamp_nfolds)
-
-  outer_resamplingsp = rsmp("repeated-spcv-coords",
-                            repeats = outsamp_nrep,
-                            folds = outsamp_nfolds_sp) #Create 20 folds (visualize)
+  outer_resampling = in_resampling
 
   #Run outer resampling and benchmarking on classification learners
-  bmrdesign_featsel <- benchmark_grid(
-    tasks = list(in_task, task_featsel),
-    learners = in_rf$learners$learner[[1]],
-    resamplings = list(outer_resampling, outer_resamplingsp))
+  resmp_rs <- resample(task, learner, resampling, store_models)
 
-  bmrout_featsel <- benchmark(
-    bmrdesign_featsel, store_models = TRUE)
+  # bmrdesign_featsel <- benchmark_grid(
+  #   tasks = list(in_task, task_featsel),
+  #   learners = in_rf$learners$learner[[1]],
+  #   resamplings = list(outer_resampling, outer_resamplingsp))
+  #
+  # bmrout_featsel <- benchmark(
+  #   bmrdesign_featsel, store_models = TRUE)
 
-  bm_analysis <- analyze_benchmark(in_bm = bmrout_featsel,
-                                   in_measure = in_measure)
+  # bm_analysis <- analyze_benchmark(in_bm = bmrout_featsel,
+  #                                  in_measure = in_measure)
 
   return(list(
     bm_classif = bmrout_featsel,
     bm_tasks = list(task_classif=in_task,
                     task_classif_featsel = task_featsel),
     measure_classif = in_measure,
-    bm_analysis = bm_analysis,
+    #bm_analysis = bm_analysis,
     vimp = vimp)
   )
 }
@@ -1780,6 +1822,57 @@ selecttrain_rf <- function(in_rf, in_task,
   return(list(rf_outer = outer_resampling_output, #Resampling results
               rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
               task = in_task)) #Task
+}
+
+
+#------ rformat_network ------------------
+rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
+  cols_tokeep <-  c("HYRIV_ID", in_predvars[!is.na(ID), varcode],
+                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav',
+                    paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
+
+  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
+                           cols_tokeep = cols_tokeep) %>%
+    merge(as.data.table(in_monthlydischarge),
+          by.x='HYRIV_ID', by.y='REACH_ID') %>%
+    comp_derivedvar
+}
+
+#------ write_preds -----------------
+write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
+                        in_network, in_rftuned, in_predvars) {
+  # ---- Output GRDC predictions as points ----
+  in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
+                IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]]
+
+  cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
+
+
+  out_gaugep <- merge(in_gaugep,
+                      in_gaugestats[, !cols_toditch, with=F], by='GRDC_NO')
+
+  st_write(obj=out_gaugep,
+           dsn=in_filestructure['out_gauge'],
+           driver = 'gpkg',
+           delete_dsn=T)
+
+  #Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up by climate zone to avoid memory errors)
+  for (clz in unique(in_network$clz_cl_cmj)) {
+    print(clz)
+    tic()
+    in_network[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz,
+               predbasic800 := in_rftuned$rf_inner$predict_newdata(as.data.frame(.SD))$prob[,2],]
+    toc()
+  }
+
+  in_network[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
+  fwrite(in_network[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],
+         in_filestructure['out_riveratlas'])
+
+  # --------- Return data for plotting ------------------------
+  return(out_gaugep)
 }
 
 ##### -------------------- Diagnostics functions -------------------------------
@@ -2023,52 +2116,6 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
 
   return(list(uncertainty_numplot=uncertainty_numplot,
               uncertainty_catplot=uncertainty_catplot))
-}
-
-#------ write_preds -----------------
-write_preds <- function(in_filestructure, in_gaugep, in_gaugestats, in_rftuned,
-                        in_predvars) {
-  # ---- Output GRDC predictions as points ----
-  in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
-                IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]]
-
-  cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
-
-
-  out_gaugep <- merge(in_gaugep,
-                      in_gaugestats[, !cols_toditch, with=F], by='GRDC_NO')
-
-  st_write(obj=out_gaugep,
-           dsn=in_filestructure['out_gauge'],
-           driver = 'gpkg',
-           delete_dsn=T)
-
-  # ---- Generate predictions to map on river network ----
-  cols_tokeep <-  c("HYRIV_ID", in_predvars[!is.na(ID),varcode],
-                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav',
-                    paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
-
-  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
-                           cols_tokeep = cols_tokeep) %>%
-    comp_derivedvar
-
-  #Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up by climate zone to avoid memory errors)
-  for (clz in unique(riveratlas$clz_cl_cmj)) {
-    print(clz)
-    tic()
-    riveratlas[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz,
-               predbasic800 := in_rftuned$rf_inner$predict_newdata(as.data.frame(.SD))$prob[,2],]
-    toc()
-  }
-
-  riveratlas[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
-  fwrite(riveratlas[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],
-         in_filestructure['out_riveratlas'])
-
-  # --------- Return data for plotting ------------------------
-  return(out_gaugep)
 }
 
 ########## END #############

@@ -1,7 +1,10 @@
 plan <- drake_plan(
   filestructure = def_filestructure(),
 
-  gaugep = read_gaugep(in_filestructure = filestructure, dist = 200),
+  monthlydischarge = read_monthlydis(in_filestructure = filestructure),
+
+  gaugep = read_gaugep(in_filestructure = filestructure, dist = 200,
+                       in_monthlydischarge = monthlydischarge),
 
   gauged_filenames = read_gauged_paths(filestructure, gaugep),
 
@@ -33,7 +36,7 @@ plan <- drake_plan(
                nfeatures = length(tasks$classif$feature_names),
                insamp_nfolds = 2, insamp_neval = 1,
                insamp_nbatch = parallel::detectCores(logical=FALSE)
-               ),
+    ),
     dynamic = map(seplearners)
   ),
 
@@ -43,72 +46,104 @@ plan <- drake_plan(
                                    outsamp_nfolds = 2),
 
   rfresampled_classif = target(
-    dynamic_resample(task = tasks$classif,
-                     learner = autotuningset,
-                     resampling = resamplingset,
+    dynamic_resample(in_task = tasks$classif,
+                     in_learner = autotuningset,
+                     in_resampling = resamplingset,
                      store_models = TRUE,
                      type = 'classif'),
     dynamic = map(autotuningset)
+  ),
+
+  rfresampled_regr = target(
+    dynamic_resample(in_task = in_tsk,
+                     in_learner = in_lrn,
+                     in_resampling = resamplingset,
+                     store_models = TRUE,
+                     type = 'regr'),
+    transform = map(in_tsk = c(tasks$regr, tasks$regover),
+                    in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
+                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
+
+  ),
+
+  rfbm_classif = target(
+    combine_bm(rfresampled_classif),
+    dynamic = group(rfresampled_classif)
   )
+  ,
+
+  rfbm_regr = target(
+    c(rfresampled_regr_res, rfresampled_regover_res)
+  ),
+
+  bm_checked = target(
+    analyze_benchmark(in_bm, in_measure = measures),
+    dynamic = map(in_bm = list(rfbm_classif[[1]], rfbm_regr))#,
+                  #in_measure = list(measures$classif, measures$regr))
+  ),
+
+  resamplingset_featsel = target(
+    set_cvresampling(rsmp_id = in_strategy,
+                     in_task = tasks$classif,
+                     outsamp_nrep = in_outrep,
+                     outsamp_nfolds = in_outfolds),
+    transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
+                    in_outrep = c(1, 1),
+                    in_outfolds = c(2, 2),
+                    .names = c('featsel_cv', 'featsel_spcv'))
+  ),
+
+  tasks_featsel = select_features(
+    in_rf = rfbm_classif[[1]]$clone()$filter(
+      learner_ids = "oversample.classif.ranger"),
+    in_task = tasks$classif,
+    pcutoff = 0.05
+  ),
+
+  rfresampled_featsel = target(
+    dynamic_resample(in_task = in_taskfeatsel,
+                     in_learner = rfbm_classif[[1]]$clone()$filter(
+                       learner_ids = "oversample.classif.ranger"),
+                     in_resampling = in_resampling,
+                     store_models = TRUE,
+                     type = 'classif'),
+    transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
+                     in_resampling = c(featsel_cv, featsel_spcv),
+                     .names = c())
+  ),
+
+  rfeval_featsel = target(
+      combine_bm(rfresampled_featsel),
+      dynamic = group(rfresampled_featsel)
+  ),
+
+  rfbm_featsel = analyze_benchmark(in_bm = rfeval_featsel,
+                                   in_measure = measures$classif)
+
+
+  #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
+  # rftuned = target(
+  #   selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger"),
+  #                  in_task = tasks$task_classif,
+  #                  insamp_nfolds = 2,
+  #                  insamp_nevals = 1)),
+  #
+  # misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
+  #
+  # vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
+  #
+  # pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
+  #                nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
+  #
+  # uncertainty_plot = gguncertainty(in_rftuned = rftuned,
+  #                                  in_gaugestats = gaugestats_format,
+  #                                  in_predvars = predvars,
+  #                                  spatial_rsp = FALSE),
+  #
+  # rivernetwork = rformat_network(in_filestructure = filestructure, in_predvars = predvars, in_monthlydischarge = monthlydischarge),
+  #
+  # rfpreds = write_preds(in_filestructure = filestructure, in_gaugep = gaugep,
+  #                       in_gaugestats = gaugestats_format, in_network = rivernetwork,
+  #                       in_rftuned = rftuned, in_predvars = predvars)
 )
-
-
-#  rfresampled_regr = target(
-#     resample(task = tasks$regr,
-#              learner = autotuningset,
-#              resampling = resamplingset,
-#              store_models = TRUE),
-#     dynamic = map(autotuningset)
-#   ),
-
-#   rfbm_classif = target(
-#     combine_bm(in_resampleresults = rsmps_classif),
-#     transform = map(rsmps_classif = rfresampled_classif)
-#   ),
-#
-#   rfbm_regr = target(
-#     combine_bm(in_resampleresults = rsmps_regr),
-#     transform = map(rsmps_regr = rfresampled_regr)
-#   )
-# )
-
-
-#   bm_checked = target(
-#     analyze_benchmark(in_bm = in_bm, in_measure = measures$classif),
-#     dynamic = map(in_bm = list(rfbm_classif, rfbm_regr))#,
-#                   #in_measure = list(measures$classif, measures$regr))
-#   ),
-#
-#   rfeval_featsel = target(
-#     benchmark_featsel(in_rf = rfbm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
-#                       in_task = tasks$task_classif,
-#                       in_measure = measures$classif,
-#                       pcutoff = 0.05,
-#                       insamp_nfolds =  2, insamp_nevals = 1,
-#                       outsamp_nrep = 1, outsamp_nfolds =  2,
-#                       outsamp_nfolds_sp = 2)
-#   ),
-#
-#   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
-#   rftuned = target(
-#     selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger.tuned"),
-#                    in_task = tasks$task_classif,
-#                    insamp_nfolds = 2,
-#                    insamp_nevals = 1)),
-#
-#   misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
-#
-#   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
-#
-#   pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
-#                  nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
-#
-#   uncertainty_plot = gguncertainty(in_rftuned = rftuned,
-#                                    in_gaugestats = gaugestats_format,
-#                                    in_predvars = predvars,
-#                                    spatial_rsp = FALSE),
-#
-#   rfpreds = write_preds(filestructure, gaugep, gaugestats_format,
-#                         rftuned, predvars)
-# )
 
