@@ -23,20 +23,7 @@ source(file.path(srcdir, 'R/IRmapping_functions.R'))
 source(file.path(srcdir, 'R/IRmapping_plan.R'))
 
 #Get packages
-library("rnaturalearth")
-library("rnaturalearthdata")
-library(rgeos)
-library(rgdal)
-library(gstat)
-library(raster)
-library(cowplot)
-library(maps)
-library(patchwork)
-#remotes::install_github("zeehio/facetscales")
-library(facetscales)
-library(scales)
-library(kableExtra)
-library(viridis)
+
 
 #Define paths
 riveratlas_path <- file.path(datdir, 'HydroATLAS', 
@@ -87,13 +74,13 @@ grat_wintri <-
   st_transform(crs = crs_wintri)
 
 #---- Import and format river network lines, keeping a subset of columns and only for river orders > 4 --------
-# riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
-# riv_lines <- st_read(dsn = dirname(riveratlas_path), 
-#                       layer = basename(riveratlas_path),
-#                       query = riv_query)
-# 
-# riv_wintri <- sfformat_wintri(riv_lines)
-# riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
+riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
+riv_lines <- st_read(dsn = dirname(riveratlas_path),
+                      layer = basename(riveratlas_path),
+                      query = riv_query)
+
+riv_wintri <- sfformat_wintri(riv_lines)
+riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
 
 #---- Import and format streamgauges --------
 gaugepred <- st_read(filestructure['out_gauge']) %>%
