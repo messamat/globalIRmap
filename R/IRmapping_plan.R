@@ -137,8 +137,6 @@ plan <- drake_plan(
                         in_gaugestats = gaugestats_format, in_network = rivernetwork,
                         in_rftuned = rftuned, in_predvars = predvars),
 
-  misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
-
   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 
   pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
@@ -147,6 +145,25 @@ plan <- drake_plan(
   uncertainty_plot = gguncertainty(in_rftuned = rftuned,
                                    in_gaugestats = gaugestats_format,
                                    in_predvars = predvars,
-                                   spatial_rsp = FALSE)
+                                   spatial_rsp = FALSE),
+
+  basemaps = get_basemapswintri(in_filestructure = filestructure),
+
+  gauges_plot = gggauges(in_gaugepred = rfpreds, in_basemaps = basemaps),
+
+  table_predvars = tabulate_predvars(in_predvars = predvars),
+
+  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork, in_gaugepred = rfpreds,
+                   in_predvars = predvars),
+
+  table_allbm = tabulate_benchmarks(rfbm_classif, rfbm_regr, rfeval_featsel),
+
+  misclass_plot = ggmisclass_bm(rfbm_classif, rfbm_regr, rfeval_featsel),
+
+  krigepreds = krige_spuncertainty(in_filestructure = filestructure, in_rftuned = rftuned,
+                                   in_gaugep = gaugep, in_gaugestats = gaugestats_format,
+                                   kcutoff=50000),
+
+  krigepreds_mosaic = mosaic_kriging(in_kpathlist, overwrite)
 )
 

@@ -1121,6 +1121,8 @@ def_filestructure <- function() {
   in_monthlynetdischarge <- file.path(datdir, 'HydroSHEDS',
                                       'HS_discharge_monthly.gdb',
                                       'Hydrosheds_discharge_monthly')
+  #Rasters of dissolved buffers around gauge stations
+  in_bufrasdir <- file.path(resdir, 'bufrasdir')
   # Output geopackage of hydrometric stations with appended predicted intermittency class
   out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas attribute data1
@@ -1131,6 +1133,7 @@ def_filestructure <- function() {
   return(c(rootdir=rootdir, datdir=datdir, resdir=resdir, outgdb=outgdb,
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir, in_riveratlas_meta=in_riveratlas_meta,
            in_monthlynetdischarge = in_monthlynetdischarge,
+           in_bufrasdir = in_bufrasdir,
            out_gauge=out_gauge, in_riveratlas=in_riveratlas,
            out_riveratlas = out_riveratlas))
 }
@@ -2210,6 +2213,104 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
               uncertainty_catplot=uncertainty_catplot))
 }
 
+#------ krige_spuncertainty----
+krige_spuncertainty <- function(in_filestructure, in_rftuned,
+                                in_gaugep, in_gaugestats, kcutoff=50000) {
+  rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
+  predsp <- rsmp_res$prediction() %>%
+    as.data.table %>%
+    .[, list(IRpredprob_spcv = 100*mean(prob.1),
+             IRpredcoefcv_spcv = sd(100*prob.1, na.rm=T)/mean(100*prob.1, na.rm=T)),
+      by=.(row_id, truth)] %>%
+    .[, prederror := IRpredprob_spcv-100*as.numeric(as.character(truth))] %>%
+    .[, prederror_abs := abs(prederror)] %>%
+    .[, IRpedcat_spcv := as.character(fifelse(IRpredprob_spcv > 40, 1, 0))] %>%
+    setorder(row_id) %>%
+    cbind(in_gaugestats[!is.na(cly_pc_cav), list(GRDC_NO=GRDC_NO)])
+
+  predsp_gaugep <- merge(in_gaugep, predsp, by='GRDC_NO') %>%
+    .[order(.[,'prederror_abs']$prederror_abs),]
+
+  bufras_vec <- file.path(in_filestructure[['in_bufrasdir']],
+                          grep('bufras_T.*proj[.]tif$',
+                               list.files(in_filestructure[['in_bufrasdir']]),
+                               value=T)
+  )
+
+  #Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
+  crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+  predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
+    as_Spatial()
+
+  # Compute the sample variogram; note that the f.1 trend model is one of the
+  # parameters passed to variogram(). This tells the function to create the
+  # variogram on the de-trended data.
+  var_smpl <- gstat::variogram(prederror ~ 1, predsp_gaugep_df,
+                               cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
+
+  ggplot(var_smpl, aes(x=dist, y=gamma)) +
+    geom_point(alpha=1/3) +
+    coord_cartesian(expand=F) +
+    scale_y_log10() +
+    theme_classic()
+
+  # scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
+  #              labels=c(0,100,1000,10000,25000,50000, 100000)) +
+
+  # Compute the variogram model by passing the nugget, sill and range values
+  # to fit.variogram() via the vgm() function.
+  varmods <- as.character(vgm()[,'short'])
+  dat_fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = FALSE,
+                            vgm(varmods[!(varmods %in% c('Pow', 'Int'))]),
+                            fit.kappa = TRUE)
+  # The following plot allows us to assess the fit
+  plot(var_smpl, dat_fit)
+
+  # Import gauge buffer mask
+
+
+  #Predict error
+  kmod <- gstat(formula=prederror~1, locations=predsp_gaugep_df, model=dat_fit,
+                maxdist = kcutoff)
+  kpl <-  lapply(seq_along(bufras_vec), function(i) {
+    bufmask <- raster(bufras_vec[[i]]) %>%
+      as('SpatialGrid')
+    kp <- predict(kmod, bufmask)
+
+    outras = file.path(dirname(bufras_vec[[i]]),
+                       gsub('bufras', 'krigpred', basename(bufras_vec[[i]])))
+
+    if (!file.exists(outras)) {
+      writeRaster(raster(kp), outras)
+    } else {
+      print(paste0(outras, ' already exists...'))
+    }
+    return(outras)
+  }) %>%
+    do.call(rbind, .)
+
+  return(kpl)
+}
+#------ mosaic_kriging -------------
+mosaic_kriging <- function(in_kpathlist, overwrite) {
+  kpl <- in_kpathlist
+
+  kplextents <- lapply(kpl, function(ras_path) {
+    ras <- raster(ras_path)
+    data.table(x=c(xmin(ras),xmax(ras)), y= c(ymin(ras),ymax(ras)))
+  }) %>%
+    rbindlist %>%
+    .[, lapply(.SD, function(i) c(min(i), max(i)))]
+
+  template <- raster(extent(kplextents[, x], kplextents[, y]))
+  out_krigingtif = file.path(resdir, "prederror_krigingtest.tif")
+  writeRaster(template, file=file.path(resdir, "prederror_krigingtest.tif"),
+              format="GTiff", overwrite=overwrite)
+  gdalUtils::mosaic_rasters(gdalfile=kpl,dst_dataset=out_krigingtif,of="GTiff")
+  gdalinfo(out_krigingtif)
+
+  return(out_krigingtif)
+}
 
 ##### -------------------- Report functions -----------------------------------
 #------ get_basemaps ------------
@@ -2230,13 +2331,13 @@ get_basemapswintri <- function(in_filestructure) {
     st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
     st_transform(crs = crs_wintri)
 
-  riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
-  riv_lines <- st_read(dsn = dirname(in_filestructure['in_riveratlas']),
-                       layer = basename(in_filestructure['in_riveratlas']),
-                       query = riv_query)
-
-  riv_wintri <- sfformat_wintri(riv_lines)
-  riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
+  # riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
+  # riv_lines <- st_read(dsn = dirname(in_filestructure['in_riveratlas']),
+  #                      layer = basename(in_filestructure['in_riveratlas']),
+  #                      query = riv_query)
+  #
+  # riv_wintri <- sfformat_wintri(riv_lines)
+  # riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
 
   return(list(wcountries = wcountries,
               wland = wland,
@@ -2248,11 +2349,11 @@ get_basemapswintri <- function(in_filestructure) {
 #------ ggrivers -----------------------
 ggrivers <- function(in_basemaps) {
   p <- ggplot() +
-    geom_sf(data = in_basemaps['grat_wintri'],
+    geom_sf(data = in_basemaps[['grat']],
             color = alpha("black", 1/5), size = 0.25/.pt) +
-    geom_sf(data = in_basemaps['wland'],
+    geom_sf(data = in_basemaps[['wland']],
             alpha=1/2, color=NA) +
-    geom_sf(data = in_basemaps['wlakes'],
+    geom_sf(data = in_basemaps[['wlakes']],
             alpha=1/3, fill='black', color=NA) +
     # geom_sf(data=in_basemaps['riv_simple'][riv_simple$ORD_STRA < 6,][1:10000,],
     #         aes(size=ORD_STRA), color=alpha('black', 1/20), show.legend = F) +
@@ -2296,8 +2397,6 @@ gggauges <- function(in_gaugepred, in_basemaps) {
 
   return(p_pr/p_ir)
 }
-
-
 
 #------ tabulate_predvars -----------
 tabulate_predvars <- function(in_predvars) {
@@ -2361,7 +2460,6 @@ formatscales <- function(in_df, varstoplot) {
 
   return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
 }
-
 
 #------ ggenvhist -------------
 ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent=TRUE) {
@@ -2434,8 +2532,6 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
   do.call("grid.arrange", list(grobs=penvhist_grobs))
 }
 
-
-
 #------ tabulate_benchmarks ------------
 tabulate_benchmarks <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
   tbbrier_classif1 <- bm_msrtab(rfbm_classif) %>%
@@ -2484,7 +2580,6 @@ tabulate_benchmarks <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
 
   return(list(setup=setup_kable, results=results_kable))
 }
-
 
 #------ ggmisclass_bm -------------
 ggmisclass_bm <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
