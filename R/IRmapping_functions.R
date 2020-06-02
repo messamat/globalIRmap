@@ -237,6 +237,58 @@ threshold_misclass <- function(i=0.5, in_preds) {
   return(outvec)
 }
 
+#------ threshold_dat ----------------
+threshold_dat <- function(bmres) {
+  bmres_dt <- as.data.table(bmres) %>%
+    .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
+    .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
+    .[, resampling_id := unlist(lapply(resampling, function(x) x$id))] %>%
+    unique(by='uhash')
+
+  if (bmres$task_type == 'regr') {
+    preds <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
+      preds <- bmres_dt$prediction[[rsmp_i]]$test %>%
+        as.data.table %>%
+        .[, `:=`(outf = bmres_dt$iteration[[rsmp_i]],
+                 task = bmres_dt$task[[rsmp_i]]$id,
+                 task_type = bmres$task_type,
+                 learner = bmres_dt$learner[[rsmp_i]]$id)]
+      return(preds)
+    }) %>%
+      do.call(rbind, .)
+
+    if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
+      preds[, prob.1 := response]
+    }
+  }
+
+  outtab <- lapply(1:bmres$n_resample_results, function(rsmp_i) {
+    print(rsmp_i)
+    rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
+
+    if (bmres$task_type == 'regr') {
+      rsmp_preds <- preds
+    }
+
+    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
+      print(threshold_class)
+      cbind(
+        rsmp_bacc(bmres, rsmp_i=rsmp_i, threshold_class=threshold_class),
+        threshold_misclass(i=threshold_class, in_preds=rsmp_preds)
+      ) %>%
+        .[, i:=NULL]
+    }) %>%
+      setDT %>%
+      cbind(bmres_dt[rsmp_i, .(learner_id, task_id, resampling_id)])
+    return(baccthresh)
+  }) %>%
+    rbindlist
+
+
+  outtab_melt <- melt(outtab, id.vars=c('threshold_class',
+                                        'learner_id', 'task_id', 'resampling_id'))
+  return(outtab_melt)
+}
 #------ get_outerrsmp -----------------
 #' Get outer ResampleResult
 #'
@@ -757,6 +809,281 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
   )))
 }
 
+#------ rsmp_bbrier ----------------
+rsmp_bbrier <- function(bmres, rsmp_i) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) -
+                     rsmp_pred$prob[,'1'])^2)/length(rsmp_pred$row_ids)
+  }
+
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) -
+                     rsmp_pred$response)^2)/length(rsmp_pred$row_ids)
+  }
+  return(bbrier)
+}
+
+#------ rsmp_auc ----------------
+rsmp_auc <- function(bmres, rsmp_i) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  auc <- Metrics::auc(rsmp_pred$truth, rsmp_pred$response)
+  return(auc)
+}
+
+#------ rsmp_bacc ----------------
+rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred <- rsmp$prediction()
+
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    prob_resp <- rsmp_pred$prob[,'1']
+  }
+
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    prob_resp <- rsmp_pred$response
+  }
+
+  response <- as.data.table(prob_resp)[
+    , c(fifelse(prob_resp>=threshold_class, '1', '0'))]
+
+  bacc <- mlr3measures::bacc(factor(as.character(rsmp_pred$truth),
+                                    levels=c('0', '1')),
+                             factor(response, levels=c('0','1')))
+  return(data.table(bacc=bacc, threshold_class=threshold_class))
+}
+
+#------ bm_paramstime ----------------
+bm_paramstime <- function(bmres) {
+  lrns_dt <- as.data.table(bmres$data)
+
+  ##############################################################################
+  params_format <- lapply(lrns_dt$learner, function(lrn) {
+    print(lrn$id)
+    #Get general parameters-----------------------------------------------------
+    if (inherits(lrn ,'AutoTuner')) {
+      lrn_in <- lrn$learner
+    } else {
+      lrn_in <- lrn
+    }
+
+    #If GraphLearner, get parameters for each Pipe Operator
+    if (inherits(lrn_in, 'GraphLearner')) {
+      paramtab <- lapply(lrn_in$graph$pipeops, function(po) {
+        #Get default params
+        def <- as.data.table(po$param_set$default) %>%
+          .[, po_id := po$id] %>%
+          melt(id.var='po_id')
+
+        #Get set param
+        value <- as.data.table(po$param_set$values) %>%
+          .[, po_id := po$id]%>%
+          melt(id.var='po_id')
+
+        #Merge default and set params, keeping set ones when present
+        if (ncol(def)==1) {
+          tabmerge <- value
+        } else if (ncol(value)==1) {
+          tabmerge <- def
+        } else {
+          tabmerge <- merge(def, value[, .(variable, value, po_id)],
+                            by=c('po_id', 'variable'),
+                            all.x=T, all.y=T) %>%
+            .[is.na(value.y), value.y := value.x] %>%
+            setnames('value.y', 'value') %>%
+            .[, value.x := NULL]
+        }
+
+        graphparams <- tabmerge %>%
+          .[, variable := gsub('[.]', '', variable)] %>%
+          unique(by='variable')
+
+        return(graphparams)
+      }) %>%
+        rbindlist(use.names=TRUE)
+
+      #If direct learner
+    } else {
+      #Get default params
+      def <- as.data.table(lrn_in$param_set$default) %>%
+        melt(id.vars=integer())
+
+      #Get set param
+      value <- as.data.table(lrn_in$param_set$values) %>%
+        melt(id.vars=integer())
+
+      if (def[,.N]>0 & value[,.N]>0) {
+        tabmerge <- merge(def, value, by='variable', all.x=T, all.y=T)%>%
+          .[is.na(value.y), value.y := value.x] %>%
+          setnames('value.y', 'value') %>%
+          .[, value.x := NULL]
+      } else {
+        tabmerge <- rbind(def, value)
+      }
+
+      #Merge default and set params, keeping set ones when present
+      paramtab <- tabmerge %>%
+        .[, variable := gsub('[.]', '', variable)] %>%
+        unique(by='variable') #Models are not consistent in their use of dots
+    }
+
+    #Get inner sampling parameters----------------------------------------------
+    if ('instance_args' %in% names(lrn)) {
+      param_ranges <- as.list(
+        paste0(lrn$instance_args$param_set$lower,
+               '-',
+               lrn$instance_args$param_set$upper))
+      names(param_ranges) <- lrn$instance_args$param_set$ids()
+
+
+      inner_smp  <- cbind(
+        as.data.table(
+          lrn$instance_args$resampling$param_set$get_values()),
+        as.data.table(
+          lrn$instance_args$terminator$param_set$get_values())
+      ) %>%
+        .[, nruns := prod(.SD)] %>%
+        setnames(names(.), paste0('inner_', names(.))) %>%
+        cbind(as.data.table(param_ranges))
+
+      #If no inner sampling
+    } else {
+      inner_smp <- data.table(inner_nruns = 1)
+    }
+
+
+    #Remove pipe operator names and dot from names (inconsistent use across learners)
+    setnames(inner_smp,
+             old=names(inner_smp),
+             new=gsub('[.]', '',
+                      gsub(paste(paste0('(', unique(paramtab$po_id), '[.]*)'),
+                                 collapse = '|'),
+                           '',
+                           names(inner_smp))))
+
+    #---------------------------------------------------------------------------
+    #Merge inner sampling parameters and general parameters, then format
+    return(
+      paramtab %>%
+        .[!(variable %in% names(inner_smp)),] %>%
+        dcast(.~variable, value.var='value') %>%
+        cbind(inner_smp)
+    )
+  }) %>%
+    rbindlist(., fill=T)
+  ##############################################################################
+
+  #Get task, learner and resampling ids
+  lrns_time <- cbind(lrns_dt, params_format) %>%
+    .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
+    .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
+    .[, resampling_id := unlist(lapply(resampling, function(x) x$id))]
+
+  #Get number of features
+  lrns_time[, npredictors :=
+              lapply(lrns_dt$task,function(x) length(x$feature_names)) %>%
+              unlist]
+
+  #Compute train and predict time by learner, task and resampling
+  bm_ttot <- as.data.table(bmres$aggregate(list(msr('time_train'),
+                                                msr('time_predict')))) %>%
+    .[lrns_time, on=c('learner_id', 'task_id', 'resampling_id')] %>%
+    unique(by='nr') %>%
+    .[, time_train := time_train/inner_nruns]
+
+  return(bm_ttot)
+}
+
+#------ bm_msrtab ----------------
+bm_msrtab <- function(bmres) {
+  bbrier_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    rsmp_bbrier(bmres=bmres, rsmp_i=i)
+  }) %>%
+    unlist
+
+  auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    rsmp_auc(bmres=bmres, rsmp_i=i)
+  }) %>%
+    unlist
+
+  outer_smp <- lapply(bmres$resamplings$resampling, function(rsmp_design) {
+    as.data.table(rsmp_design$param_set$get_values()) %>%
+      setnames(names(.), paste0('outer_', names(.))) %>%
+      .[, resampling_id := rsmp_design$id]
+  }) %>%
+    rbindlist(use.names=T)
+
+  bacc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
+      rsmp_bacc(bmres, rsmp_i=i, threshold_class=threshold_class)}) %>%
+      setorder(bacc) %>%
+      setDT %>%
+      .[, .SD[.N, .(bacc, threshold_class)]]
+  }) %>%
+    rbindlist
+
+  #Get inner sampling params, general params, and time
+  params_time_dt <- bm_paramstime(bmres)
+
+  #Get time and add to bbrier
+  moddt <- bm_paramstime(bmres) %>%
+    cbind(., outer_smp) %>%
+    cbind(., bacc_vec) %>%
+    .[,`:=`(bbrier = bbrier_vec,
+            auc = auc_vec)]
+
+  return(moddt)
+}
+
+#------ format_modelcompdat --------------
+format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2')) {
+  if (typecomp == 'classif1') {
+    bmres[, `:=`(selection = 'Algorithm',
+                 type = 'Classif.')]  %>%
+      .[, learner_format := dplyr::case_when(
+        learner_id == 'classif.ranger.tuned'~'default RF',
+        learner_id == 'oversample.classif.ranger.tuned'~'default RF-oversampled',
+        learner_id == 'classweights.classif.ranger.tuned'~'default RF-weighted classes',
+        learner_id == 'classif.cforest'~'CIF',
+        learner_id == 'oversample.classif.cforest'~'CIF-oversampled',
+        learner_id == 'classweights.classif.cforest'~'CIF-weighted classes',
+      )]
+
+  } else if (typecomp == 'regr1') {
+    bmres[, `:=`(selection = 'Algorithm',
+                 type = 'Regr.')] %>%
+      .[, learner_format := dplyr::case_when(
+        task_id == 'inter_regr' ~'MAXSTAT',
+        task_id == 'inter_regrover' ~'MAXSTAT-oversampled'
+      )]
+
+  } else if (typecomp == 'classif2') {
+    bmres[, `:=`(selection = 'Predictors',
+                 type = 'Classif.')] %>%
+      .[, learner_format := dplyr::case_when(
+        task_id == 'inter_basicsp' ~ 'default RF-oversampled-all variables',
+        task_id == 'inter_basicsp_featsel' ~ 'default RF-oversampled-selected variables'
+      )]
+  } else {
+    stop('typecomp is not recognized')
+  }
+}
+
+#------ sfformat_wintri ----------------------
+#Convert st to sf and transform to Winkel Trippel projection
+sfformat_wintri <- function(in_sp) {
+  crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
+
+  return(st_as_sf(in_sp) %>%
+           st_transform(crs_wintri, use_gdal = FALSE)
+  )
+}
+
+
+
+
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
 #' Define file structure
@@ -1128,17 +1455,73 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                                     'Discharge watershed Annual min/max',
                                     'Discharge watershed Annual min/average',
                                     'Elevation catchment average - watershed average',
-                                    monthlydischarge_preds),
+                                    paste0('Discharge watershed ', month.name)),
                           varcode=c('pre_mm_cvar',
                                     'dis_mm_pvar', 'dis_mm_pvaryr',
                                     'ele_pc_rel',
-                                    paste0('Discharge watershed ', month.name)
+                                    monthlydischarge_preds
                                     )
                           )
 
+  oldcolnames <- c('Spatial.representation',
+                   'Temporal.or.statistical.aggregation.or.other.association',
+                   'Source Data')
+  newcolnames <- c('Spatial representation',
+                   'Temporal/Statistical aggreg.',
+                   'Source')
+
   predcols_dt <- merge(data.table(varcode=predcols),
                        rbind(meta_format, addedvars, fill=T),
-                       by='varcode', all.x=T, all.y=F)
+                       by='varcode', all.x=T, all.y=F)   %>%
+    setnames(oldcolnames, newcolnames) %>%
+    setorder(Category, Attribute,
+             `Spatial representation`, `Temporal/Statistical aggreg.`)
+
+  #Format table
+  predcols_dt[varcode=='dis_mm_pvar', `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Natural Discharge',
+    `Spatial representation`='p',
+    `Temporal/Statistical aggreg.`='mn/mx',
+    Source = 'WaterGAP v2.2',
+    Citation = 'Döll et al. 2003'
+  )]
+
+  predcols_dt[varcode=='dis_mm_pvaryr', `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Natural Discharge',
+    `Spatial representation`='p',
+    `Temporal/Statistical aggreg.`='mn/yr',
+    Source = 'WaterGAP v2.2',
+    Citation = 'Döll et al. 2003'
+  )]
+
+  predcols_dt[grepl('DIS_[0-9]{2}.*', varcode), `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Nature Discharge',
+    `Spatial representation`='p',
+    `Temporal/Statistical aggreg.`= gsub('[A-Z_]', '', varcode),
+    Source = 'WaterGAP v2.2',
+    Citation = 'Döll et al. 2003'
+  )]
+
+  predcols_dt[varcode=='ele_pc_rel', `:=`(
+    Category = 'Physiography',
+    Attribute= 'Elevation',
+    `Spatial representation`='c',
+    `Temporal/Statistical aggreg.`='(cav-uav)/uav',
+    Source = 'EarthEnv-DEM90',
+    Citation = 'Robinson et al. 2014'
+  )]
+
+  predcols_dt[varcode=='pre_mm_cvar', `:=`(
+    Category = 'Climate',
+    Attribute= 'Precipitation',
+    `Spatial representation`='c',
+    `Temporal/Statistical aggreg.`='mn/mx',
+    Source = 'WorldClim v1.4',
+    Citation = 'Hijmans et al. 2005'
+  )]
 
   return(predcols_dt)
 }
@@ -1391,273 +1774,6 @@ combine_bm <- function(in_resampleresults) {
   return(bmrbase)
 }
 
-#------ benchmark_classif -----------------
-benchmark_classif <- function(in_tasks,
-                              insamp_nfolds, insamp_neval, insamp_nbatch,
-                              outsamp_nrep, outsamp_nfolds) {
-
-  #Create task vars
-  task_classif <- in_tasks$classif
-
-  #---------- Create learners --------------------------------------------------
-  #Compute ratio of intermittent to perennial observations
-  imbalance_ratio <- get_oversamp_ratio(task_classif)$ratio
-
-  #Create basic learner
-  lrn_ranger <- mlr3::lrn('classif.ranger',
-                          num.trees = 500,
-                          sample.fraction = 0.632,
-                          replace = FALSE,
-                          splitrule = 'gini',
-                          predict_type = 'prob',
-                          importance = 'impurity_corrected',
-                          respect.unordered.factors = 'order')
-
-  #print(lrn_ranger$param_set)
-
-  #Create a conditional inference forest learner with default parameters
-  # mtry = sqrt(nvar), fraction = 0.632
-  lrn_cforest <- mlr3::lrn('classif.cforest',
-                           ntree = 500,
-                           fraction = 0.632,
-                           replace = FALSE,
-                           alpha = 0.05,
-                           mtry = round(sqrt(length(task_classif$feature_names))),
-                           predict_type = "prob")
-
-  #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
-  #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
-  #https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_classbalancing.html
-  #Sampling happens only during training phase.
-  po_over <- mlr3pipelines::po("classbalancing", id = "oversample", adjust = "minor",
-                               reference = "minor", shuffle = TRUE,
-                               ratio = imbalance_ratio)
-  #table(po_over$train(list(task_classif))$output$truth()) #Make sure that oversampling worked
-
-  #Create mlr3 pipe operator to put a higher class weight on minority class
-  po_classweights <- mlr3pipelines::po("classweights", minor_weight = imbalance_ratio)
-
-  #Create graph learners so that oversampling happens systematically upstream of all training
-  lrn_ranger_overp <- mlr3pipelines::GraphLearner$new(po_over %>>% lrn_ranger)
-  lrn_cforest_overp <- mlr3pipelines::GraphLearner$new(po_over %>>% lrn_cforest)
-
-  #Create graph learners so that class weighin happens systematically upstream of all training
-  lrn_ranger_weight <- mlr3pipelines::GraphLearner$new(po_classweights %>>% lrn_ranger)
-  lrn_cforest_weight <- mlr3pipelines::GraphLearner$new(po_classweights  %>>% lrn_cforest)
-
-  #---------- Set up inner resampling ------------------------------------------
-  #Define paramet space to explore
-  regex_tuneset <- function(in_lrn) {
-    prmset <- names(in_lrn$param_set$tags)
-
-    tune_rf <- ParamSet$new(list(
-      ParamInt$new(grep(".*mtry", prmset, value=T),
-                   lower = 5,
-                   upper = floor(length(task_classif$feature_names)/2)), #Half number of features
-      ParamDbl$new(grep(".*fraction", prmset, value=T),
-                   lower = 0.2,
-                   upper = 0.8)
-    ))
-
-    in_split =in_lrn$param_set$get_values()[
-      grep(".*split(rule|stat)", prmset, value=T)]
-
-    if (in_split == 'maxstat') {
-      tune_rf$add(
-        ParamDbl$new(prmset[grep(".*alpha", prmset)],
-                     lower = 0.01, upper = 0.1)
-      )
-
-    } else if (any(grepl(".*min.node.size", prmset))) {
-      tune_rf$add(
-        ParamInt$new(prmset[grep(".*min.node.size", prmset)],
-                     lower = 1, upper = 10)
-      )
-    } else if (any(grepl(".*splitstat", prmset))) {
-      tune_rf$add(
-        ParamDbl$new(prmset[grep(".*alpha", prmset)],
-                     lower = 0.01, upper = 0.1)
-      )
-    }
-  }
-
-  #Define inner resampling strategy
-  rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
-
-  #Define performance measure
-  measure_rf_class = msr("classif.bacc") #use balanced accuracy as objective function
-
-  #Define termination rule
-  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
-
-  #Define hyperparameter tuner wrapper for inner sampling
-  learns_classif = list(
-    #Standard ranger rf without oversampling
-    AutoTuner$new(learner= lrn_ranger,
-                  resampling = rcv_rf,
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_ranger),
-                  terminator = evalsn,
-                  tuner =  tnr("random_search",
-                               batch_size = insamp_nbatch)), #batch_size determines level of parallelism
-
-    #Standard ranger rf with oversampling
-    AutoTuner$new(learner= lrn_ranger_overp,
-                  resampling = rcv_rf,
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_ranger_overp),
-                  terminator = evalsn,
-                  tuner =  tnr("random_search",
-                               batch_size = insamp_nbatch)),
-
-    #Standard ranger rf with class weights
-    AutoTuner$new(learner= lrn_ranger_weight,
-                  resampling = rcv_rf,
-                  measures = measure_rf_class,
-                  tune_ps = regex_tuneset(lrn_ranger_weight),
-                  terminator = evalsn,
-                  tuner =  tnr("random_search",
-                               batch_size = insamp_nbatch)), #batch_size determines level of parallelism
-
-    #CIF rf without oversampling
-    lrn_cforest,
-
-    #CIF rf with oversampling
-    lrn_cforest_overp,
-
-    #CIF rf with class
-    lrn_cforest_weight
-  )
-  names(learns_classif) <-mlr3misc::map(learns_classif, "id")
-
-  #---------- Set up outer resampling benchmarking -----------------------------
-
-  #Perform outer resampling, keeping models for diagnostics later
-  outer_resampling = rsmp("repeated_cv",
-                          repeats = outsamp_nrep,
-                          folds = outsamp_nfolds)
-
-  #Run outer resampling and benchmarking on classification learners
-  nestedresamp_bmrdesign_classif <- benchmark_grid(
-    tasks = task_classif,
-    learners = learns_classif,
-    resamplings = outer_resampling)
-
-  nestedresamp_bmrout_classif <- benchmark(
-    nestedresamp_bmrdesign_classif, store_models = TRUE)
-
-  return(
-    list(
-      bm_classif = nestedresamp_bmrout_classif,
-      bm_tasks = list(task_classif=task_classif),
-      measure_classif = measure_rf_class
-    )
-  )
-}
-#------ benchmark_regr -----------------
-benchmark_regr <- function(in_tasks,
-                           insamp_nfolds, insamp_neval, insamp_nbatch,
-                           outsamp_nrep, outsamp_nfolds) {
-
-  task_regr <- in_tasks$regr
-  task_regrover <- in_tasks$regover
-
-  #---------- Create learners --------------------------------------------------
-  #Create regression learner with maxstat. Represents an approximation of
-  #classification learner with probabilities as the prediction type and a simili-
-  #conditional-inference forest tweak to correct for the over-representation
-  #of variables with many values over those with few categories
-  lrn_ranger_maxstat <- mlr3::lrn('regr.ranger',
-                                  num.trees=500,
-                                  sample.fraction = 0.632,
-                                  min.node.size = 10,
-                                  replace=FALSE,
-                                  splitrule = 'maxstat',
-                                  importance = 'impurity_corrected',
-                                  respect.unordered.factors = 'order')
-
-  #---------- Set up inner resampling ------------------------------------------
-  #Define paramet space to explore
-  regex_tuneset <- function(in_lrn) {
-    prmset <- names(in_lrn$param_set$tags)
-
-    tune_rf <- ParamSet$new(list(
-      ParamInt$new(grep(".*mtry", prmset, value=T),
-                   lower = 5,
-                   upper = floor(length(task_classif$feature_names)/2)), #Half number of features
-      ParamDbl$new(grep(".*fraction", prmset, value=T),
-                   lower = 0.2,
-                   upper = 0.8)
-    ))
-
-    in_split =in_lrn$param_set$get_values()[
-      grep(".*split(rule|stat)", prmset, value=T)]
-
-    if (in_split == 'maxstat') {
-      tune_rf$add(
-        ParamDbl$new(prmset[grep(".*alpha", prmset)],
-                     lower = 0.01, upper = 0.1)
-      )
-
-    } else if (any(grepl(".*min.node.size", prmset))) {
-      tune_rf$add(
-        ParamInt$new(prmset[grep(".*min.node.size", prmset)],
-                     lower = 1, upper = 10)
-      )
-    } else if (any(grepl(".*splitstat", prmset))) {
-      tune_rf$add(
-        ParamDbl$new(prmset[grep(".*alpha", prmset)],
-                     lower = 0.01, upper = 0.1)
-      )
-    }
-  }
-
-  #Define inner resampling strategy
-  rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
-
-  #Define performance measure
-  measure_rf_reg = msr("regr.mae")
-
-  #Define termination rule
-  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
-
-  #Define hyperparameter tuner wrapper for inner sampling
-  learns_regr = list(
-    #Regression rf with MAXSTAT
-    AutoTuner$new(learner= lrn_ranger_maxstat,
-                  resampling = rcv_rf,
-                  measures = measure_rf_reg,
-                  tune_ps = regex_tuneset(lrn_ranger_maxstat),
-                  terminator = evalsn,
-                  tuner =  tnr("random_search",
-                               batch_size = insamp_nbatch))
-  )
-
-  #---------- Set up outer resampling benchmarking -----------------------------
-
-  #Perform outer resampling, keeping models for diagnostics later
-  outer_resampling = rsmp("repeated_cv",
-                          repeats = outsamp_nrep,
-                          folds = outsamp_nfolds)
-  #Run outer resampling and benchmarking on regression learners
-  nestedresamp_bmrdesign_regr <- benchmark_grid(
-    tasks = list(task_regr, task_regrover),
-    learners = learns_regr,
-    resamplings = outer_resampling)
-
-  nestedresamp_bmrout_regr <- benchmark(
-    nestedresamp_bmrdesign_regr, store_models = TRUE)
-
-  return(
-    list(
-      bm_regr = nestedresamp_bmrout_regr,
-      bm_tasks = list(task_regr=task_regr,
-                      task_regrover=task_regrover),
-      measure_regr = measure_rf_reg
-    )
-  )
-}
-
 #------ analyze_benchmark -----------------
 analyze_benchmark <- function(in_bm, in_measure) {
 
@@ -1850,6 +1966,7 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
   return(out_gaugep)
 }
 
+
 ##### -------------------- Diagnostics functions -------------------------------
 
 #------ ggvimp -----------------
@@ -1874,8 +1991,8 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     theme(axis.text.x = element_text(size=8))
 }
 
-#------ ggmisclass -----------------
-ggmisclass <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
+#------ ggmisclass_single -----------------
+ggmisclass_single <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
   #Get predicted probabilities of intermittency for each gauge
   # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
   #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
@@ -2092,5 +2209,318 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
   return(list(uncertainty_numplot=uncertainty_numplot,
               uncertainty_catplot=uncertainty_catplot))
 }
+
+
+##### -------------------- Report functions -----------------------------------
+#------ get_basemaps ------------
+get_basemapswintri <- function(in_filestructure) {
+  crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
+
+  wcountries <- rnaturalearth::ne_countries(
+    scale = "medium", returnclass = "sf") %>%
+    sfformat_wintri
+  wland <- rnaturalearth::ne_download(
+    scale = 110, type = 'land', category = 'physical') %>%
+    sfformat_wintri
+  wlakes <- rnaturalearth::ne_download(
+    scale = 110, type = 'lakes', category = 'physical') %>%
+    sfformat_wintri
+
+  grat_wintri <-
+    st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
+    st_transform(crs = crs_wintri)
+
+  riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
+  riv_lines <- st_read(dsn = dirname(in_filestructure['in_riveratlas']),
+                       layer = basename(in_filestructure['in_riveratlas']),
+                       query = riv_query)
+
+  riv_wintri <- sfformat_wintri(riv_lines)
+  riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
+
+  return(list(wcountries = wcountries,
+              wland = wland,
+              wlakes = wlakes,
+              grat = grat_wintri,
+              riv_simple = riv_simple))
+}
+
+#------ ggrivers -----------------------
+ggrivers <- function(in_basemaps) {
+  p <- ggplot() +
+    geom_sf(data = in_basemaps['grat_wintri'],
+            color = alpha("black", 1/5), size = 0.25/.pt) +
+    geom_sf(data = in_basemaps['wland'],
+            alpha=1/2, color=NA) +
+    geom_sf(data = in_basemaps['wlakes'],
+            alpha=1/3, fill='black', color=NA) +
+    # geom_sf(data=in_basemaps['riv_simple'][riv_simple$ORD_STRA < 6,][1:10000,],
+    #         aes(size=ORD_STRA), color=alpha('black', 1/20), show.legend = F) +
+    # geom_sf(data=in_basemaps['riv_simple'][riv_simple$ORD_STRA >= 6,][1:10000,],
+    #         aes(size=ORD_STRA), color=alpha('black', 1/10), show.legend = F) +
+    scale_size_continuous(range=c(0.2, 1.0)) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-16500000, 16500000), ylim=c(-7000000,8700000)) +
+    theme_map() +
+    theme(legend.position=c(0.1,0),
+          legend.direction="horizontal",
+          legend.text = element_text(size=12),
+          legend.title = element_text(size=12),
+          legend.key.height = unit(0.1,"in"))
+
+  return(p)
+}
+
+#------ gggauges --------------------------
+gggauges <- function(in_gaugepred, in_basemaps) {
+  gaugepred <- in_gaugepred %>%
+    sfformat_wintri
+
+  perennial_gauges <- gaugepred[gaugepred$intermittent=='0',]
+  p_pr <- ggrivers(in_basemaps) +
+    geom_sf(data=perennial_gauges, aes(color=totalYears_kept), size=1, alpha=0.8) +
+    scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540',
+                         breaks=c(min(perennial_gauges$totalYears_kept), 100 ,
+                                  max(perennial_gauges$totalYears_kept))) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
+
+  ir_gauges <-  gaugepred[gaugepred$intermittent=='1',]
+  p_ir <- ggrivers(in_basemaps) +
+    geom_sf(data=ir_gauges, aes(color=totalYears_kept), size=1, alpha=0.8) +
+    scale_color_gradient(name='Years of data', low='#ff9b52', high='#a32d18',
+                         breaks=c(min(ir_gauges$totalYears_kept), 100,
+                                  max(ir_gauges$totalYears_kept))) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
+
+  return(p_pr/p_ir)
+}
+
+
+
+#------ tabulate_predvars -----------
+tabulate_predvars <- function(in_predvars) {
+  ######## ADD variable importance, ranking, and p-value#######################################
+  #loadd(rfeval_featsel)
+  #bm_classif$vimp
+  #predvars_format <- merge(predvars_format, predvars_format, by.x= 'varcode', by.y='varnames']
+  kable(predvars_format[,c('Category', 'Attribute', 'Spatial representation',
+                           'Temporal/Statistical aggreg.', 'Source', 'Citation'),
+                        with=F]) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+}
+
+#------ format_envscales ------------
+formatscales <- function(in_df, varstoplot) {
+  scales_x <- list(
+    ari_ix_uav = scale_x_continuous(),
+    cly_pc_uav = scale_x_continuous(labels=percent_format(scale=1)),
+    clz_cl_cmj = scale_x_continuous(limits=c(1,18), expand=c(0,0),
+                                    breaks=seq(0,18,2)),
+    cmi_ix_uyr = scale_x_continuous(),
+    dis_m3_pmn = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(in_df$dis_m3_pmn)))),
+                              labels=c(0, 10^(0:log10(max(in_df$dis_m3_pmn))))),
+    dis_m3_pyr = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(in_df$dis_m3_pmn)))),
+                              labels=c(0, 10^(0:log10(max(in_df$dis_m3_pmn))))),
+    dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1)),
+    for_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    gla_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    gwt_m_cav = scale_x_continuous(), #Change that to gwt_m_cav
+    inu_pc_umn = scale_x_continuous(labels=percent_format(scale=1)),
+    ire_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    kar_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    lka_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
+    pet_mm_uyr = scale_x_continuous(),
+    snw_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
+    run_mm_cyr = scale_x_continuous(),
+    swc_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
+    tmp_dc_uyr = scale_x_continuous(),
+    hdi_ix_cav = scale_x_continuous(),
+    hft_ix_c09 = scale_x_continuous(),
+    ORD_STRA = scale_x_continuous()
+  ) %>%
+    .[(names(.) %in% names(in_df)) & names(.) %in% varstoplot]
+  #Only keep those variables that are actually in df and that we want to plot
+
+  scales_y <- unlist(rep(list(scale_y_log10(expand=c(0,0))), labels = scientific_format(),
+                         length(scales_x)),
+                     recursive=F) %>%
+    setNames(names(scales_x))
+  scales_y[['dis_m3_pmn']] <- scale_y_sqrt(expand=c(0,0))
+
+  coordcart <- lapply(varstoplot_hist, function(var) {
+    coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var)), max(get(var)))])
+  }) %>%
+    setNames(names(scales_x))
+
+  coordcart[['clz_cl_cmj']] <-  coord_cartesian(
+    xlim=c(1,max(in_df$clz_cl_cmj)))
+
+
+  return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
+}
+
+
+#------ ggenvhist -------------
+ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent=TRUE) {
+  print(vartoplot)
+  if (intermittent) {
+    vartoplot2 <- c(vartoplot, 'intermittent')
+  }
+
+  varname <- in_predvars[varcode==vartoplot, paste0(Attribute, ' ',
+                                                    Keyscale,
+                                                    Keystat,
+                                                    ' (',unit,')')]
+  gaugeformat <- as.data.table(in_gaugedt)[, `:=`(
+    ari_ix_cav = ari_ix_cav/100,
+    ari_ix_uav = ari_ix_uav/100,
+    cmi_ix_cmn = cmi_ix_cmn/100,
+    cmi_ix_uyr = cmi_ix_uyr/100,
+    dor_pc_pva = dor_pc_pva/100,
+    lka_pc_cse = lka_pc_cse/10,
+    lka_pc_use = lka_pc_use/10,
+    tmp_dc_cmn =  tmp_dc_cmn/10,
+    tmp_dc_cmx =  tmp_dc_cmx/10,
+    tmp_dc_cyr =  tmp_dc_cyr/10,
+    tmp_dc_uyr =  tmp_dc_uyr/10,
+    gwt_m_cav = gwt_cm_cav/100
+  )] %>%
+    .[, vartoplot2, with=F]
+
+  rivformat <- as.data.table(in_rivdt)[, vartoplot, with=F]
+
+  penvhist <- ggplot(gaugeformat, aes_string(x=vartoplot)) +
+    geom_histogram(data=rivformat, bins=20, fill='lightgray') +
+    geom_histogram(bins=20, fill='darkgray') +
+    #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
+    # scale_fill_manual(values=c('#0F9FD6','#ff9b52'),
+    #                   labels = c('Perennial', 'Intermittent'), name=NULL) +
+    scalesenvhist$scales_x[[vartoplot]] +
+    scalesenvhist$scales_y[[vartoplot]] +
+    scalesenvhist$coordcart[[vartoplot]] +
+    xlab(varname) +
+    ylab('Count') +
+    theme_classic() +
+    theme(strip.background=element_rect(colour="white", fill='lightgray'),
+          axis.title.y = element_blank(),
+          axis.title = element_text(size=12))
+
+
+  if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
+    penvhist <- penvhist +
+      theme(legend.position='none')
+  }
+
+  return(ggplotGrob(penvhist))
+}
+
+#------ layout_ggenvhist --------------------------
+layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
+  varstoplot_hist <- c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_uyr",
+                       "dis_m3_pyr", "dor_pc_pva","for_pc_use", "gla_pc_use",
+                       "kar_pc_use", "lka_pc_use", "pet_mm_uyr", "snw_pc_uyr",
+                       "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr", "hdi_ix_cav",
+                       "hft_ix_c93", "ORD_STRA", "gwt_m_cav",  "ire_pc_use")
+
+  scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
+
+  penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
+                           in_gaugedt = in_gaugepred,
+                           in_rivdt = in_rivernetwork,
+                           in_predvars = in_predvars)
+  do.call("grid.arrange", list(grobs=penvhist_grobs))
+}
+
+
+
+#------ tabulate_benchmarks ------------
+tabulate_benchmarks <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
+  tbbrier_classif1 <- bm_msrtab(rfbm_classif) %>%
+    format_modelcompdat('classif1')
+
+  tbbrier_regr1 <- bm_msrtab(rfbm_regr)  %>%
+    format_modelcompdat('regr1')
+
+  tbbrier_classif2 <- bm_msrtab(rfeval_featsel)  %>%
+    format_modelcompdat('classif2')
+
+  metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2),
+                           fill = TRUE, use.names = TRUE)
+
+  #Continue formatting table
+  metrics_dat[is.na(ntree), ntree := numtrees]
+  metrics_dat[is.na(fraction), fraction := samplefraction]
+  metrics_dat[, `minor_weight|ratio` := fifelse(is.na(minor_weight),
+                                                ratio, minor_weight)]
+
+
+  #Create model specification tables
+  setup_table <- metrics_dat[, .(selection, type, learner_format,
+                                 inner_folds, inner_n_evals,
+                                 alpha, mtry, minnodesize, fraction,
+                                 `minor_weight|ratio`, npredictors,
+                                 outer_repeats, outer_folds)] %>%
+    .[!grepl('(CIF)|(MAXSTAT)', learner_format), alpha := NA] %>%
+    .[grepl('MAXSTAT', learner_format), minnodesize := NA] %>%
+    unique(by='learner_format')
+
+  setup_kable <- kable(setup_table) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+  #Create model results table
+  results_table <- metrics_dat[, .(selection, learner_format,
+                                   resampling_id, outer_repeats, outer_folds,
+                                   time_train=round(time_train),
+                                   time_predict=round(time_predict),
+                                   bacc=round(bacc, 3), threshold_class,
+                                   bbrier=round(bbrier, 3), auc=round(auc, 3)
+  )]
+
+  results_kable <- kable(results_table) %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
+
+  return(list(setup=setup_kable, results=results_kable))
+}
+
+
+#------ ggmisclass_bm -------------
+ggmisclass_bm <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
+  thresh_classif1 <- threshold_dat(bmres = rfbm_classif)%>%
+    format_modelcompdat('classif1')
+  thresh_regr1 <- threshold_dat(bmres = rfbm_regr)%>%
+    format_modelcompdat('regr1')
+  thresh_classif2 <- threshold_dat(bmres = rfeval_featsel) %>%
+    format_modelcompdat('classif2')
+
+  format_modelcompdat(thresh_classif1, 'classif1')
+  format_modelcompdat(thresh_regr1, 'regr1')
+  format_modelcompdat(thresh_classif2, 'classif2')
+
+  threshplot_datall <- rbindlist(list(thresh_classif1, thresh_regr1, thresh_classif2)) %>%
+    .[, list(value_mean = mean(value)), by=.(threshold_class, variable, learner_format, selection)]
+
+
+  ggthresh_benchmark <- ggplot(threshplot_datall[variable %in% c('sens', 'spec'),],
+                               aes(x=threshold_class, y=value_mean,
+                                   linetype=variable,
+                                   gourp=learner_format,
+                                   color=learner_format)) +
+    geom_line(size=1.2) +
+    #scale_color_brewer(palette='Dark2') +
+    scale_linetype(labels=c('Sensitivity (true positives)',
+                            'Specificity (true negatives)')) +
+    scale_x_continuous(expand=c(0,0), name='Threshold') +
+    scale_y_continuous(expand=c(0,0), name='Value') +
+    facet_wrap(~selection) +
+    theme_bw() +
+    theme(panel.spacing = unit(0.75, "cm"),
+          legend.title = element_blank())
+
+  return(ggthresh_benchmark)
+}
+
 
 ########## END #############
