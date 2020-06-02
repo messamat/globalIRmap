@@ -1006,7 +1006,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
 #------ selectformat_predvars -----------------
 selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- List predictor variables ----
-  monthlydischarge_preds <- paste0('DIS_C',
+  monthlydischarge_preds <- paste0('DIS_',
                                    str_pad(seq(1, 12), 2, pad=0),
                                    '_CMS')
 
@@ -1138,7 +1138,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 
   predcols_dt <- merge(data.table(varcode=predcols),
                        rbind(meta_format, addedvars, fill=T),
-                       by='varcode', all.y=F)
+                       by='varcode', all.x=T, all.y=F)
 
   return(predcols_dt)
 }
@@ -1754,45 +1754,15 @@ select_features <- function(in_rf, in_task, pcutoff) {
   return(list(in_task, task_featsel))
 }
 
-#------ benchmark_featsel -----------------
-benchmark_featsel <- function(in_rf, in_task, in_resampling) {
-  #pcutoff is the p_value above which features are removes
-
-
-
-  #Set up outer resampling including
-  outer_resampling = in_resampling
-
-  #Run outer resampling and benchmarking on classification learners
-  resmp_rs <- resample(task, learner, resampling, store_models)
-
-  # bmrdesign_featsel <- benchmark_grid(
-  #   tasks = list(in_task, task_featsel),
-  #   learners = in_rf$learners$learner[[1]],
-  #   resamplings = list(outer_resampling, outer_resamplingsp))
-  #
-  # bmrout_featsel <- benchmark(
-  #   bmrdesign_featsel, store_models = TRUE)
-
-  # bm_analysis <- analyze_benchmark(in_bm = bmrout_featsel,
-  #                                  in_measure = in_measure)
-
-  return(list(
-    bm_classif = bmrout_featsel,
-    bm_tasks = list(task_classif=in_task,
-                    task_classif_featsel = task_featsel),
-    measure_classif = in_measure,
-    #bm_analysis = bm_analysis,
-    vimp = vimp)
-  )
-}
-
 #------ selecttrain_rf -----------------
-selecttrain_rf <- function(in_rf, in_task,
+selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   #Prepare autotuner for full training
-  lrn_autotuner <- in_rf$clone()$learners$learner[[1]]
-  subbm <- in_rf$clone()$filter(task_ids = in_task$id)
+  in_bmsel <- in_rf$clone()$filter(learner_ids = in_learnerid,
+                                   task_id = in_taskid)
+
+  lrn_autotuner <- in_bmsel$clone()$learners$learner[[1]]
+  in_task <-in_bmsel$tasks$task[[1]]
 
   if (!is.null(insamp_nfolds)) {
     lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
@@ -1803,12 +1773,12 @@ selecttrain_rf <- function(in_rf, in_task,
   }
 
   #Return outer sampling object for selected model (or list of outer sampling objects)
-  uhashes <- unique(as.data.table(subbm)$uhash)
+  uhashes <- unique(as.data.table(in_bmsel)$uhash)
   if (length(uhashes) == 1) {
-    outer_resampling_output <- subbm$resample_result(uhash=uhashes)
+    outer_resampling_output <- in_bmsel$resample_result(uhash=uhashes)
   } else {
     outer_resampling_output <- lapply(uhashes, function(x) {
-      subbm$resample_result(uhash=x)
+      in_bmsel$resample_result(uhash=x)
     })
   }
 
@@ -1828,7 +1798,8 @@ selecttrain_rf <- function(in_rf, in_task,
 #------ rformat_network ------------------
 rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
   cols_tokeep <-  c("HYRIV_ID", in_predvars[!is.na(ID), varcode],
-                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav',
+                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
+                    'hft_ix_c09', 'hft_ix_u09',
                     paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
                     paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
                     paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
@@ -1866,6 +1837,10 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
                predbasic800 := in_rftuned$rf_inner$predict_newdata(as.data.frame(.SD))$prob[,2],]
     toc()
   }
+
+  in_rftuned$rf_inner$predict_newdata(as.data.frame(
+    in_network[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz,]
+  ))
 
   in_network[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
   fwrite(in_network[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],

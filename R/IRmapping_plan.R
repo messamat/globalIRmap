@@ -78,7 +78,7 @@ plan <- drake_plan(
 
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure = measures),
-    dynamic = map(in_bm = list(rfbm_classif[[1]], rfbm_regr))#,
+    transform = map(in_bm = list(rfbm_classif[[1]], rfbm_regr))#,
                   #in_measure = list(measures$classif, measures$regr))
   ),
 
@@ -109,41 +109,44 @@ plan <- drake_plan(
                      type = 'classif'),
     transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
                      in_resampling = c(featsel_cv, featsel_spcv),
-                     .names = c())
+                     .names = c('res_all_cv', 'res_all_spcv',
+                                'res_featsel_cv', 'res_featsel_spcv'))
   ),
 
   rfeval_featsel = target(
-      combine_bm(rfresampled_featsel),
-      dynamic = group(rfresampled_featsel)
+    c(res_all_cv, res_all_spcv,
+      res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
   ),
 
   rfbm_featsel = analyze_benchmark(in_bm = rfeval_featsel,
-                                   in_measure = measures$classif)
-
+                                   in_measure = measures$classif),
 
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
-  # rftuned = target(
-  #   selecttrain_rf(in_rf = rfeval_featsel$bm_classif$clone()$filter(learner_ids = "oversample.classif.ranger"),
-  #                  in_task = tasks$task_classif,
-  #                  insamp_nfolds = 2,
-  #                  insamp_nevals = 1)),
-  #
-  # misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
-  #
-  # vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
-  #
-  # pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
-  #                nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
-  #
-  # uncertainty_plot = gguncertainty(in_rftuned = rftuned,
-  #                                  in_gaugestats = gaugestats_format,
-  #                                  in_predvars = predvars,
-  #                                  spatial_rsp = FALSE),
-  #
-  # rivernetwork = rformat_network(in_filestructure = filestructure, in_predvars = predvars, in_monthlydischarge = monthlydischarge),
-  #
-  # rfpreds = write_preds(in_filestructure = filestructure, in_gaugep = gaugep,
-  #                       in_gaugestats = gaugestats_format, in_network = rivernetwork,
-  #                       in_rftuned = rftuned, in_predvars = predvars)
+  rftuned = target(
+    selecttrain_rf(in_rf = rfeval_featsel,
+                   in_learnerid ="oversample.classif.ranger",
+                   in_taskid = "inter_basicsp_featsel",
+                   insamp_nfolds = 2,
+                   insamp_nevals = 1)),
+
+  rivernetwork = rformat_network(in_filestructure = filestructure,
+                                 in_predvars = predvars,
+                                 in_monthlydischarge = monthlydischarge),
+
+  rfpreds = write_preds(in_filestructure = filestructure, in_gaugep = gaugep,
+                        in_gaugestats = gaugestats_format, in_network = rivernetwork,
+                        in_rftuned = rftuned, in_predvars = predvars),
+
+  misclass_plot = ggmisclass(in_rftuned = rftuned, spatial_rsp = FALSE),
+
+  vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
+
+  pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
+                 nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
+
+  uncertainty_plot = gguncertainty(in_rftuned = rftuned,
+                                   in_gaugestats = gaugestats_format,
+                                   in_predvars = predvars,
+                                   spatial_rsp = FALSE)
 )
 
