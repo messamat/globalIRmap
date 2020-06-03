@@ -34,16 +34,16 @@ plan <- drake_plan(
     set_tuning(in_learner = seplearners,
                in_measures = measures,
                nfeatures = length(tasks$classif$feature_names),
-               insamp_nfolds = 2, insamp_neval = 1,
-               insamp_nbatch = parallel::detectCores(logical=FALSE)
+               insamp_nfolds = 5, insamp_neval = 100,
+               insamp_nbatch = parallel::detectCores(logical=FALSE)-1
     ),
     dynamic = map(seplearners)
   ),
 
   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
                                    in_task = tasks$classif,
-                                   outsamp_nrep = 1,
-                                   outsamp_nfolds = 2),
+                                   outsamp_nrep = 2,
+                                   outsamp_nfolds = 3),
 
   rfresampled_classif = target(
     dynamic_resample(in_task = tasks$classif,
@@ -164,6 +164,17 @@ plan <- drake_plan(
                                    in_gaugep = gaugep, in_gaugestats = gaugestats_format,
                                    kcutoff=50000),
 
-  krigepreds_mosaic = mosaic_kriging(in_kpathlist, overwrite)
+  krigepreds_mosaic = mosaic_kriging(in_kpathlist = krigepreds, overwrite = TRUE),
+
+
+  globaltables <- target(
+    tabulate_globalsummary(in_filestructure = filestructure,
+                           idvars = in_idvars,
+                           castvar = 'ORD_STRA', castvar_num = TRUE,
+                           weightvar = 'LENGTH_KM',
+                           valuevar = 'predbasic800cat',valuevar_sub = 1,
+                           na.rm=T, tidy = FALSE),
+    transform = map(c('gad_id_cmj', 'fmh_cl_cmj'))
+  )
 )
 

@@ -1083,6 +1083,100 @@ sfformat_wintri <- function(in_sp) {
 
 
 
+#------ bin_dt -----------------
+#Bin a data_table on a given variable - see tabulate global summary
+bin_dt <- function(in_dt, binvar, valuevar, binfunc, binarg,
+                   bintrans=NULL, na.rm=FALSE) {
+  #Inspired from rbin, adapted to dt and simplified
+  in_dt <- copy(in_dt)
+
+  el_freq <- function(byd, bins) {
+
+    bin_length <- (max(byd, na.rm = TRUE) - min(byd, na.rm = TRUE)) / bins
+    append(min(byd, na.rm = TRUE), min(byd, na.rm = TRUE) + (bin_length * seq_len(bins)))[1:bins]
+
+  }
+
+  eu_freq <- function(byd, bins) {
+
+    bin_length <- (max(byd, na.rm = TRUE) - min(byd, na.rm = TRUE)) / bins
+    ufreq      <- min(byd, na.rm = TRUE) + (bin_length * seq_len(bins))
+    n          <- length(ufreq)
+    ufreq[n]   <- max(byd, na.rm = TRUE) + 1
+    return(ufreq)
+
+  }
+
+  binvar_orig <- copy(binvar)
+
+  #Remove NAs
+  if (na.rm) {
+    in_dt <- in_dt[!is.na(get(eval(valuevar))),]
+  }
+
+  #Transform data if trans
+  if (!is.null(bintrans)) {
+    transvar <- paste0(binvar, '_bintrans')
+    if (bintrans == 'log') {
+      nneg <- in_dt[get(eval(binvar)) <= 0, .N]
+      warning(paste0('There are ', nneg, ' records with', binvar, ' <= 0...',
+                     'removing them for log transformation'))
+      in_dt[, eval(transvar) :=
+              log(get(eval(binvar)))]
+
+    } else if (is.numeric(bintrans)) {
+      in_dt[, eval(transvar) :=
+              get(eval(binvar))^eval(bintrans)]
+
+    }
+    binvar = transvar
+  }
+
+  byd <- in_dt[, get(eval(binvar))]
+
+  if (binfunc == 'manual') {
+    l_freq    <- append(min(byd), binarg)
+    u_freq    <- c(binarg, (max(byd, na.rm = TRUE) + 1))
+    bins      <- length(binarg) + 1
+  }
+
+  if (binfunc == 'equal_length') {
+    bins = round(binarg)
+    l_freq    <- el_freq(byd, bins)
+    u_freq    <- eu_freq(byd, bins)
+  }
+
+  if (binfunc == 'equal_freq') {
+    bins = round(binarg)
+    bin_prop     <- 1 / bins
+    bin_length   <- in_dt[, round(.N/bins)]
+    first_bins   <- (bins - 1) * bin_length
+    residual     <- in_dt[, .N - first_bins]
+    bin_rep      <- c(rep(seq_len((bins - 1)), each = bin_length),
+                      rep(residual, residual))
+    l_freq        <- c(1, (bin_length * seq_len((bins - 1)) + 1))
+    u_freq       <- c(bin_length * seq_len((bins - 1)), in_dt[,.N])
+    setorderv(in_dt, cols= eval(binvar))
+    in_dt[, binid := .I]
+    binvar = 'binid'
+  }
+
+  for (i in seq_len(bins)) {
+    in_dt[get(eval(binvar)) >= l_freq[i] & get(eval(binvar)) < u_freq[i],
+          bin := i]
+    in_dt[bin == i, `:=`(bin_lmin = min(get(eval(binvar_orig)), na.rm=T),
+                         bin_lmax = max(get(eval(binvar_orig)), na.rm=T))] %>%
+      .[bin == i, bin_lformat := paste(bin_lmin, bin_lmax, sep='-')]
+
+    if (i == bins) {
+      in_dt[get(eval(binvar)) == u_freq[i],  bin := i]
+    }
+  }
+
+  if (binfunc == 'equal_freq') {in_dt[, binid := NULL]}
+
+  return(in_dt)
+}
 
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
@@ -1738,7 +1832,9 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
 
   if ((in_learner$task_type == 'classif' & type=='classif') |
       (in_learner$task_type == 'regr' & type=='regr')) {
-    resmp_rs <- resample(in_task, in_learner, in_resampling, store_models)
+    resmp_rs <- mlr3::resample(learner = in_learner, task = in_task,
+                               resampling = in_resampling, store_models = store_models
+    )
     return(resmp_rs)
   }
 }
@@ -2342,8 +2438,8 @@ get_basemapswintri <- function(in_filestructure) {
   return(list(wcountries = wcountries,
               wland = wland,
               wlakes = wlakes,
-              grat = grat_wintri,
-              riv_simple = riv_simple))
+              grat = grat_wintri))
+  #,riv_simple = riv_simple
 }
 
 #------ ggrivers -----------------------
@@ -2404,9 +2500,9 @@ tabulate_predvars <- function(in_predvars) {
   #loadd(rfeval_featsel)
   #bm_classif$vimp
   #predvars_format <- merge(predvars_format, predvars_format, by.x= 'varcode', by.y='varnames']
-  kable(predvars_format[,c('Category', 'Attribute', 'Spatial representation',
-                           'Temporal/Statistical aggreg.', 'Source', 'Citation'),
-                        with=F]) %>%
+  kable(in_predvars[,c('Category', 'Attribute', 'Spatial representation',
+                       'Temporal/Statistical aggreg.', 'Source', 'Citation'),
+                    with=F]) %>%
     kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
 
 }
@@ -2618,4 +2714,117 @@ ggmisclass_bm <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
 }
 
 
+#------ tabulate_globalsummary -----
+#Example
+# gad_tabledis <- tabulate_globalsummary(in_filestructure = filestructure,
+#                                        idvars = 'gad_id_cmj',
+#                                        castvar = 'dis_m3_pyr',
+#                                        castvar_num = TRUE,
+#                                        weightvar = 'LENGTH_KM',
+#                                        valuevar = 'predbasic800cat',
+#                                        valuevar_sub = 1,
+#                                        binfunc = 'manual',
+#                                        binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000),
+#                                        na.rm=T,
+#                                        tidy = FALSE)
+
+tabulate_globalsummary <- function(in_filestructure, idvars,
+                                   castvar, castvar_num=TRUE,
+                                   weightvar,
+                                   valuevar, valuevar_sub,
+                                   binfunc=NULL, binarg=NULL, bintrans=NULL,
+                                   na.rm=T, tidy=FALSE) {
+
+  #Import global predictions
+  rivpred <- fread(in_filestructure['out_riveratlas'])
+  #Columns to import from full network
+  incols <- c('HYRIV_ID', castvar, idvars, valuevar, weightvar)
+  #Import global river network and join to predictions
+  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
+                           cols_tokeep = incols) %>%
+    .[rivpred, on='HYRIV_ID']
+
+  #If global administrative boundaries were selected for idvar, get country names
+  if ('gad_id_cmj' %in% incols) {
+    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
+                                            'HydroATLAS',
+                                            'HydroATLAS_v10_Legends.xlsx'),
+                                  sheet='gad_id') %>%
+      setDT
+
+    riveratlas <- merge(riveratlas, gadnames, by.x='gad_id_cmj', by.y='Country_ID') %>%
+      .[, gad_id_cmj := Country_Name]
+  } else if ('fmh_cl_cmj' %in% incols) {
+    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
+                                            'HydroATLAS',
+                                            'HydroATLAS_v10_Legends.xlsx'),
+                                  sheet='fmh_cl') %>%
+      setDT
+
+    riveratlas <- merge(riveratlas, gadnames, by.x='fmh_cl_cmj', by.y='MHT_ID') %>%
+      .[, fmh_cl_cmj := MHT_Name]
+  }
+
+  #Bin castvar if needed
+  if (!is.null(binfunc) & !is.null(binarg)) {
+    riveratlas <- bin_dt(in_dt = riveratlas, binvar = castvar, valuevar = valuevar,
+                         binfunc = binfunc, binarg = binarg, bintrans = bintrans,
+                         na.rm = na.rm)
+    castvar = 'bin_lformat'
+    castvar_num = FALSE
+  }
+
+
+  #Compute overall number or weight for all combinations of castvar, valuevar and idvars
+  #e.g. total number or river length for each flow state category for each country and river order
+  statall <- riveratlas[if (na.rm) {!is.na(eval(valuevar))},
+                        if (!is.null(weightvar)) sum(get(weightvar)) else .N,
+                        by=c(eval(castvar), eval(valuevar), eval(idvars))] %>%
+    rbind(
+      .[, list('World', sum(V1)), by=c(eval(castvar), eval(valuevar))] %>%
+        setnames(c('V1', 'V2'), c(idvars, 'V1'))
+    )
+
+
+  #Compute for each cast and id var, the percentage of the valuevar that is of the category of interest
+  #(e.g. for each country and river order, percentage of river length that is intermittent)
+  tidyperc <- statall[, 100*.SD[get(valuevar)==valuevarsub, sum(V1)]/sum(V1),
+                      by=c(eval(castvar), eval(idvars))]
+
+  #If cast variable is a numeric (e.g. Strahler Order), sort table in increasing order
+  if (castvar_num) {
+    tidyperc[, eval(castvar) := as.numeric(as.character(get(eval(castvar))))]
+  }
+  setorderv(tidyperc, cols=c(castvar, idvars))
+
+
+  #Compute totals for each valuevar and idvar summed across castvar
+  #e.g. (total length of rivers for each country, and of each flow regime)
+  tidytotal <- statall[, list('Total', sum(V1)), by=c(eval(idvars))] %>%
+    rbind(statall[, list(paste0('Total ', get(eval(valuevar))),
+                         sum(V1)), by=c(eval(idvars), eval(valuevar))] %>%
+            .[, eval(valuevar) := NULL]) %>%
+    setnames(c('V1', 'V2'), c(castvar, 'V1'))
+  totalcols <- unique(tidytotal[, get(eval(castvar))]) #Name of total cols
+
+  #Prepare casting formula for formatting
+  castformula <- as.formula(paste0(paste(idvars, collapse='+'),
+                                   '~',
+                                   paste(castvar, collapse='+')))
+
+  #Merge percentages and totals, then cast table if tidy != TRUE
+  tidypercformat <- tidyperc[, eval(castvar) := as.factor(get(eval(castvar)))] %>%
+    rbind(tidytotal)
+
+  if (!tidy) {
+    tidyperc_cast <- dcast(tidypercformat, castformula, value.var = 'V1') %>%
+      .[, (totalcols) := lapply(.SD, function(x) fifelse(is.na(x), 0 , x)), #Replace NAs in total cols by 0
+        .SDcols = totalcols]
+
+    tidyperc_format <- rbind(tidyperc_cast[get(eval(idvars)) != 'World',],
+                             tidyperc_cast[get(eval(idvars)) == 'World',])
+  }
+
+  return(tidyperc_format)
+}
 ########## END #############
