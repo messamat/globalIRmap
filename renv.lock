@@ -40,6 +40,13 @@
       "Repository": "CRAN",
       "Hash": "a16cb2832248c7cff5a6f505e2aea45b"
     },
+    "FNN": {
+      "Package": "FNN",
+      "Version": "1.1.3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "b56998fff55e4a4b4860ad6e8c67e0f9"
+    },
     "Formula": {
       "Package": "Formula",
       "Version": "1.2-3",
@@ -630,6 +637,13 @@
       "Repository": "CRAN",
       "Hash": "83c2c0812de7b6e04c2ff471b4d7f920"
     },
+    "gstat": {
+      "Package": "gstat",
+      "Version": "2.0-6",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "64ca0abd70da633cb51d15724d2468b3"
+    },
     "gtable": {
       "Package": "gtable",
       "Version": "0.3.0",
@@ -706,6 +720,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "6154ec2223172bce8162d4153cda21f7"
+    },
+    "intervals": {
+      "Package": "intervals",
+      "Version": "0.15.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "079e6e04c6aafe087aba89f93311d8ba"
     },
     "inum": {
       "Package": "inum",
@@ -1182,6 +1203,13 @@
       "Repository": "CRAN",
       "Hash": "561326df07a5bc5266ba17ce3b81cbf1"
     },
+    "raster": {
+      "Package": "raster",
+      "Version": "3.1-5",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "5aef4b2e36fe729608b55abb04944827"
+    },
     "rcmdcheck": {
       "Package": "rcmdcheck",
       "Version": "1.3.3",
@@ -1399,6 +1427,13 @@
       "Repository": "CRAN",
       "Hash": "a44a3cebab900c0f77e16804f361468e"
     },
+    "spacetime": {
+      "Package": "spacetime",
+      "Version": "1.2-3",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "c56bf34ead17cdd551eb2e2bf0e4bc74"
+    },
     "statmod": {
       "Package": "statmod",
       "Version": "1.4.34",
@@ -1520,10 +1555,10 @@
     },
     "vctrs": {
       "Package": "vctrs",
-      "Version": "0.2.4",
+      "Version": "0.3.0",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "6c839a149a30cb4ffc70443efa74c197"
+      "Hash": "fbf7ee297936697ec8404a22859da129"
     },
     "viridisLite": {
       "Package": "viridisLite",
@@ -1588,6 +1623,13 @@
       "Repository": "CRAN",
       "Hash": "6c85f015dee9cc7710ddd20f86881f58"
     },
+    "xts": {
+      "Package": "xts",
+      "Version": "0.12-0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "cae1f4b14c523f62b61276fb3962d4fb"
+    },
     "yaml": {
       "Package": "yaml",
       "Version": "2.2.1",
@@ -1601,6 +1643,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "caa73cdca1a87e5f2617915c8809f207"
+    },
+    "zoo": {
+      "Package": "zoo",
+      "Version": "1.8-8",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "c2ea03282caa1f6972dc84fc5bf671cc"
     }
   }
 }
