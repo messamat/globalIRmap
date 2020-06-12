@@ -124,9 +124,9 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
     #       min/max monthly catchment precip (while dealing with times when )
     .[, `:=`(pre_mm_cvar= fifelse(pre_mm_cmx==0, 0, pre_mm_cmn/pre_mm_cmx),
              #min/max monthly watershed discharge
-             dis_mm_pvar=fifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx),
+             dis_m3_pvar=fifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx),
              #min monthly/average yearly watershed discharge
-             dis_mm_pvaryr=fifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr),
+             dis_m3_pvaryr=fifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr),
              #catchment average elv - watershec average elev
              ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))]
 
@@ -1205,6 +1205,8 @@ def_filestructure <- function() {
   resdir <- file.path(rootdir, 'results')
   # File geodatabase to write outputs
   outgdb <- file.path(resdir, 'spatialoutputs.gdb')
+
+
   # hydrometric stations that have been joined to RiverATLAS
   in_gaugep <- file.path(outgdb, 'GRDCstations_riverjoin')
   # Directory containing hydrometric data
@@ -1217,10 +1219,16 @@ def_filestructure <- function() {
                                       'Hydrosheds_discharge_monthly')
   #Rasters of dissolved buffers around gauge stations
   in_bufrasdir <- file.path(resdir, 'bufrasdir')
-  # Output geopackage of hydrometric stations with appended predicted intermittency class
-  out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas attribute data1
   in_riveratlas <- file.path(resdir, 'RiverATLAS_v10tab.csv')
+
+  # French river network for comparison
+  compresdir <- file.path(resdir, 'Comparison_databases')
+  in_netfr <- file.path(compresdir, 'france.gdb', 'network')
+  in_basfr <- file.path(compresdir, 'france.gdb', 'hydrobasins12')
+
+  # Output geopackage of hydrometric stations with appended predicted intermittency class
+  out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas predictions table
   out_riveratlas <- file.path(resdir, 'RiverATLAS_predbasic800.csv')
 
@@ -1228,6 +1236,7 @@ def_filestructure <- function() {
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir, in_riveratlas_meta=in_riveratlas_meta,
            in_monthlynetdischarge = in_monthlynetdischarge,
            in_bufrasdir = in_bufrasdir,
+           in_netfr = in_netfr, in_basfr = in_basfr,
            out_gauge=out_gauge, in_riveratlas=in_riveratlas,
            out_riveratlas = out_riveratlas))
 }
@@ -1440,8 +1449,8 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'dis_m3_pyr',
     'dis_m3_pmn',
     'dis_m3_pmx',
-    'dis_mm_pvar',
-    'dis_mm_pvaryr',
+    'dis_m3_pvar',
+    'dis_m3_pvaryr',
     'run_mm_cyr',
     'inu_pc_umn',
     'inu_pc_umx',
@@ -1554,7 +1563,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                                     'Elevation catchment average - watershed average',
                                     paste0('Discharge watershed ', month.name)),
                           varcode=c('pre_mm_cvar',
-                                    'dis_mm_pvar', 'dis_mm_pvaryr',
+                                    'dis_m3_pvar', 'dis_m3_pvaryr',
                                     'ele_pc_rel',
                                     monthlydischarge_preds
                                     )
@@ -1575,7 +1584,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
              `Spatial representation`, `Temporal/Statistical aggreg.`)
 
   #Format table
-  predcols_dt[varcode=='dis_mm_pvar', `:=`(
+  predcols_dt[varcode=='dis_m3_pvar', `:=`(
     Category = 'Hydrology',
     Attribute= 'Natural Discharge',
     `Spatial representation`='p',
@@ -1584,7 +1593,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     Citation = 'Döll et al. 2003'
   )]
 
-  predcols_dt[varcode=='dis_mm_pvaryr', `:=`(
+  predcols_dt[varcode=='dis_m3_pvaryr', `:=`(
     Category = 'Hydrology',
     Attribute= 'Natural Discharge',
     `Spatial representation`='p',
@@ -1814,7 +1823,7 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
 }
 
 #------ dynamic_resample ------------------
-#Directly run resample function from mlr3 on in_task, in_learner, in_resampling
+#Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
 dynamic_resample <- function(in_task, in_learner, in_resampling, type,
                              store_models = TRUE) {
   if (is.list(in_learner)) {
@@ -1839,25 +1848,50 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
   }
 }
 
+#------ dynamic_resamplebm ------------------
+#Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
+dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
+                             store_models = TRUE) {
+  #If path, read qs
+  if (inherits(in_bm, "character")) {
+    in_bm <- qs::qread(in_bm)
+  }
+
+  #get desired resampled_results/learner
+  in_rf <- in_bm$filter(learner_ids = in_lrnid)
+
+  return(
+    dynamic_resample(in_task = in_task,
+                     in_learner = in_rf,
+                     in_resampling = in_resampling,
+                     type = type,
+                     store_models = store_models)
+  )
+}
+
 #------ combined resample results into benchmark results -------------
-combine_bm <- function(in_resampleresults) {
+combine_bm <- function(in_resampleresults, out_qs) {
   #When tried as_benchmark_result.ResampleResult, got "Error in setcolorder(data, slots) :
   # x has some duplicated column name(s): uhash. Please remove or rename the
   # duplicate(s) and try again.". SO use this instead
+  print('Converting to benchmark results...')
   if (length(in_resampleresults) > 1) {
     bmres_list <- lapply(
       in_resampleresults[!sapply(in_resampleresults, is.null)],
       function(rsmpres) {
+        print(rsmpres)
         if (!is.null(rsmpres)) {
           as_benchmark_result(rsmpres)
         }
       })
     #BenchmarkResult$new(rsmpres$data)})
 
+    print('Combining...')
     bmrbase = bmres_list[[1]]
     for (i in 2:length(bmres_list)) {
       if (in_resampleresults[[i]]$task$task_type ==
           in_resampleresults[[1]]$task$task_type) {
+        print(i)
         bmrbase$combine(bmres_list[[i]])
       } else {
         warning('ResampleResult #', i,
@@ -1869,12 +1903,17 @@ combine_bm <- function(in_resampleresults) {
             simply returning output from as_benchmark_result...')
     bmrbase = BenchmarkResult$new(in_resampleresults[[1]])
   }
-
-  return(bmrbase)
+  print('Done combining, now writing to qs...')
+  qs::qsave(bmrbase, out_qs)
 }
 
 #------ analyze_benchmark -----------------
 analyze_benchmark <- function(in_bm, in_measure) {
+
+  #If path, read qs
+  if (inherits(in_bm, "character")) {
+    in_bm <- qs::qread(in_bm)
+  }
 
   print(paste('It took',
               in_bm$aggregate(msr('time_both'))$time_both,
@@ -1938,7 +1977,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
     subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
                        learner == tasklearner_unique$learner[tsklrn],]
 
-    gout <- ggmisclass(in_predictions = subpred) +
+    gout <- ggmisclass_single(in_predictions = subpred) +
       ggtitle(paste(tasklearner_unique$task[tsklrn],
                     tasklearner_unique$learner_format[tsklrn])) +
       labs(x='Threshold', y='Value')
@@ -1955,7 +1994,16 @@ analyze_benchmark <- function(in_bm, in_measure) {
               bm_boxcomp = boxcomp))
 }
 #------ select_features ------------------
-select_features <- function(in_rf, in_task, pcutoff) {
+select_features <- function(in_bm, in_lrnid, in_task, pcutoff) {
+
+  #If path, read qs
+  if (inherits(in_bm, "character")) {
+    in_bm <- qs::qread(in_bm)
+  }
+
+  #get desired resampled_results/learner
+  in_rf <- in_bm$filter(learner_ids = in_lrnid)
+
   #Apply feature/variable selection
   vimp <- weighted_vimportance_nestedrf(
     rfresamp = in_rf$resample_result(uhash=unique(as.data.table(in_rf)$uhash)),
@@ -2012,7 +2060,8 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
 
 #------ rformat_network ------------------
 rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
-  cols_tokeep <-  c("HYRIV_ID", in_predvars[!is.na(ID), varcode],
+  cols_tokeep <-  c("HYRIV_ID", "HYBAS_L12", "UPLAND_SKM", "LENGTH_KM",
+                    in_predvars[!is.na(ID), varcode],
                     'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
                     'hft_ix_c09', 'hft_ix_u09',
                     paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
@@ -2058,7 +2107,7 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
   ))
 
   in_network[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
-  fwrite(in_network[, c('HYRIV_ID', 'predbasic800', 'predbasic800cat'), with=F],
+  fwrite(in_network[, c('HYRIV_ID', 'HYBAS_L12', 'predbasic800', 'predbasic800cat'), with=F],
          in_filestructure['out_riveratlas'])
 
   # --------- Return data for plotting ------------------------
@@ -2827,4 +2876,16 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
 
   return(tidyperc_format)
 }
+#------ format_compare ---------------------------------
+format_compare <- function(in_filestructure) {
+  #Import global predictions
+  rivpred <- fread(in_filestructure['out_riveratlas'])
+
+
+
+}
+
+
+
+#------ ggcompare --------------------------------------
 ########## END #############

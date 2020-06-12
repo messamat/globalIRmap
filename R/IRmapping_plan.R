@@ -67,18 +67,20 @@ plan <- drake_plan(
   ),
 
   rfbm_classif = target(
-    combine_bm(rfresampled_classif),
-    dynamic = group(rfresampled_classif)
-  )
-  ,
-
-  rfbm_regr = target(
-    c(rfresampled_regr_res, rfresampled_regover_res)
+    combine_bm(readd(rfresampled_classif, subtarget_list = TRUE),
+               out_qs = file_out(!!file.path(readd(filestructure)[['resdir']],
+                                             'rfbm_classif.qs')))
   ),
+
+  # rfbm_regr = target(
+  #   c(rfresampled_regr_res, rfresampled_regover_res)
+  # ),
 
   bm_checked = target(
     analyze_benchmark(in_bm, in_measure = measures),
-    transform = map(in_bm = list(rfbm_classif[[1]], rfbm_regr))#,
+    transform = map(in_bm = list(file_in(!!file.path(readd(filestructure)[['resdir']],
+                                                      'rfbm_classif.qs')),
+                                 c(rfresampled_regr_res, rfresampled_regover_res)))#,
                   #in_measure = list(measures$classif, measures$regr))
   ),
 
@@ -94,19 +96,21 @@ plan <- drake_plan(
   ),
 
   tasks_featsel = select_features(
-    in_rf = rfbm_classif[[1]]$clone()$filter(
-      learner_ids = "oversample.classif.ranger"),
+    in_bm = file_in(!!file.path(readd(filestructure)[['resdir']],
+                                'rfbm_classif.qs')),
+    in_lrnid =  "oversample.classif.ranger",
     in_task = tasks$classif,
     pcutoff = 0.05
   ),
 
   rfresampled_featsel = target(
-    dynamic_resample(in_task = in_taskfeatsel,
-                     in_learner = rfbm_classif[[1]]$clone()$filter(
-                       learner_ids = "oversample.classif.ranger"),
-                     in_resampling = in_resampling,
-                     store_models = TRUE,
-                     type = 'classif'),
+    dynamic_resamplebm(in_task = in_taskfeatsel,
+                       in_bm = file_in(!!file.path(readd(filestructure)[['resdir']],
+                                                   'rfbm_classif.qs')),
+                       in_lrnid =  "oversample.classif.ranger",
+                       in_resampling = in_resampling,
+                       store_models = TRUE,
+                       type = 'classif'),
     transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
                      in_resampling = c(featsel_cv, featsel_spcv),
                      .names = c('res_all_cv', 'res_all_spcv',
@@ -164,17 +168,18 @@ plan <- drake_plan(
                                    in_gaugep = gaugep, in_gaugestats = gaugestats_format,
                                    kcutoff=50000),
 
-  krigepreds_mosaic = mosaic_kriging(in_kpathlist = krigepreds, overwrite = TRUE),
-
-
-  globaltables <- target(
-    tabulate_globalsummary(in_filestructure = filestructure,
-                           idvars = in_idvars,
-                           castvar = 'ORD_STRA', castvar_num = TRUE,
-                           weightvar = 'LENGTH_KM',
-                           valuevar = 'predbasic800cat',valuevar_sub = 1,
-                           na.rm=T, tidy = FALSE),
-    transform = map(c('gad_id_cmj', 'fmh_cl_cmj'))
-  )
+  krigepreds_mosaic = mosaic_kriging(in_kpathlist = krigepreds, overwrite = TRUE)
+  # ,
+  #
+  #
+  # globaltables = target(
+  #   tabulate_globalsummary(in_filestructure = filestructure,
+  #                          idvars = in_idvars,
+  #                          castvar = 'ORD_STRA', castvar_num = TRUE,
+  #                          weightvar = 'LENGTH_KM',
+  #                          valuevar = 'predbasic800cat',valuevar_sub = 1,
+  #                          na.rm=T, tidy = FALSE),
+  #   transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj'))
+  #)
 )
 
