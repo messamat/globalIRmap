@@ -76,13 +76,13 @@ plan <- drake_plan(
   #   c(rfresampled_regr_res, rfresampled_regover_res)
   # ),
 
-  bm_checked = target(
-    analyze_benchmark(in_bm, in_measure = measures),
-    transform = map(in_bm = list(file_in(!!file.path(readd(filestructure)[['resdir']],
-                                                      'rfbm_classif.qs')),
-                                 c(rfresampled_regr_res, rfresampled_regover_res)))#,
-                  #in_measure = list(measures$classif, measures$regr))
-  ),
+  # bm_checked = target(
+  #   analyze_benchmark(in_bm, in_measure = measures),
+  #   transform = map(in_bm = list(file_in(!!file.path(readd(filestructure)[['resdir']],
+  #                                                     'rfbm_classif.qs')),
+  #                                c(rfresampled_regr_res, rfresampled_regover_res)))#,
+  #                 #in_measure = list(measures$classif, measures$regr))
+  # ),
 
   resamplingset_featsel = target(
     set_cvresampling(rsmp_id = in_strategy,
@@ -160,9 +160,15 @@ plan <- drake_plan(
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork, in_gaugepred = rfpreds,
                    in_predvars = predvars),
 
-  table_allbm = tabulate_benchmarks(rfbm_classif, rfbm_regr, rfeval_featsel),
+  table_allbm = tabulate_benchmarks(file_in(!!file.path(readd(filestructure)[['resdir']],
+                                                        'rfbm_classif.qs')),
+                                    c(rfresampled_regr_res, rfresampled_regover_res),
+                                    rfeval_featsel),
 
-  misclass_plot = ggmisclass_bm(rfbm_classif, rfbm_regr, rfeval_featsel),
+  misclass_plot = ggmisclass_bm(file_in(!!file.path(readd(filestructure)[['resdir']],
+                                                    'rfbm_classif.qs')),
+                                c(rfresampled_regr_res, rfresampled_regover_res),
+                                rfeval_featsel),
 
   krigepreds = krige_spuncertainty(in_filestructure = filestructure, in_rftuned = rftuned,
                                    in_gaugep = gaugep, in_gaugestats = gaugestats_format,

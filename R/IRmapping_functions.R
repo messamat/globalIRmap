@@ -1566,8 +1566,8 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                                     'dis_m3_pvar', 'dis_m3_pvaryr',
                                     'ele_pc_rel',
                                     monthlydischarge_preds
-                                    )
                           )
+  )
 
   oldcolnames <- c('Spatial.representation',
                    'Temporal.or.statistical.aggregation.or.other.association',
@@ -1851,7 +1851,7 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
 #------ dynamic_resamplebm ------------------
 #Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
 dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
-                             store_models = TRUE) {
+                               store_models = TRUE) {
   #If path, read qs
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
@@ -2420,13 +2420,14 @@ krige_spuncertainty <- function(in_filestructure, in_rftuned,
   kpl <-  lapply(seq_along(bufras_vec), function(i) {
     bufmask <- raster(bufras_vec[[i]]) %>%
       as('SpatialGrid')
-    kp <- predict(kmod, bufmask)
+    kp <- round(raster(predict(kmod, bufmask)))
 
     outras = file.path(dirname(bufras_vec[[i]]),
                        gsub('bufras', 'krigpred', basename(bufras_vec[[i]])))
 
     if (!file.exists(outras)) {
-      writeRaster(raster(kp), outras)
+      print(paste0('Writing ', outras, '...'))
+      writeRaster(kp, outras, datatype = "INT1U")
     } else {
       print(paste0(outras, ' already exists...'))
     }
@@ -2679,6 +2680,15 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 
 #------ tabulate_benchmarks ------------
 tabulate_benchmarks <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
+
+  #If path, read qs
+  if (inherits(rfbm_classif, "character")) {
+    rfbm_classif <- qs::qread(rfbm_classif)
+  }
+  if (inherits(rfbm_regr, "character")) {
+    rfbm_regr <- qs::qread(rfbm_regr)
+  }
+
   tbbrier_classif1 <- bm_msrtab(rfbm_classif) %>%
     format_modelcompdat('classif1')
 
@@ -2728,6 +2738,16 @@ tabulate_benchmarks <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
 
 #------ ggmisclass_bm -------------
 ggmisclass_bm <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
+
+  #If path, read qs
+  if (inherits(rfbm_classif, "character")) {
+    rfbm_classif <- qs::qread(rfbm_classif)
+  }
+  if (inherits(rfbm_regr, "character")) {
+    rfbm_regr <- qs::qread(rfbm_regr)
+  }
+
+
   thresh_classif1 <- threshold_dat(bmres = rfbm_classif)%>%
     format_modelcompdat('classif1')
   thresh_regr1 <- threshold_dat(bmres = rfbm_regr)%>%
