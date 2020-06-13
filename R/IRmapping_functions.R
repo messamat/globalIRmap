@@ -2679,27 +2679,38 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 }
 
 #------ tabulate_benchmarks ------------
-tabulate_benchmarks <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
+tabulate_benchmarks <- function(in_bm, in_bmid) {
 
   #If path, read qs
-  if (inherits(rfbm_classif, "character")) {
-    rfbm_classif <- qs::qread(rfbm_classif)
-  }
-  if (inherits(rfbm_regr, "character")) {
-    rfbm_regr <- qs::qread(rfbm_regr)
+  if (inherits(in_bm, "character")) {
+    in_bm <- qs::qread(in_bm)
   }
 
-  tbbrier_classif1 <- bm_msrtab(rfbm_classif) %>%
-    format_modelcompdat('classif1')
+  print('Getting table content...')
+  tbbm <- bm_msrtab(in_bm) %>%
+    format_modelcompdat(in_bmid)
 
-  tbbrier_regr1 <- bm_msrtab(rfbm_regr)  %>%
-    format_modelcompdat('regr1')
+  metrics_dat <- data.table(selection=character(),
+                            type=character(),
+                            learner_format=character(),
+                            inner_folds=integer(),
+                            inner_n_evals=integer(),
+                            ntree = integer(),
+                            numtrees = integer(),
+                            alpha=numeric(),
+                            mtry=integer(),
+                            minnodesize=integer(),
+                            fraction=numeric(),
+                            samplefraction = numeric(),
+                            `minor_weight|ratio`=numeric(),
+                            minor_weight = numeric(),
+                            ratio = numeric(),
+                            npredictors=integer(),
+                            outer_repeats=integer(),
+                            outer_folds=integer()) %>%
+    rbind(tbbm, use.names=TRUE, fill=TRUE)
 
-  tbbrier_classif2 <- bm_msrtab(rfeval_featsel)  %>%
-    format_modelcompdat('classif2')
 
-  metrics_dat <- rbindlist(list(tbbrier_classif1, tbbrier_regr1, tbbrier_classif2),
-                           fill = TRUE, use.names = TRUE)
 
   #Continue formatting table
   metrics_dat[is.na(ntree), ntree := numtrees]

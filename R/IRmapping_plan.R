@@ -160,10 +160,15 @@ plan <- drake_plan(
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork, in_gaugepred = rfpreds,
                    in_predvars = predvars),
 
-  table_allbm = tabulate_benchmarks(file_in(!!file.path(readd(filestructure)[['resdir']],
-                                                        'rfbm_classif.qs')),
-                                    c(rfresampled_regr_res, rfresampled_regover_res),
-                                    rfeval_featsel),
+  table_allbm = target(
+    tabulate_benchmarks(in_bm, in_bmid),
+    transform = map(
+      in_bm = list(
+        file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
+        c(rfresampled_regr_res, rfresampled_regover_res),
+        rfeval_featsel),
+      in_bmid = list('classif1', 'regr1', 'classif2'))
+  ),
 
   misclass_plot = ggmisclass_bm(file_in(!!file.path(readd(filestructure)[['resdir']],
                                                     'rfbm_classif.qs')),
