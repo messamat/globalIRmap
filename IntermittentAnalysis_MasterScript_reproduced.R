@@ -27,117 +27,125 @@ pvalue_permutn = 10
 rfresamp <-  in_rf$resample_result(
   uhash=unique(as.data.table(in_rf)$uhash))
 
-bmcheck_classif <- readd(bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif)
-bmcheck_regr <- readd(bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr)
 loadd(rfbm_classif)
 loadd(rfbm_regr)
 loadd(rfeval_featsel)
+loadd(gaugep)
+loadd(rftuned)
+gaugepred <- readd(rfpreds)
+loadd(gaugestats_format)
+
+in_filestructure <- filestructure
+
+#Import global predictions
+rivpred <- fread(in_filestructure['out_riveratlas']) %>%
+  .[rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr', 'UPLAND_SKM'),
+                 with=F], on='HYRIV_ID']
+rivpredsub <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
+  .[, UPLAND_SKM := round(UPLAND_SKM)]
 
 
+in_netpath <- filestructure[['in_netfr']]
+in_baspath <- filestructure[['in_basfr']]
+valuevarsub <- "1"
+castvar <- "rhtvs2_all_phi_qclass_SURF_BV"
+valuevar <- "INT_RF_txt_V1"
+weightvar <- "rhtvs2_all_phi_qclass_LONG_"
+binarg <- c(10,20,50,100,200,500,1000,2000,5000,10000,
+            50000,100000,150000)
 
-
-threshold_dat <- function(bmres) {
-  bmres_dt <- as.data.table(bmres) %>%
-    .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
-    .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
-    .[, resampling_id := unlist(lapply(resampling, function(x) x$id))] %>%
-    unique(by='uhash')
-
-  if (bmres$task_type == 'regr') {
-    preds <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
-      preds <- bmres_dt$prediction[[rsmp_i]]$test %>%
-        as.data.table %>%
-        .[, `:=`(outf = bmres_dt$iteration[[rsmp_i]],
-                 task = bmres_dt$task[[rsmp_i]]$id,
-                 task_type = bmres$task_type,
-                 learner = bmres_dt$learner[[rsmp_i]]$id)]
-      return(preds)
-    }) %>%
-      do.call(rbind, .)
-
-    if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
-      preds[, prob.1 := response]
-    }
-  }
-
-  outtab <- lapply(1:bmres$n_resample_results, function(rsmp_i) {
-    print(rsmp_i)
-    rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
-
-    if (bmres$task_type == 'regr') {
-      rsmp_preds <- preds
-    }
-
-    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
-      print(threshold_class)
-      cbind(
-        rsmp_bacc(bmres, rsmp_i=rsmp_i, threshold_class=threshold_class),
-        threshold_misclass(i=threshold_class, in_preds=rsmp_preds)
-      ) %>%
-        .[, i:=NULL]
-    }) %>%
-      setDT %>%
-      cbind(bmres_dt[rsmp_i, .(learner_id, task_id, resampling_id)])
-    return(baccthresh)
-  }) %>%
-    rbindlist
-
-
-  outtab_melt <- melt(outtab, id.vars=c('threshold_class',
-                                        'learner_id', 'task_id', 'resampling_id'))
-  return(outtab_melt)
+label_manualbins <- function(binarg, minval) {
+  minlabel <- paste(minval, binarg[1], sep="-")
+  otherlabels <- mapply(function(x, y) {paste(x, y-1, sep="-")},
+                        binarg[1:(length(binarg)-1)], binarg[2:length(binarg)])
+  return(c(minlabel, otherlabels))
 }
 
-thresh_classif1 <- threshold_dat(bmres = rfbm_classif$bm_classif)%>%
-  format_modelcompdat('classif1')
-thresh_regr1 <- threshold_dat(bmres = rfbm_regr$bm_regr)%>%
-  format_modelcompdat('regr1')
-thresh_classif2 <- threshold_dat(bmres = rfeval_featsel$bm_classif) %>%
-  format_modelcompdat('classif2')
+net <- st_read(dsn = dirname(in_netpath),
+               layer = basename(in_netpath))
 
-format_modelcompdat(thresh_classif1, 'classif1')
-format_modelcompdat(thresh_regr1, 'regr1')
-format_modelcompdat(thresh_classif2, 'classif2')
+bas <- st_read(dsn = dirname(in_baspath),
+               layer = basename(in_baspath)) %>%
+  .[, 'HYBAS_ID', with=F]
 
-threshplot_datall <- rbindlist(list(thresh_classif1, thresh_regr1, thresh_classif2))
+#"rhtvs2_all_phi_qclass_MODULE" average discharge
+#"rhtvs2_all_phi_qclass_SURF_BV" drainage area
+#"rhtvs2_all_phi_qclass_LONG_" reach length
+#"INT_RF_txt_V1"
 
+binlabels <- label_manualbins(binarg=binarg, minval=min(net$rhtvs2_all_phi_qclass_SURF_BV))
 
-gout <- ggplot(thresh_classif1[variable %in% c('sens', 'spec'),],
-               aes(x=threshold_class, y=value,
-                   color=interaction(learner_id, task_id, resampling_id),
-                   linetype=variable)) +
-  geom_line(size=1.2) +
-  scale_x_continuous(expand=c(0,0), name='Threshold') +
-  scale_y_continuous(expand=c(0,0), name='Value')
+netbin <- bin_dt(in_dt = as.data.table(net),
+                 binvar = castvar,
+                 valuevar = valuevar,
+                 binfunc = "manual",
+                 binarg = binarg)
 
-
-+
-  scale_color_brewer(palette='Dark2',  #colorblind friendly
-                     labels=c('Misclassification rate',
-                              'Sensitivity (true positives)',
-                              'Specificity (true negatives)')) +
-  theme_bw()
-
-
-geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
-  geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
-  annotate('text', x=(balanced_thresh$i), y=0.4,
-           label=balanced_thresh$i, angle=-90) +
-  annotate('text', x=0.9, y=(balanced_thresh$spec),
-           label=round(balanced_thresh$sens,2)) +
+netstat <- as.data.table(netbin)[,sum(get(weightvar)),
+                              by=c(eval(valuevar), "bin")]
+tidyperc <- netstat[, list(perc = 100*.SD[get(valuevar)==valuevarsub,
+                                          sum(V1)]/sum(V1),
+                           binsumlength = sum(V1)/1000),
+                    by=c("bin")] %>%
+  .[, `:=`(dat='Snelder et al. (2013) predictions',
+           binformat = binlabels[bin])]
 
 
+#Format RiverATLAS
+castvar <- 'UPLAND_SKM'
+valuevar <- 'predbasic800cat'
+weightvar <- 'LENGTH_KM'
+rivbin <- bin_dt(in_dt = as.data.table(rivpredsub),
+                 binvar = castvar,
+                 valuevar = valuevar,
+                 binfunc = "manual",
+                 binarg = binarg)
+
+netstat <- as.data.table(rivbin)[,sum(get(weightvar)),
+                                 by=c(eval(valuevar), "bin")]
+tidyperc_riv <- netstat[, list(perc = 100*.SD[get(valuevar)==valuevarsub,
+                                              sum(V1)]/sum(V1),
+                               binsumlength = sum(V1)),
+                        by=c('bin')] %>%
+  setorder(bin) %>%
+  .[, `:=`(dat='Global predictions',
+           binformat = binlabels[bin])]
+
+datmerge <- rbind(tidyperc, tidyperc_riv) %>%
+  setorder(bin) %>%
+  .[, binformat := factor(binformat, levels=unique(binformat))]
+
+ggplot(datmerge, aes(x=binformat, y=perc, fill=dat)) +
+  geom_bar(stat='identity', position='dodge') +
+  #geom_smooth() +
+  #scale_x_log10() +
+  coord_cartesian(ylim=c(0,35), expand=FALSE, clip="off") +
+  theme_classic()
+
+ggplot(datmerge, aes(x=binformat, y=binsumlength, fill=dat)) +
+  geom_bar(stat='identity', position='dodge') +
+  #geom_smooth() +
+  #scale_x_log10() +
+  coord_cartesian(expand=FALSE, clip="off") +
+  theme_classic()
 
 
 
 
 
+######################################################
+ggplot(rivpredsub, aes(x=dis_m3_pyr, y=predbasic800)) +
+  geom_point(alpha=1/5) +
+  geom_smooth(aes(weight=LENGTH_KM)) +
+  geom_quantile(aes(weight=LENGTH_KM), method = "rqss") +
+  scale_x_sqrt() +
+  theme_classic()
 
-
-
-
-
-
+ggplot(rivpredsub, aes(x=UPLAND_SKM, y=predbasic800)) +
+  geom_point(alpha=1/5) +
+  geom_smooth(aes(weight=LENGTH_KM)) +
+  scale_x_sqrt() +
+  theme_classic()
 
 
 
