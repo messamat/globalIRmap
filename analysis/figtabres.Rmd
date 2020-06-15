@@ -4,8 +4,15 @@ output: word_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = TRUE,
+	warning = TRUE
+)
+```
 
+
+```{r setup, include=FALSE}
 #Possible palettes #1: #538797, #C2D9CD, #FF842A https://www.instagram.com/p/B9En6h2gbJ5/
 #Possible palette #2: #238189, #3FA8B3, #E8F3EE, #FF674D https://www.instagram.com/p/BxZZu82gBm3/
 
@@ -22,222 +29,95 @@ source(file.path(srcdir, 'R/IRmapping_packages.R'))
 source(file.path(srcdir, 'R/IRmapping_functions.R'))
 source(file.path(srcdir, 'R/IRmapping_plan.R'))
 
-#Get packages
-
-
-#Define paths
-riveratlas_path <- file.path(datdir, 'HydroATLAS', 
-                             'RiverATLAS_v10.gdb', 'RiverATLAS_v10') 
-
-#Source analysis outputs
-cached()
-history_last <- drake_history(analyze = TRUE) %>%
-  setDT %>%
-  .[, built := as_datetime(built)] %>%
-  setorder(built) %>%
-  .[, .SD[.N,], by=target]
-
-cache <- drake_cache()
-rfbm_regr<- cache$get_value(history_last[target=='rfbm_regr',hash])
-rfbm_classif<- cache$get_value(history_last[target=='rfbm_classif',hash])
-bmcheck_classif <- cache$get_value(history_last[target=='bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif', hash])
-bmcheck_regr<- cache$get_value(history_last[target=='bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr', hash])
-rfeval_featsel <- cache$get_value(history_last[target=='rfeval_featsel',hash])
-rftuned <- cache$get_value(history_last[target=='rftuned',hash])
-
-loadd(predvars)
+#Load targets 
 loadd(filestructure)
-loadd(gaugestats_format)
-
-
-#---- Import and format river network lines, keeping a subset of columns and only for river orders > 4 --------
-
-
-#---- Import and format streamgauges --------
-gaugepred <- st_read(filestructure['out_gauge']) %>%
-  sfformat_wintri
-
-#---- Import and format river network attributes ------------------------------
-cols_tokeep <-  c("HYRIV_ID", predvars[!is.na(ID),varcode],
-                  'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
-                  paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                  paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
-                  paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
-
-riveratlas <- fread_cols(filestructure['in_riveratlas'], 
-                         cols_tokeep = cols_tokeep) %>%
-  comp_derivedvar
-
 ```
 
 
 #Main text - Figure 1. Geographical distribution of reference streamgauging stations
 ```{r basic map, echo = FALSE, fig.width = 6,  dpi=300}
-
-
-
+loadd(gauges_plot)
+print(gauges_plot)
 
 ```
 
 #Methods - Table 1. Environmental variables used in model training  + variable selection results
 ```{r variable figure, echo=FALSE } 
-
-
-oldcolnames <- c('Spatial.representation',
-                 'Temporal.or.statistical.aggregation.or.other.association',
-                 'Source Data')
-newcolnames <- c('Spatial representation',
-             'Temporal/Statistical aggreg.',
-             'Source')
-
-predvars_format <- copy(predvars) %>%
-  setnames(oldcolnames, newcolnames) %>%
-  setorder(Category, Attribute, 
-           `Spatial representation`, `Temporal/Statistical aggreg.`)
-
-
+loadd(table_predvars)
+table_predvars
 ```
 
 #Methods - Figure 1. Environmental distribution of reference streamgauging stations
 Bernhard, is dor_pc_pva x 100 rather than x10 (as written in doc)?
-```{r envdistrib, fig.width = 6, fig.height=6, dpi=300, message=FALSE}
-#Radar plot of selected variables
-#names(riveratlas)
-
-
+```{r envdistrib, fig.width = 12, fig.height=8, dpi=300, message=FALSE}
+loadd(envhist)
+plot(envhist)
 ```
 
 
 #Methods - Table 2. Specification and benchmark comparison of models
 ```{r models benchmarking table, echo=FALSE}
+loadd(tablebm_classif1)
+loadd(tablebm_regr1)
+loadd(tablebm_classif2)
+setup_table <- rbindlist(list(tablebm_classif1$setup, 
+                              tablebm_regr1$setup,
+                              tablebm_classif2$setup),
+                         fill=T, use.names=T)
 
+kable(setup_table)
+
+results_table <- rbindlist(list(tablebm_classif1$results, 
+                              tablebm_regr1$results,
+                              tablebm_classif2$results),
+                         fill=T, use.names=T)
+
+kable(results_table)
 ```
 
 #Methods - Figure 2. Benchmark comparison of models through curves
 ```{r models benchmarking curves, echo=FALSE}
-
-
+loadd(misclass_plot)
+print(misclass_plot)
 
 ```
 
-#Main text - Figure 2. Variable importance for top 20 variables
+#Main text - Figure 2. Variable importance for top 15 variables
 ```{r variable importance, fig.width=12, echo=FALSE}
-ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE)
+loadd(vimp_plot)
+vimp_plot
 ```
 
 #Main text - Figure 3. Partial dependence plots
 ```{r partial dependence, fig.width=12, fig.height=12, echo=FALSE}
-pd_plot <- ggpd(rftuned, predvars, colnums=1:10, nodupli = TRUE,
-                 ngrid = 20, parallel = T, spatial_rsp = FALSE)
-lapply(pd_plot, plot)
+loadd(pd_plot)
+lapply(pd_plot, function(p) plot(p))
 ```
 
 #Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
-```{r prediction uncertainty by variable}
-gguncertainty(in_rftuned = rftuned,
-                                   in_gaugestats = gaugestats_format,
-                                   in_predvars = predvars,
-                                   spatial_rsp = FALSE)
+```{r prediction uncertainty by variable, fig.width=12, fig.height=10}
+loadd( uncertainty_plot)
+uncertainty_plot
 ```
 
-#Main text - Figure 3 A. Geographic errors and uncertainty in predictions
-```{r prediction uncertainty by geography, eval = FALSE}
-loadd(gaugep)
 
-#Get 
-rsmp_res <- get_outerrsmp(rftuned, spatial_rsp=TRUE)
-predsp <- rsmp_res$prediction() %>% 
-  as.data.table %>%
-  .[, list(IRpredprob_spcv = 100*mean(prob.1),
-           IRpredcoefcv_spcv = sd(100*prob.1, na.rm=T)/mean(100*prob.1, na.rm=T)), 
-    by=.(row_id, truth)] %>%
-  .[, prederror := IRpredprob_spcv-100*as.numeric(as.character(truth))] %>%
-  .[, prederror_abs := abs(prederror)] %>%
-  .[, IRpedcat_spcv := as.character(fifelse(IRpredprob_spcv > 40, 1, 0))] %>%
-  setorder(row_id) %>%
-  cbind(gaugestats_format[!is.na(cly_pc_cav), list(GRDC_NO=GRDC_NO)]) 
+#Tables of intermittence by categories
+```{r setup, echo=FALSE}
 
-predsp_gaugep <- merge(gaugep, predsp, by='GRDC_NO') %>%
-  .[order(.[,'prederror_abs']$prederror_abs),]
+loadd(gaugestats_format)
+get_tabletarget <- function(in_gaugeformat) {
+  lapply(names(in_gaugeformat), function(var) {
+    targetname <- paste0('globaltables_', var) 
+    #print(targetname)
+    tryCatch(return(readd(eval(targetname), character_only = T) %>%
+                      setDT(tab) %>%
+                      setorder(-Total)),
+             error=function(e) NULL)
+  })
+}
 
-qplot(predsp_gaugep$prederror)
+tables <- get_tabletarget(gaugestats_format) %>%
+  compact
 
-p_pr <- ggrivers() + 
-  geom_sf(data=predsp_gaugep, aes(color=IRpedcat_spcv), alpha=1) +
-  scale_size_continuous(range=c(0.2, 2)) +
-  coord_sf(datum = NA, expand=F,
-           xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
-p_pr
-
-
-#-------------- Kriging interpolation of errors --------------------------------
-#Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
-crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
-  as_Spatial()
-  
-# Compute the sample variogram; note that the f.1 trend model is one of the
-# parameters passed to variogram(). This tells the function to create the 
-# variogram on the de-trended data.
-var_smpl <- gstat::variogram(prederror ~ 1, predsp_gaugep_df, 
-                             cutoff=50000, width=500, cressie=TRUE) #cloud=T)
-
-ggplot(var_smpl, aes(x=dist, y=gamma)) + 
-  geom_point(alpha=1/3) + 
-  coord_cartesian(expand=F) +
-  scale_y_log10() +
-  theme_classic()
-
-  # scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
-  #              labels=c(0,100,1000,10000,25000,50000, 100000)) +
-
-# Compute the variogram model by passing the nugget, sill and range values
-# to fit.variogram() via the vgm() function.
-varmods <- as.character(vgm()[,'short'])
-dat_fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = FALSE,
-                          vgm(varmods[!(varmods %in% c('Pow', 'Int'))]), 
-                          fit.kappa = TRUE)
-# The following plot allows us to assess the fit
-plot(var_smpl, dat_fit)
-
-# Import gauge buffer mask
-bufmask <- raster(bufras_vec[[1]]) %>%
-  as('SpatialGrid')
-  
-  
-#Predict error
-kmod <- gstat(formula=prederror~1, locations=predsp_gaugep_df, model=dat_fit)
-kp <- predict(kmod, bufmask)
-## [using ordinary kriging]
-spplot(kp)
-
-
-
-# Plot the map
-tm_shape(r.m) + 
-  tm_raster(n=10, palette="RdBu", auto.palette.mapping=FALSE, 
-            title="Predicted precipitation \n(in inches)") +
-  tm_shape(P) + tm_dots(size=0.2) +
-  tm_legend(legend.outside=TRUE)
-
-
-predsp_over <- predsp_gaugep[predsp_gaugep$prederror > 0,] 
-p_pr <- ggrivers() + 
-  geom_sf(data=predsp_over, aes(color=IRpredprob_spcv, size=prederror_abs), alpha=1) +
-  scale_color_distiller(palette='PuRd', direction = 1) +
-  scale_size_continuous(range=c(0.2, 2)) +
-  coord_sf(datum = NA, expand=F,
-           xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
-p_pr
-
-
-  scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540', 
-                       breaks=c(min(perennial_gauges$totalYears_kept), 100, max(perennial_gauges$totalYears_kept))) +
-  coord_sf(datum = NA, ylim=c(-7000000,8700000), expand=F) 
-
-
-```
-
-#Main text - Figure 3 B. Predictions for gauges and full network
-```{r prediction maps - probability}
+lapply(tables, function(x)  print(kable(x, digits=0)))
 ```
