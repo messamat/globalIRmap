@@ -1178,6 +1178,77 @@ bin_dt <- function(in_dt, binvar, valuevar, binfunc, binarg,
   return(in_dt)
 }
 
+#------ label_manualbins ------------
+label_manualbins <- function(binarg, minval) {
+  minlabel <- paste(minval, binarg[1], sep=" - ")
+  otherlabels <- mapply(function(x, y) {paste(x, y-1, sep=" - ")},
+                        binarg[1:(length(binarg)-1)], binarg[2:length(binarg)])
+  return(c(minlabel, otherlabels))
+}
+
+#------ formathistab -----------------
+#Format summary table
+formathistab <- function(in_dt, castvar, valuevar, valuevarsub,
+                         weightvar, binfunc, binarg,
+                         datname) {
+  rivbin <- bin_dt(in_dt = as.data.table(in_dt),
+                   binvar = castvar,
+                   valuevar = valuevar,
+                   binfunc = binfunc,
+                   binarg = binarg)
+
+  netstat <- as.data.table(rivbin)[,sum(get(weightvar)),
+                                   by=c(eval(valuevar), "bin")]
+  tidyperc_riv <- netstat[, list(perc = 100*.SD[get(valuevar)==valuevarsub,
+                                                sum(V1)]/sum(V1),
+                                 binsumlength = sum(V1)),
+                          by=c('bin')] %>%
+    setorder(bin) %>%
+    .[, `:=`(dat=datname,
+             binformat = binlabels[bin])]
+  return(tidyperc_riv)
+}
+
+#------ ggcompare -------------------
+#Plot comparing intermittency prevalence and network length by drainage area for two datasets
+ggcompare <- function(datmerge) {
+  plot_size <- ggplot(datmerge, aes(x=binformat, y=binsumlength, fill=dat)) +
+    geom_bar(stat='identity', position='dodge') +
+    scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
+    #scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 6)) +
+    labs(x= '', #bquote('Drainage area'~(km^2)),
+         y='Total river length (km)') +
+    coord_cartesian(expand=FALSE, clip="off") +
+    theme_classic() +
+    theme(legend.position = 'none',
+          text = element_text(size=9),
+          axis.text.x = element_text(angle=45, hjust=1))
+
+  plot_inter <- ggplot(datmerge, aes(x=binformat, y=perc, fill=dat)) +
+    geom_bar(stat='identity', position='dodge') +
+    scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
+    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 8)) +
+    coord_cartesian(ylim=c(0,35), expand=FALSE, clip="off") +
+    labs(x= bquote('Drainage area'~(km^2)),
+         y='Prevalence of intermittency (% river length)') +
+    theme_classic() +
+    theme(legend.position = c(0.8, 0.2))
+
+
+  xmin_inset <- datmerge[, levels(binformat)[round(0.4*length(levels(binformat)))]]
+  xmax_inset <- datmerge[, levels(binformat)[length(levels(binformat))]]
+  ymin_inset <- datmerge[,round((0.6 * max(perc, na.rm=T) - min(perc, na.rm=T)) +
+                                  min(perc, na.rm=T))]
+  plot_join <- plot_inter +
+    annotation_custom(grob = ggplotGrob(plot_size),
+                      xmin = xmin_inset,
+                      xmax = xmax_inset,
+                      ymin = ymin_inset,
+                      ymax = Inf)
+  return(plot_join)
+}
+
+
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
 #' Define file structure
@@ -2930,16 +3001,51 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
 
   return(tidyperc_format)
 }
-#------ format_compare ---------------------------------
-format_compare <- function(in_filestructure) {
-  #Import global predictions
-  rivpred <- fread(in_filestructure['out_riveratlas'])
+#------ compare_fr --------------------------------------
+compare_fr <- function(in_filestructure, in_rivernetwork, binarg) {
+  rivpred <- fread(in_filestructure['out_riveratlas']) %>%
+    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr', 'UPLAND_SKM'),
+                      with=F], on='HYRIV_ID']
+  in_frdir <- file.path(in_filestructure[['resdir']],
+                        'Comparison_databases/france.gdb')
+  in_netpath <- file.path(in_frdir, 'network')
+  in_baspath <- file.path(in_frdir, 'hydrobasins12')
+  valuevarsub <- "1"
 
+  net <- st_read(dsn = dirname(in_netpath),
+                 layer = basename(in_netpath))
 
+  bas <- st_read(dsn = dirname(in_baspath),
+                 layer = basename(in_baspath)) %>%
+    .[, 'HYBAS_ID', with=F]
 
+  rivpredsub <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
+    .[, UPLAND_SKM := round(UPLAND_SKM)]
+
+  binlabels <- label_manualbins(binarg=binarg,
+                                minval=min(net$rhtvs2_all_phi_qclass_SURF_BV))
+
+  tidyperc_fr <- formathistab(in_dt = net,
+                              castvar = "rhtvs2_all_phi_qclass_SURF_BV",
+                              valuevar = "INT_RF_txt_V1",
+                              weightvar = "rhtvs2_all_phi_qclass_LONG_",
+                              binfunc = 'manual',
+                              binarg =  binarg,
+                              datname = 'Snelder et al. (2013) predictions')
+
+  tidyperc_riv  <- formathistab(in_dt = rivpredsub,
+                                castvar = 'UPLAND_SKM',
+                                valuevar = 'predbasic800cat',
+                                weightvar = 'LENGTH_KM',
+                                binfunc = 'manual',
+                                binarg =  binarg,
+                                datname = 'Global predictions')
+
+  datmerge <- rbind(tidyperc, tidyperc_riv) %>%
+    setorder(bin) %>%
+    .[, binformat := factor(binformat, levels=unique(binformat))]
+
+  ggcompare(datmerge)
 }
 
-
-
-#------ ggcompare --------------------------------------
 ########## END #############
