@@ -1043,9 +1043,9 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
     bmres[, `:=`(selection = 'Algorithm',
                  type = 'Classif.')]  %>%
       .[, learner_format := dplyr::case_when(
-        learner_id == 'classif.ranger.tuned'~'default RF',
-        learner_id == 'oversample.classif.ranger.tuned'~'default RF-oversampled',
-        learner_id == 'classweights.classif.ranger.tuned'~'default RF-weighted classes',
+        learner_id == 'classif.ranger'~'default RF',
+        learner_id == 'oversample.classif.ranger'~'default RF-oversampled',
+        learner_id == 'classweights.classif.ranger'~'default RF-weighted classes',
         learner_id == 'classif.cforest'~'CIF',
         learner_id == 'oversample.classif.cforest'~'CIF-oversampled',
         learner_id == 'classweights.classif.cforest'~'CIF-weighted classes',
@@ -2360,7 +2360,8 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
 
 #------ krige_spuncertainty----
 krige_spuncertainty <- function(in_filestructure, in_rftuned,
-                                in_gaugep, in_gaugestats, kcutoff=50000) {
+                                in_gaugep, in_gaugestats, kcutoff=50000,
+                                overwrite = FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
   predsp <- rsmp_res$prediction() %>%
     as.data.table %>%
@@ -2425,12 +2426,9 @@ krige_spuncertainty <- function(in_filestructure, in_rftuned,
     outras = file.path(dirname(bufras_vec[[i]]),
                        gsub('bufras', 'krigpred', basename(bufras_vec[[i]])))
 
-    if (!file.exists(outras)) {
-      print(paste0('Writing ', outras, '...'))
-      writeRaster(kp, outras, datatype = "INT1U")
-    } else {
-      print(paste0(outras, ' already exists...'))
-    }
+
+    print(paste0('Writing ', outras, '...'))
+    writeRaster(kp, outras, datatype = "INT2S", overwrite=overwrite)
     return(outras)
   }) %>%
     do.call(rbind, .)
@@ -2438,7 +2436,7 @@ krige_spuncertainty <- function(in_filestructure, in_rftuned,
   return(kpl)
 }
 #------ mosaic_kriging -------------
-mosaic_kriging <- function(in_kpathlist, overwrite) {
+mosaic_kriging <- function(in_kpathlist, in_filestructure, overwrite) {
   kpl <- in_kpathlist
 
   kplextents <- lapply(kpl, function(ras_path) {
@@ -2449,10 +2447,14 @@ mosaic_kriging <- function(in_kpathlist, overwrite) {
     .[, lapply(.SD, function(i) c(min(i), max(i)))]
 
   template <- raster(extent(kplextents[, x], kplextents[, y]))
-  out_krigingtif = file.path(resdir, "prederror_krigingtest.tif")
-  writeRaster(template, file=file.path(resdir, "prederror_krigingtest.tif"),
+  out_krigingtif = file.path(in_filestructure[['resdir']],
+                             "prederror_krigingtest.tif")
+  writeRaster(template, file=out_krigingtif, datatype='INT2S',
               format="GTiff", overwrite=overwrite)
-  gdalUtils::mosaic_rasters(gdalfile=kpl,dst_dataset=out_krigingtif,of="GTiff")
+  gdalUtils::mosaic_rasters(gdalfile=as.vector(kpl),
+                            dst_dataset=out_krigingtif,
+                            force_ot = "Int16",
+                            of="GTiff")
   gdalinfo(out_krigingtif)
 
   return(out_krigingtif)
@@ -2557,34 +2559,42 @@ tabulate_predvars <- function(in_predvars) {
 
 }
 
-#------ format_envscales ------------
+#------ formatscales ------------
 formatscales <- function(in_df, varstoplot) {
   scales_x <- list(
-    ari_ix_uav = scale_x_continuous(),
-    cly_pc_uav = scale_x_continuous(labels=percent_format(scale=1)),
+    ari_ix_uav = scale_x_sqrt(expand=c(0,0)),
+    cly_pc_uav = scale_x_continuous(labels=percent_format(scale=1), expand=c(0,0)),
     clz_cl_cmj = scale_x_continuous(limits=c(1,18), expand=c(0,0),
-                                    breaks=seq(0,18,2)),
+                                    breaks=seq(0,18)),
     cmi_ix_uyr = scale_x_continuous(),
-    dis_m3_pmn = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(in_df$dis_m3_pmn)))),
-                              labels=c(0, 10^(0:log10(max(in_df$dis_m3_pmn))))),
-    dis_m3_pyr = scale_x_sqrt(breaks=c(0, 10^(0:log10(max(in_df$dis_m3_pmn)))),
-                              labels=c(0, 10^(0:log10(max(in_df$dis_m3_pmn))))),
-    dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1)),
-    for_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-    gla_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-    gwt_m_cav = scale_x_continuous(), #Change that to gwt_m_cav
-    inu_pc_umn = scale_x_continuous(labels=percent_format(scale=1)),
-    ire_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-    kar_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-    lka_pc_use = scale_x_continuous(labels=percent_format(scale=1)),
-    pet_mm_uyr = scale_x_continuous(),
-    snw_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
-    run_mm_cyr = scale_x_continuous(),
-    swc_pc_uyr = scale_x_continuous(labels=percent_format(scale=1)),
-    tmp_dc_uyr = scale_x_continuous(),
-    hdi_ix_cav = scale_x_continuous(),
-    hft_ix_c09 = scale_x_continuous(),
-    ORD_STRA = scale_x_continuous()
+    dis_m3_pyr = scale_x_sqrt(breaks=c(0, 10^2,
+                                       10^(0:log10(max(in_df$dis_m3_pmn)))),
+                              labels=c(0, 10^2,
+                                       10^(0:log10(max(in_df$dis_m3_pmn)))),
+                              expand=c(0,0)),
+    dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    for_pc_use = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    gla_pc_use = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    kar_pc_use = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    lka_pc_use = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    pet_mm_uyr = scale_x_continuous(expand=c(0,0)),
+    snw_pc_uyr = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    run_mm_cyr = scale_x_continuous(expand=c(0,0)),
+    swc_pc_uyr = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0)),
+    tmp_dc_uyr = scale_x_continuous(expand=c(0,0)),
+    hdi_ix_cav = scale_x_continuous(expand=c(0,0)),
+    hft_ix_c93 = scale_x_continuous(expand=c(0,0)),
+    ORD_STRA = scale_x_continuous(expand=c(0,0)),
+    gwt_m_cav = scale_x_continuous(expand=c(0,0)),
+    ire_pc_use = scale_x_continuous(labels=percent_format(scale=1),
+                                    expand=c(0,0))
   ) %>%
     .[(names(.) %in% names(in_df)) & names(.) %in% varstoplot]
   #Only keep those variables that are actually in df and that we want to plot
@@ -2595,20 +2605,27 @@ formatscales <- function(in_df, varstoplot) {
     setNames(names(scales_x))
   scales_y[['dis_m3_pmn']] <- scale_y_sqrt(expand=c(0,0))
 
-  coordcart <- lapply(varstoplot_hist, function(var) {
-    coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var)), max(get(var)))])
+  coordcart <- lapply(varstoplot, function(var) {
+    coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var), na.rm=T),
+                                                  max(get(var), na.rm=T))])
   }) %>%
     setNames(names(scales_x))
 
   coordcart[['clz_cl_cmj']] <-  coord_cartesian(
     xlim=c(1,max(in_df$clz_cl_cmj)))
-
+  coordcart[['kar_pc_use']] <-  coord_cartesian(
+    xlim=c(0, 100))
+  coordcart[['pet_mm_uyr']] <-  coord_cartesian(
+    xlim=c(0, max(in_df$pet_mm_uyr)))
+  coordcart[['ORD_STRA']] <-  coord_cartesian(
+    xlim=c(1, 10))
 
   return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
 }
 
 #------ ggenvhist -------------
-ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent=TRUE) {
+ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
+                      scalesenvhist, intermittent=TRUE) {
   print(vartoplot)
   if (intermittent) {
     vartoplot2 <- c(vartoplot, 'intermittent')
@@ -2618,26 +2635,9 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent
                                                     Keyscale,
                                                     Keystat,
                                                     ' (',unit,')')]
-  gaugeformat <- as.data.table(in_gaugedt)[, `:=`(
-    ari_ix_cav = ari_ix_cav/100,
-    ari_ix_uav = ari_ix_uav/100,
-    cmi_ix_cmn = cmi_ix_cmn/100,
-    cmi_ix_uyr = cmi_ix_uyr/100,
-    dor_pc_pva = dor_pc_pva/100,
-    lka_pc_cse = lka_pc_cse/10,
-    lka_pc_use = lka_pc_use/10,
-    tmp_dc_cmn =  tmp_dc_cmn/10,
-    tmp_dc_cmx =  tmp_dc_cmx/10,
-    tmp_dc_cyr =  tmp_dc_cyr/10,
-    tmp_dc_uyr =  tmp_dc_uyr/10,
-    gwt_m_cav = gwt_cm_cav/100
-  )] %>%
-    .[, vartoplot2, with=F]
 
-  rivformat <- as.data.table(in_rivdt)[, vartoplot, with=F]
-
-  penvhist <- ggplot(gaugeformat, aes_string(x=vartoplot)) +
-    geom_histogram(data=rivformat, bins=20, fill='lightgray') +
+  penvhist <- ggplot(in_gaugedt, aes_string(x=vartoplot)) +
+    geom_histogram(data=in_rivdt, bins=20, fill='lightgray') +
     geom_histogram(bins=20, fill='darkgray') +
     #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
     # scale_fill_manual(values=c('#0F9FD6','#ff9b52'),
@@ -2653,10 +2653,10 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars, intermittent
           axis.title = element_text(size=12))
 
 
-  if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
-    penvhist <- penvhist +
-      theme(legend.position='none')
-  }
+  # if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
+  #   penvhist <- penvhist +
+  #     theme(legend.position='none')
+  # }
 
   return(ggplotGrob(penvhist))
 }
@@ -2671,10 +2671,26 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 
   scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
 
+  gaugeformat <- as.data.table(in_gaugepred)[, `:=`(
+    ari_ix_cav = ari_ix_cav/100,
+    ari_ix_uav = ari_ix_uav/100,
+    cmi_ix_cmn = cmi_ix_cmn/100,
+    cmi_ix_uyr = cmi_ix_uyr/100,
+    dor_pc_pva = dor_pc_pva/100,
+    lka_pc_cse = lka_pc_cse/10,
+    lka_pc_use = lka_pc_use/10,
+    tmp_dc_cmn =  tmp_dc_cmn/10,
+    tmp_dc_cmx =  tmp_dc_cmx/10,
+    tmp_dc_cyr =  tmp_dc_cyr/10,
+    tmp_dc_uyr =  tmp_dc_uyr/10,
+    gwt_m_cav = gwt_cm_cav/100
+  )]
+
   penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
-                           in_gaugedt = in_gaugepred,
+                           in_gaugedt = gaugeformat,
                            in_rivdt = in_rivernetwork,
-                           in_predvars = in_predvars)
+                           in_predvars = in_predvars,
+                           scalesenvhist = scalesenvhist)
   do.call("grid.arrange", list(grobs=penvhist_grobs))
 }
 
@@ -2688,7 +2704,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid) {
 
   print('Getting table content...')
   tbbm <- bm_msrtab(in_bm) %>%
-    format_modelcompdat(in_bmid)
+    format_modelcompdat(typecomp=in_bmid)
 
   metrics_dat <- data.table(selection=character(),
                             type=character(),
@@ -2710,13 +2726,12 @@ tabulate_benchmarks <- function(in_bm, in_bmid) {
                             outer_folds=integer()) %>%
     rbind(tbbm, use.names=TRUE, fill=TRUE)
 
-
-
   #Continue formatting table
   metrics_dat[is.na(ntree), ntree := numtrees]
   metrics_dat[is.na(fraction), fraction := samplefraction]
   metrics_dat[, `minor_weight|ratio` := fifelse(is.na(minor_weight),
-                                                ratio, minor_weight)]
+                                                as.numeric(ratio),
+                                                as.numeric(minor_weight))]
 
 
   #Create model specification tables
@@ -2729,9 +2744,6 @@ tabulate_benchmarks <- function(in_bm, in_bmid) {
     .[grepl('MAXSTAT', learner_format), minnodesize := NA] %>%
     unique(by='learner_format')
 
-  setup_kable <- kable(setup_table) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-
   #Create model results table
   results_table <- metrics_dat[, .(selection, learner_format,
                                    resampling_id, outer_repeats, outer_folds,
@@ -2741,37 +2753,30 @@ tabulate_benchmarks <- function(in_bm, in_bmid) {
                                    bbrier=round(bbrier, 3), auc=round(auc, 3)
   )]
 
-  results_kable <- kable(results_table) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-
-  return(list(setup=setup_kable, results=results_kable))
+  return(list(setup=setup_table, results=results_table))
 }
 
-#------ ggmisclass_bm -------------
-ggmisclass_bm <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
-
+#------ formatmisclass_bm -------------
+formatmisclass_bm <- function(in_bm, in_bmid) {
   #If path, read qs
-  if (inherits(rfbm_classif, "character")) {
-    rfbm_classif <- qs::qread(rfbm_classif)
-  }
-  if (inherits(rfbm_regr, "character")) {
-    rfbm_regr <- qs::qread(rfbm_regr)
+  if (inherits(in_bm, "character")) {
+    in_bm <- qs::qread(in_bm)
   }
 
+  print('Getting table content...')
+  thresh_dt <- threshold_dat(bmres =in_bm) %>%
+    format_modelcompdat(in_bmid)
+  return(thresh_dt)
+}
 
-  thresh_classif1 <- threshold_dat(bmres = rfbm_classif)%>%
-    format_modelcompdat('classif1')
-  thresh_regr1 <- threshold_dat(bmres = rfbm_regr)%>%
-    format_modelcompdat('regr1')
-  thresh_classif2 <- threshold_dat(bmres = rfeval_featsel) %>%
-    format_modelcompdat('classif2')
 
-  format_modelcompdat(thresh_classif1, 'classif1')
-  format_modelcompdat(thresh_regr1, 'regr1')
-  format_modelcompdat(thresh_classif2, 'classif2')
+#------ ggmisclass_bm -------------
+ggmisclass_bm <- function(in_threshdts) {
 
-  threshplot_datall <- rbindlist(list(thresh_classif1, thresh_regr1, thresh_classif2)) %>%
-    .[, list(value_mean = mean(value)), by=.(threshold_class, variable, learner_format, selection)]
+  #
+  threshplot_datall <- rbindlist(in_threshdts) %>%
+    .[, list(value_mean = mean(value)),
+      by=.(threshold_class, variable, learner_format, selection)]
 
 
   ggthresh_benchmark <- ggplot(threshplot_datall[variable %in% c('sens', 'spec'),],
@@ -2811,7 +2816,7 @@ ggmisclass_bm <- function(rfbm_classif, rfbm_regr, rfeval_featsel) {
 tabulate_globalsummary <- function(in_filestructure, idvars,
                                    castvar, castvar_num=TRUE,
                                    weightvar,
-                                   valuevar, valuevar_sub,
+                                   valuevar, valuevarsub,
                                    binfunc=NULL, binarg=NULL, bintrans=NULL,
                                    na.rm=T, tidy=FALSE) {
 
@@ -2843,6 +2848,24 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
 
     riveratlas <- merge(riveratlas, gadnames, by.x='fmh_cl_cmj', by.y='MHT_ID') %>%
       .[, fmh_cl_cmj := MHT_Name]
+  } else if ('tbi_cl_cmj' %in% incols) {
+    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
+                                            'HydroATLAS',
+                                            'HydroATLAS_v10_Legends.xlsx'),
+                                  sheet='tbi_cl') %>%
+      setDT
+
+    riveratlas <- merge(riveratlas, gadnames, by.x='tbi_cl_cmj', by.y='Biome_ID') %>%
+      .[, tbi_cl_cmj := Biome_Name]
+  } else if ('clz_cl_cmj' %in% incols) {
+    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
+                                            'HydroATLAS',
+                                            'HydroATLAS_v10_Legends.xlsx'),
+                                  sheet='clz_cl') %>%
+      setDT
+
+    riveratlas <- merge(riveratlas, gadnames, by.x='clz_cl_cmj', by.y='GEnZ_ID') %>%
+      .[, clz_cl_cmj := GEnZ_Name]
   }
 
   #Bin castvar if needed

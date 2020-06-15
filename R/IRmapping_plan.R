@@ -72,10 +72,6 @@ plan <- drake_plan(
                                              'rfbm_classif.qs')))
   ),
 
-  # rfbm_regr = target(
-  #   c(rfresampled_regr_res, rfresampled_regover_res)
-  # ),
-
   # bm_checked = target(
   #   analyze_benchmark(in_bm, in_measure = measures),
   #   transform = map(in_bm = list(file_in(!!file.path(readd(filestructure)[['resdir']],
@@ -157,8 +153,9 @@ plan <- drake_plan(
 
   table_predvars = tabulate_predvars(in_predvars = predvars),
 
-  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork, in_gaugepred = rfpreds,
-                   in_predvars = predvars),
+  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
+                             in_gaugepred = rfpreds,
+                             in_predvars = predvars),
 
   table_allbm = target(
     tabulate_benchmarks(in_bm, in_bmid),
@@ -167,30 +164,47 @@ plan <- drake_plan(
         file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
         c(rfresampled_regr_res, rfresampled_regover_res),
         rfeval_featsel),
-      in_bmid = list('classif1', 'regr1', 'classif2'))
+      in_bmid = list('classif1', 'regr1', 'classif2'),
+      .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
   ),
 
-  misclass_plot = ggmisclass_bm(file_in(!!file.path(readd(filestructure)[['resdir']],
-                                                    'rfbm_classif.qs')),
-                                c(rfresampled_regr_res, rfresampled_regover_res),
-                                rfeval_featsel),
+  misclass_format = target(
+    formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
+    transform = map(
+      in_bm = list(
+        file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
+        c(rfresampled_regr_res, rfresampled_regover_res),
+        rfeval_featsel),
+      in_bmid = list('classif1', 'regr1', 'classif2'),
+      .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
+  ),
+
+  misclass_plot = ggmisclass_bm(list(misclass_classif1,
+                                     misclass_regr1,
+                                     misclass_classif2)),
 
   krigepreds = krige_spuncertainty(in_filestructure = filestructure, in_rftuned = rftuned,
                                    in_gaugep = gaugep, in_gaugestats = gaugestats_format,
-                                   kcutoff=50000),
+                                   kcutoff=50000, overwrite=T),
 
-  krigepreds_mosaic = mosaic_kriging(in_kpathlist = krigepreds, overwrite = TRUE)
-  # ,
-  #
-  #
-  # globaltables = target(
-  #   tabulate_globalsummary(in_filestructure = filestructure,
-  #                          idvars = in_idvars,
-  #                          castvar = 'ORD_STRA', castvar_num = TRUE,
-  #                          weightvar = 'LENGTH_KM',
-  #                          valuevar = 'predbasic800cat',valuevar_sub = 1,
-  #                          na.rm=T, tidy = FALSE),
-  #   transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj'))
-  #)
+  krigepreds_mosaic = mosaic_kriging(in_filestructure = filestructure,
+                                     in_kpathlist = krigepreds,
+                                     overwrite = TRUE),
+
+  globaltables = target(
+    tabulate_globalsummary(in_filestructure = filestructure,
+                           idvars = in_idvars,
+                           castvar = 'ORD_STRA', castvar_num = TRUE,
+                           weightvar = 'LENGTH_KM',
+                           valuevar = 'predbasic800cat',
+                           valuevarsub = 1,
+                           na.rm=T, tidy = FALSE),
+    transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj', 'tbi_cl_cmj', 'clz_cl_cmj'))
+  ),
+
+  fr_plot <- compare_fr(in_filestructure = filestructure,
+                        in_rivernetwork = rivernetwork,
+                        binarg = c(10,20,50,100,200,500,1000,
+                                   2000,5000,10000,50000,100000,150000))
 )
 
