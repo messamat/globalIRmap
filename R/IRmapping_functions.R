@@ -1189,7 +1189,7 @@ label_manualbins <- function(binarg, minval) {
 #------ formathistab -----------------
 #Format summary table
 formathistab <- function(in_dt, castvar, valuevar, valuevarsub,
-                         weightvar, binfunc, binarg,
+                         weightvar, binfunc, binarg, binlabels,
                          datname) {
   rivbin <- bin_dt(in_dt = as.data.table(in_dt),
                    binvar = castvar,
@@ -1228,7 +1228,7 @@ ggcompare <- function(datmerge) {
     geom_bar(stat='identity', position='dodge') +
     scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
     scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 8)) +
-    coord_cartesian(ylim=c(0,35), expand=FALSE, clip="off") +
+    coord_cartesian(expand=FALSE, clip="off") +
     labs(x= bquote('Drainage area'~(km^2)),
          y='Prevalence of intermittency (% river length)') +
     theme_classic() +
@@ -2617,19 +2617,6 @@ gggauges <- function(in_gaugepred, in_basemaps) {
   return(p_pr/p_ir)
 }
 
-#------ tabulate_predvars -----------
-tabulate_predvars <- function(in_predvars) {
-  ######## ADD variable importance, ranking, and p-value#######################################
-  #loadd(rfeval_featsel)
-  #bm_classif$vimp
-  #predvars_format <- merge(predvars_format, predvars_format, by.x= 'varcode', by.y='varnames']
-  kable(in_predvars[,c('Category', 'Attribute', 'Spatial representation',
-                       'Temporal/Statistical aggreg.', 'Source', 'Citation'),
-                    with=F]) %>%
-    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"))
-
-}
-
 #------ formatscales ------------
 formatscales <- function(in_df, varstoplot) {
   scales_x <- list(
@@ -3028,24 +3015,151 @@ compare_fr <- function(in_filestructure, in_rivernetwork, binarg) {
   tidyperc_fr <- formathistab(in_dt = net,
                               castvar = "rhtvs2_all_phi_qclass_SURF_BV",
                               valuevar = "INT_RF_txt_V1",
+                              valuevarsub = valuevarsub,
                               weightvar = "rhtvs2_all_phi_qclass_LONG_",
                               binfunc = 'manual',
                               binarg =  binarg,
-                              datname = 'Snelder et al. (2013) predictions')
+                              binlabels = binlabels,
+                              datname = 'Snelder et al. (2013) predictions') %>%
+    .[, binsumlength := binsumlength/1000]
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'UPLAND_SKM',
                                 valuevar = 'predbasic800cat',
+                                valuevarsub = valuevarsub,
                                 weightvar = 'LENGTH_KM',
                                 binfunc = 'manual',
                                 binarg =  binarg,
+                                binlabels = binlabels,
                                 datname = 'Global predictions')
 
-  datmerge <- rbind(tidyperc, tidyperc_riv) %>%
+  datmerge <- rbind(tidyperc_fr, tidyperc_riv) %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
 
-  ggcompare(datmerge)
+  return(
+    ggcompare(datmerge)
+  )
 }
+
+#------ compare_us ----------------
+compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
+  rivpred <- fread(in_filestructure['out_riveratlas']) %>%
+    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
+                          'UPLAND_SKM'),
+                      with=F], on='HYRIV_ID']
+  in_dir <- file.path(in_filestructure[['datdir']],
+                      'Comparison_databases/US')
+  in_netpath <- file.path(in_filestructure[['datdir']],
+                          'Comparison_databases/US',
+                          'NHD_attris.csv')
+  in_baspath <- file.path(in_filestructure[['resdir']],
+                          'Comparison_databases/us.gdb',
+                          'hydrobasins12')
+  valuevarsub <- "1"
+
+  #55800: Artificial path
+  #46000: Stream/River
+  #46003: Stream/River: Hydrographic Category = Intermittent
+  #46006: Stream/River: Hydrographic Category = Perennial
+  #46007: Stream/River: Hydrographic Category = Ephemeral
+
+  net <- fread(in_netpath,
+               colClasses = c('character', 'character', 'numeric', 'character',
+                              'integer', 'numeric', 'numeric'))
+  net[, HUC8 := substr(as.character(ReachCode), 1, 8)]
+
+  #Check the percentage of each type of line in the NHD by HUC8 and Drainage area
+  # net[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  #     HUC8sum := .N, by=HUC8]
+  # FCode_HUC8 <- net[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  #                   as.integer(100*max(.SD[, .N]/HUC8sum)), by=.(HUC8, FCode)]
+  #
+  # netbinned <- bin_dt(in_dt=net[TotDASqKm > 0,],
+  #                     binvar='TotDASqKm',
+  #                     valuevar='intermittent',
+  #                     binfunc='manual',
+  #                     binarg=binarg)
+  # netbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  #           DAsum := .N, by=bin_lformat]
+  # FCode_DA <- netbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  #                       as.integer(100*max(.SD[, .N]/DAsum)), by=.(bin_lformat, FCode)]
+
+  #Exclude all HUC8s with more than 5% of non-identified FCode (46000)
+  netsub <- netbinned[!(HUC8 %in% net[FCode==46000 & V1>10,unique(HUC8)]) &
+                        TotDASqKm > -9999,]
+
+  #Create intermittency variable
+  netsub[, intermittent := fifelse(FCode %in% c(46003, 46007), '1', '0')]
+  netsub[FCode == 55800, intermittent := -1]
+  netsub[!(FCode %in% c(55800, 46003, 46007, 46006)), intermittent := NA]
+
+  #Get HydroSHEDS basins that overlap with selected NHD HUC8s
+  bas <- st_read(dsn = dirname(in_baspath),
+                 layer = basename(in_baspath)) %>%
+    .[, c('HYBAS_ID', 'HUC8'), with=F]
+
+  #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
+  rivpredsub <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
+    .[, UPLAND_SKM := round(UPLAND_SKM)] %>%
+    .[HUC8 %in% unique(netsub$HUC8),]
+
+  #Get bin labels
+  binlabels <- label_manualbins(binarg=binarg,
+                                minval=min(netsub$TotDASqKm))
+
+  #Compute bin statistics ncluding "artificial flow path"
+  tidyperc_usall <- formathistab(in_dt = netsub[!is.na(intermittent),],
+                                 castvar = "TotDASqKm",
+                                 valuevar = "intermittent",
+                                 valuevarsub = valuevarsub,
+                                 weightvar = "LengthKM",
+                                 binfunc = 'manual',
+                                 binarg =  binarg,
+                                 binlabels = binlabels,
+                                 datname = 'U.S. National Hydrography Dataset') %>%
+    .[, binsumlength := binsumlength]
+
+  #Compute bin statistics excluding "artificial flow path"
+  tidyperc_usnoartificial <- formathistab(in_dt = netsub[!is.na(intermittent) &
+                                                           intermittent != -1,],
+                                          castvar = "TotDASqKm",
+                                          valuevar = "intermittent",
+                                          valuevarsub = valuevarsub,
+                                          weightvar = "LengthKM",
+                                          binfunc = 'manual',
+                                          binarg =  binarg,
+                                          binlabels = binlabels,
+                                          datname = 'U.S. National Hydrography Dataset') %>%
+    .[, binsumlength := binsumlength]
+
+  #Compute bin statistics for river networks
+  tidyperc_riv  <- formathistab(in_dt = rivpredsub,
+                                castvar = 'UPLAND_SKM',
+                                valuevar = 'predbasic800cat',
+                                valuevarsub = valuevarsub,
+                                weightvar = 'LENGTH_KM',
+                                binfunc = 'manual',
+                                binarg =  binarg,
+                                binlabels = binlabels,
+                                datname = 'Global predictions')
+
+  #Merge statistics
+  datmerge_all <- rbind(tidyperc_usall, tidyperc_riv) %>%
+    setorder(bin) %>%
+    .[, binformat := factor(binformat, levels=unique(binformat))]
+
+  datmerge_noartificial <- rbind(tidyperc_usnoartificial, tidyperc_riv) %>%
+    setorder(bin) %>%
+    .[, binformat := factor(binformat, levels=unique(binformat))]
+
+  #Create plot
+  return(
+    ggcompare(datmerge_all) +
+      geom_bar(data=datmerge_noartificial, alpha=0.75,
+               stat='identity', position='dodge')
+  )
+}
+
 
 ########## END #############

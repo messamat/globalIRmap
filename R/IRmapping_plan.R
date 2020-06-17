@@ -151,8 +151,6 @@ plan <- drake_plan(
 
   gauges_plot = gggauges(in_gaugepred = rfpreds, in_basemaps = basemaps),
 
-  table_predvars = tabulate_predvars(in_predvars = predvars),
-
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
                              in_gaugepred = rfpreds,
                              in_predvars = predvars),
@@ -202,9 +200,14 @@ plan <- drake_plan(
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj', 'tbi_cl_cmj', 'clz_cl_cmj'))
   ),
 
-  fr_plot <- compare_fr(in_filestructure = filestructure,
-                        in_rivernetwork = rivernetwork,
-                        binarg = c(10,20,50,100,200,500,1000,
-                                   2000,5000,10000,50000,100000,150000))
+  fr_plot = compare_fr(in_filestructure = filestructure,
+                       in_rivernetwork = rivernetwork,
+                       binarg = c(10,20,50,100,200,500,1000,
+                                  2000,5000,10000,50000,100000,150000)),
+
+  us_plot = compare_fr(in_filestructure = filestructure,
+                       in_rivernetwork = rivernetwork,
+                       binarg = c(10,20,50,100,200,500,1000,
+                                  2000,5000,10000,50000,100000,2000000, 3200000))
 )
 
