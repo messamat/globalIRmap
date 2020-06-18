@@ -3162,4 +3162,90 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
 }
 
 
+#------ qc_pnw ------------
+qc_pnw <- function(in_filestructure, in_rivernetwork) {
+  rivpred <- fread(in_filestructure['out_riveratlas']) %>%
+    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
+                          'UPLAND_SKM'),
+                      with=F], on='HYRIV_ID']
+  in_dir <- file.path(in_filestructure[['resdir']],
+                      'Insitu_databases/pnw.gdb')
+  in_refpts <- file.path(in_dir,
+                         'StreamflowPermObs_final')
+  in_fulldat <- file.path(in_dir,
+                          'StreamflowPermObs_sub')
+
+  valuevarsub <- "1"
+
+  #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
+  refpts <- st_read(dsn = dirname(in_refpts),
+                    layer = basename(in_refpts)) %>%
+    setDT %>%
+    setkey('OBJECTID_3')
+
+  #All observations (excluding those that were not kept by PROSPER (aside from more recent osb, see python code for details)
+  #with duplicate records for single locations (multiple observations for different dates)
+  fulldat <- st_read(dsn = dirname(in_fulldat),
+                     layer = basename(in_fulldat)) %>%
+    setDT %>%
+    setkey('OBJECTID_1')
+
+  #Join points and compute # of observations, min and max months of observations
+  refpts_full <- merge(refpts, fulldat[, c('OBJECTID', 'dupligroup'), with=F],
+                       by='OBJECTID', all.y=F) %>%
+    .[fulldat, on='dupligroup', allow.cartesian=T] %>%
+    .[!is.na(distatlas),]
+
+  refpts_stats <- refpts_full[, `:=`(nobs=.N,
+                                     minmonth = min(Month),
+                                     maxmonth = max(Month)),
+                              by = dupligroup] %>%
+    .[!duplicated(dupligroup),]
+
+  #Merge points with rivernetwork by HYRIV_ID
+  refpts_join <- merge(refpts_stats,
+                       rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
+                                   predbasic800cat)],
+                       by='HYRIV_ID', all.y=F) %>%
+    .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
+    .[, prederror := predbasic800 - refinter] #Compute prediction error
+
+  #Scatterpoint of x = drainage area, y = predprobability - refinter
+  refpts_joinmelt <- melt(
+    refpts_join[, .(OBJECTID, prederror, UPLAND_SKM, dis_m3_pyr, nobs, refinter)],
+    id.vars = c('OBJECTID', 'prederror', 'refinter'))
+
+
+  levels(refpts_joinmelt$variable) <- c('Drainage area (km2)',
+                                        'Discharge (m3)',
+                                        '# of field obs.')
+
+  pnw_qcplot <- ggplot(refpts_joinmelt,
+                       aes(x=value, y=prederror, color=factor(refinter))) +
+    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5,
+              fill='#d9d9d9', color='#d9d9d9') +
+    geom_point(alpha=1/5) +
+    geom_smooth(method='gam', formula = y ~ s(x, k=4)) +
+    scale_x_log10() +
+    geom_hline(yintercept=0) +
+    annotate("text", x = -Inf, y = 0.5, angle = 90,
+             label = "Pred:Int, Obs:Per",
+             color = '#1f78b4') +
+    annotate("text", x = -Inf, y = -0.5, angle = 90,
+             label = "Pred:Per, Obs:Int",
+             color = '#ff7f00') +
+    scale_color_manual(values=c('#1f78b4', '#ff7f00'),
+                       name='Observed regime',
+                       labels = c('Perennial', 'Intermittent')) +
+    coord_cartesian(expand=FALSE, clip='off') +
+    labs(y='Prediction error') +
+    theme_classic() +
+    theme(legend.position = c(0.9, 0.45),
+          legend.background = element_blank()) +
+    facet_wrap(~variable, scales ='free_x')
+
+  return(pnw_qcplot)
+}
+
+
 ########## END #############
