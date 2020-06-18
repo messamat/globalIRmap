@@ -2362,70 +2362,101 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
 
 
   #Set variable labels
-  varlabels <- setkey(in_predvars[, .(varcode, varname)], varcode)[
-    levels(predmelt_num$variable)] %>%
-    .[is.na(varname), varname := varcode]
-  predmelt_num[, variable := factor(variable, labels = varlabels$varname)]
+  varlabels <- copy(in_predvars) %>%
+    .[, .(varcode, varname)] %>%
+    setkey(varcode) %>%
+    .[levels(predmelt_num$variable)] %>%
+    .[is.na(varname), varname:=varcode] %>%
+    .[varcode=='totalYears_kept', varname := 'Years of record kept'] %>%
+    .[varcode=='yearskeptratio', varname :='Years of record kept/All years'] %>%
+    .[varcode=='mDur', varname :='Mean annual # of dry days'] %>%
+    .[varcode=='mFreq', varname :='Mean annual # of dry periods'] %>%
+    .[varcode=='station_river_distance', varname :='Station distance to network (m)'] %>%
+    .[varcode=='ORD_STRA', varname :='Strahler river order'] %>%
+    .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)']
 
-  varstoplot <- merge(in_predvars[, .(varcode, varname)],
-                      data.table(varcode =
-                                   c('totalYears_kept', 'yearskeptratio',
+
+  levels(predmelt_num$variable) <-  varlabels$varname
+  varstoplot <- varlabels[varcode %in% c('totalYears_kept', 'yearskeptratio',
                                      'mDur', 'mFreq', 'station_river_distance',
                                      'UPLAND_SKM', 'ORD_STRA',
                                      'dis_m3_pyr', 'dor_pc_pva',
-                                     'cmi_ix_uyr','ari_ix_uav')),
-                      all.x =F, all.y=T)
+                                     'cmi_ix_uyr','ari_ix_uav'),]
+
   plotdt <- predmelt_num[variable %in% varstoplot$varcode |
-                           variable %in% varstoplot$varname ,]
+                           variable %in% varstoplot$varname,]
+  rectdf <- data.table(
+    xmin=rep(-Inf, 4),
+    xmax=rep(Inf, 4),
+    ymin=c(-1, -0.5, 0, 0.5),
+    ymax=c(-0.5, 0, 0.5, 1),
+    fillpal = rep(colorpal, 2)
+  )
 
-  uncertainty_numplot <-
-    ggplot(plotdt, aes(x=value, y=preduncert, color=intermittent)) +
-    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5,
-              fill='#d9d9d9', color='#d9d9d9') +
-    geom_point(alpha = 1/4) +
-    geom_hline(yintercept=0, alpha=1/2) +
-    geom_smooth(method='gam', formula = y ~ s(x, k=3)) +
-    annotate("text", x = Inf-5, y = 0.5, angle = 90,
-             label = "Pred:Int, Obs:Per",
-             color = '#1f78b4') +
-    annotate("text", x = Inf-5, y = -0.5, angle = 90,
-             label = "Pred:Per, Obs:Int",
-             color = '#ff7f00') +
-    scale_color_manual(values=c('#1f78b4', '#ff7f00'),
-                       name='Observed regime',
-                       labels = c('Perennial', 'Intermittent')) +
-    #scale_x_sqrt(expand=c(0,0)) +
-    coord_cartesian(clip='off') +
-    facet_wrap(~variable, scales='free', labeller=label_value) +
-    theme_classic() +
-    theme(legend.position = c(0.8, 0.1))
+  colorpal <- c('#1f78b4', '#ff7f00')
+  # uncertainty_numplot <-
+    ggplot(plotdt) +
+      geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+                            ymin=ymin, ymax=ymax, fill=fillpal),
+           alpha=1/4) +
+      scale_fill_manual(values=colorpal,
+                        name='Predicted regime',
+                        labels = c('Perennial', 'Intermittent')) +
+      geom_point(aes(x=value, y=preduncert, color=intermittent), alpha = 1/4) +
+      geom_hline(yintercept=0, alpha=1/2) +
+      new_scale_fill() +
+      geom_smooth(aes(x=value, y=preduncert, color=intermittent),
+                  method='gam', formula = y ~ s(x, k=3)) +
+      # annotate("text", x = Inf-5, y = 0.5, angle = 90,
+      #          label = "Pred:Int, Obs:Per",
+      #          color = colorpal[[1]]) +
+      # annotate("text", x = Inf-5, y = -0.5, angle = 90,
+      #          label = "Pred:Per, Obs:Int",
+      #          color = colorpal[[2]]) +
+      scale_color_manual(values=colorpal,
+                         name='Observed regime',
+                         labels = c('Perennial', 'Intermittent')) +
+      labs(x='Value', y='Model Uncertainty and Error (MUE)') +
+      #scale_x_sqrt(expand=c(0,0)) +
+      coord_cartesian(expand=FALSE, clip='off') +
+      facet_wrap(~variable, scales='free') +
+      theme_classic() +
+      theme(legend.position = c(0.85, 0.1))
 
 
-  #Plot categorical variables
-  predmelt_cat <- predattri[, c('GRDC_NO', 'intermittent', 'preduncert',
-                                'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
-    melt(id.vars=c('GRDC_NO', 'intermittent', 'preduncert'))
+    #Plot categorical variables
+    predmelt_cat <- predattri[, c('GRDC_NO', 'intermittent', 'preduncert',
+                                  'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
+      melt(id.vars=c('GRDC_NO', 'intermittent', 'preduncert'))
+    levels(predmelt_cat$variable) <- c('Endorheic',
+                                       'Climate Zone (catchment majority)')
 
-  uncertainty_catplot <-
-    ggplot(predmelt_cat, aes(x=as.factor(value), y=preduncert,
-                             fill=intermittent, color=intermittent)) +
-    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5,
-              fill='#d9d9d9', color='#d9d9d9', alpha=1/2) +
-    #geom_boxplot(alpha = 0.75) +
-    geom_violin(alpha=0.75, color=NA) +
-    geom_hline(yintercept=0, alpha=1/2) +
-    coord_cartesian(clip='off') +
-    scale_fill_manual(values=c('#1f78b4', '#ff7f00'),
-                      name='Observed regime',
-                      labels = c('Perennial', 'Intermittent')) +
-    scale_color_manual(values=c('#175885', '#9e3f00'),
-                       name='Observed regime',
-                       labels = c('Perennial', 'Intermittent')) +
-    facet_wrap(~variable, scales='free', labeller=label_value) +
-    theme_bw() +
-    theme(legend.position = c(0.8, 0.1))
+    uncertainty_catplot <-
+      ggplot(predmelt_cat) +
+      geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+                                 ymin=ymin, ymax=ymax, fill=fillpal),
+                alpha=1/4) +
+      scale_fill_manual(values=colorpal,
+                        name='Predicted regime',
+                        labels = c('Perennial', 'Intermittent')) +
+      #geom_boxplot(alpha = 0.75) +
+      new_scale_fill() +
+      geom_violin(aes(x=as.factor(value), y=preduncert,
+                      fill=intermittent, color=intermittent),
+                  alpha=0.75, color=NA) +
+      geom_hline(yintercept=0, alpha=1/2) +
+      labs(x='Value', y='Model Uncertainty and Error (MUE)') +
+      coord_cartesian(expand=FALSE, clip='off') +
+      scale_fill_manual(values=colorpal,
+                        name='Observed regime',
+                        labels = c('Perennial', 'Intermittent')) +
+      scale_color_manual(values=c('#175885', '#9e3f00'),
+                         name='Observed regime',
+                         labels = c('Perennial', 'Intermittent')) +
+      facet_wrap(~variable, scales='free', labeller=label_value) +
+      theme_classic()
 
-  return(list(uncertainty_numplot=uncertainty_numplot,
+    return(list(uncertainty_numplot=uncertainty_numplot,
               uncertainty_catplot=uncertainty_catplot))
 }
 
@@ -2961,10 +2992,11 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
 
   #Compute totals for each valuevar and idvar summed across castvar
   #e.g. (total length of rivers for each country, and of each flow regime)
-  tidytotal <- statall[, list('Total', sum(V1)), by=c(eval(idvars))] %>%
-    rbind(statall[, list(paste0('Total ', get(eval(valuevar))),
-                         sum(V1)), by=c(eval(idvars), eval(valuevar))] %>%
-            .[, eval(valuevar) := NULL]) %>%
+  tidytotal <- statall[, list('Total intermittency (%)',
+                              100*.SD[get(valuevar)==valuevarsub, sum(V1)]/sum(V1)),
+                       by=eval(idvars)] %>%
+    rbind(  statall[, list('Total stream length (10^3 km)', sum(V1)/1000),
+                    by=c(eval(idvars))]) %>%
     setnames(c('V1', 'V2'), c(castvar, 'V1'))
   totalcols <- unique(tidytotal[, get(eval(castvar))]) #Name of total cols
 
