@@ -133,19 +133,20 @@ plan <- drake_plan(
                                  in_predvars = predvars,
                                  in_monthlydischarge = monthlydischarge),
 
+  uncertainty_plot = gguncertainty(in_rftuned = rftuned,
+                                   in_gaugestats = gaugestats_format,
+                                   in_predvars = predvars,
+                                   spatial_rsp = TRUE),
+
   rfpreds = write_preds(in_filestructure = filestructure, in_gaugep = gaugep,
                         in_gaugestats = gaugestats_format, in_network = rivernetwork,
-                        in_rftuned = rftuned, in_predvars = predvars),
+                        in_rftuned = rftuned, in_predvars = predvars,
+                        in_uncertainty = uncertainty_plot[['out_uncertainty']]),
 
   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 
   pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
                  nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
-
-  uncertainty_plot = gguncertainty(in_rftuned = rftuned,
-                                   in_gaugestats = gaugestats_format,
-                                   in_predvars = predvars,
-                                   spatial_rsp = FALSE),
 
   basemaps = get_basemapswintri(in_filestructure = filestructure),
 
@@ -197,7 +198,8 @@ plan <- drake_plan(
                            valuevar = 'predbasic800cat',
                            valuevarsub = 1,
                            na.rm=T, tidy = FALSE),
-    transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj', 'tbi_cl_cmj', 'clz_cl_cmj'))
+    transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
+                                  'tbi_cl_cmj', 'clz_cl_cmj'))
   ),
 
   fr_plot = compare_fr(in_filestructure = filestructure,
@@ -205,7 +207,7 @@ plan <- drake_plan(
                        binarg = c(10,20,50,100,200,500,1000,
                                   2000,5000,10000,50000,100000,150000)),
 
-  us_plot = compare_fr(in_filestructure = filestructure,
+  us_plot = compare_us(in_filestructure = filestructure,
                        in_rivernetwork = rivernetwork,
                        binarg = c(10,20,50,100,200,500,1000,
                                   2000,5000,10000,50000,100000,2000000, 3200000)),

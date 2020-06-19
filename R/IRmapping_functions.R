@@ -2148,16 +2148,19 @@ rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) 
 
 #------ write_preds -----------------
 write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
-                        in_network, in_rftuned, in_predvars) {
+                        in_network, in_rftuned, in_predvars, in_uncertainty) {
   # ---- Output GRDC predictions as points ----
-  in_gaugestats[!is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
-                IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]]
+  in_gaugestatsformat <- in_gaugestats[
+    !is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
+    IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]] %>%
+    .[in_uncertainty, on='GRDC_NO']
 
   cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
 
 
   out_gaugep <- merge(in_gaugep,
-                      in_gaugestats[, !cols_toditch, with=F], by='GRDC_NO')
+                      in_gaugestatsformat[, !cols_toditch, with=F],
+                      by='GRDC_NO')
 
   st_write(obj=out_gaugep,
            dsn=in_filestructure['out_gauge'],
@@ -2385,6 +2388,8 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
 
   plotdt <- predmelt_num[variable %in% varstoplot$varcode |
                            variable %in% varstoplot$varname,]
+
+  colorpal <- c('#1f78b4', '#ff7f00')
   rectdf <- data.table(
     xmin=rep(-Inf, 4),
     xmax=rep(Inf, 4),
@@ -2392,9 +2397,7 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
     ymax=c(-0.5, 0, 0.5, 1),
     fillpal = rep(colorpal, 2)
   )
-
-  colorpal <- c('#1f78b4', '#ff7f00')
-  # uncertainty_numplot <-
+  uncertainty_numplot <-
     ggplot(plotdt) +
       geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                             ymin=ymin, ymax=ymax, fill=fillpal),
@@ -2457,7 +2460,8 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
       theme_classic()
 
     return(list(uncertainty_numplot=uncertainty_numplot,
-              uncertainty_catplot=uncertainty_catplot))
+              uncertainty_catplot=uncertainty_catplot,
+              out_uncertainty = predattri[, .(GRDC_NO, preduncert)]))
 }
 
 #------ krige_spuncertainty----
@@ -3107,11 +3111,11 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
   # FCode_HUC8 <- net[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #                   as.integer(100*max(.SD[, .N]/HUC8sum)), by=.(HUC8, FCode)]
   #
-  # netbinned <- bin_dt(in_dt=net[TotDASqKm > 0,],
-  #                     binvar='TotDASqKm',
-  #                     valuevar='intermittent',
-  #                     binfunc='manual',
-  #                     binarg=binarg)
+  netbinned <- bin_dt(in_dt=net[TotDASqKm > 0,],
+                      binvar='TotDASqKm',
+                      valuevar='intermittent',
+                      binfunc='manual',
+                      binarg=binarg)
   # netbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #           DAsum := .N, by=bin_lformat]
   # FCode_DA <- netbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
@@ -3252,25 +3256,36 @@ qc_pnw <- function(in_filestructure, in_rivernetwork) {
                                         'Discharge (m3)',
                                         '# of field obs.')
 
-  pnw_qcplot <- ggplot(refpts_joinmelt,
-                       aes(x=value, y=prederror, color=factor(refinter))) +
-    geom_rect(xmin=-Inf, xmax=Inf, ymin=-0.5, ymax=0.5,
-              fill='#d9d9d9', color='#d9d9d9') +
-    geom_point(alpha=1/5) +
-    geom_smooth(method='gam', formula = y ~ s(x, k=4)) +
-    scale_x_log10() +
+
+  colorpal <- c('#1f78b4', '#ff7f00')
+  rectdf <- data.table(
+    xmin=rep(0.01, 4),
+    xmax=rep(Inf, 4),
+    ymin=c(-1, -0.5, 0, 0.5),
+    ymax=c(-0.5, 0, 0.5, 1),
+    fillpal = rep(colorpal, 2)
+  )
+
+  pnw_qcplot <- ggplot(refpts_joinmelt) +
+    geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+                               ymin=ymin, ymax=ymax, fill=fillpal),
+              alpha=1/4) +
+    scale_fill_manual(values=colorpal,
+                      name='Predicted regime',
+                      labels = c('Perennial', 'Intermittent')) +
+    geom_point(aes(x=value, y=prederror, color=factor(refinter)),
+               alpha=1/5) +
+    geom_hline(yintercept=0, alpha=1/2) +
+    new_scale_fill() +
+    geom_smooth(aes(x=value, y=prederror, color=factor(refinter)),
+                method='gam', formula = y ~ s(x, k=4)) +
+    scale_x_sqrt() +
     geom_hline(yintercept=0) +
-    annotate("text", x = -Inf, y = 0.5, angle = 90,
-             label = "Pred:Int, Obs:Per",
-             color = '#1f78b4') +
-    annotate("text", x = -Inf, y = -0.5, angle = 90,
-             label = "Pred:Per, Obs:Int",
-             color = '#ff7f00') +
     scale_color_manual(values=c('#1f78b4', '#ff7f00'),
                        name='Observed regime',
                        labels = c('Perennial', 'Intermittent')) +
     coord_cartesian(expand=FALSE, clip='off') +
-    labs(y='Prediction error') +
+    labs(x='Value', y='Model Uncertainty and Error (MUE)') +
     theme_classic() +
     theme(legend.position = c(0.9, 0.45),
           legend.background = element_blank()) +
