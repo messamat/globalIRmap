@@ -193,10 +193,13 @@ plan <- drake_plan(
   globaltables = target(
     tabulate_globalsummary(in_filestructure = filestructure,
                            idvars = in_idvars,
-                           castvar = 'ORD_STRA', castvar_num = TRUE,
+                           castvar = 'dis_m3_pyr',
+                           castvar_num = FALSE,
                            weightvar = 'LENGTH_KM',
                            valuevar = 'predbasic800cat',
                            valuevarsub = 1,
+                           binfunc = 'manual',
+                           binarg = c(0.1, 1, 10, 100, 100, 10000, 100000),
                            na.rm=T, tidy = FALSE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
