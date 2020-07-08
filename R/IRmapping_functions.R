@@ -1211,33 +1211,44 @@ formathistab <- function(in_dt, castvar, valuevar, valuevarsub,
 
 #------ ggcompare -------------------
 #Plot comparing intermittency prevalence and network length by drainage area for two datasets
-ggcompare <- function(datmerge) {
-  plot_size <- ggplot(datmerge, aes(x=binformat, y=binsumlength, fill=dat)) +
+ggcompare <- function(datmerge, binarg) {
+  x_tick <- c(0, unique(datmerge$bin)) + 0.5
+  binarg_tick <- c(0, binarg)
+  len <- length(x_tick)
+
+  plot_size <- ggplot(datmerge, aes(x=bin, y=binsumlength, fill=dat)) +
     geom_bar(stat='identity', position='dodge') +
     scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
-    #scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 6)) +
+    scale_x_continuous(breaks = c(sort(unique(datmerge$bin)), x_tick)[seq(1, 2*len, 2)],
+                       labels = c(rep(c(""), len), binarg)[seq(1, 2*len, 2)]) +
     labs(x= '', #bquote('Drainage area'~(km^2)),
          y='Total river length (km)') +
     coord_cartesian(expand=FALSE, clip="off") +
     theme_classic() +
     theme(legend.position = 'none',
           text = element_text(size=9),
-          axis.text.x = element_text(angle=45, hjust=1))
+          plot.background = element_blank(),
+          axis.text.x = element_text(),
+          axis.ticks.x = element_line(color = c(rep(NA, len/2 - 1),
+                                                rep("black", len/2))))
 
-  plot_inter <- ggplot(datmerge, aes(x=binformat, y=perc, fill=dat)) +
+  plot_inter <- ggplot(datmerge, aes(x=bin, y=perc, fill=dat)) +
     geom_bar(stat='identity', position='dodge') +
     scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
-    scale_x_discrete(labels = function(x) stringr::str_wrap(x, width = 8)) +
-    coord_cartesian(expand=FALSE, clip="off") +
+    scale_x_continuous(breaks = c(sort(unique(datmerge$bin)), x_tick),
+                       labels = c(rep(c(""), len), binarg)) +
+    coord_cartesian(expand=FALSE, ylim=c(0, 1.4*max(datmerge$perc)), clip="off") +
     labs(x= bquote('Drainage area'~(km^2)),
          y='Prevalence of intermittency (% river length)') +
     theme_classic() +
-    theme(legend.position = c(0.8, 0.2))
+    theme(legend.position = c(0.17, 0.90),
+          legend.background = element_blank(),
+          axis.ticks.x = element_line(color = c(rep(NA, len - 1), rep("black", len))))
 
 
-  xmin_inset <- datmerge[, levels(binformat)[round(0.4*length(levels(binformat)))]]
-  xmax_inset <- datmerge[, levels(binformat)[length(levels(binformat))]]
-  ymin_inset <- datmerge[,round((0.6 * max(perc, na.rm=T) - min(perc, na.rm=T)) +
+  xmin_inset <- datmerge[, 0.4*(max(bin)-min(bin))]
+  xmax_inset <- datmerge[, 1*max(bin)]
+  ymin_inset <- datmerge[,round((0.8 * max(perc, na.rm=T) - min(perc, na.rm=T)) +
                                   min(perc, na.rm=T))]
   plot_join <- plot_inter +
     annotation_custom(grob = ggplotGrob(plot_size),
@@ -1245,9 +1256,9 @@ ggcompare <- function(datmerge) {
                       xmax = xmax_inset,
                       ymin = ymin_inset,
                       ymax = Inf)
+  plot_join
   return(plot_join)
 }
-
 
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
@@ -3074,7 +3085,7 @@ compare_fr <- function(in_filestructure, in_rivernetwork, binarg) {
     .[, binformat := factor(binformat, levels=unique(binformat))]
 
   return(
-    ggcompare(datmerge)
+    ggcompare(datmerge, binarg)
   )
 }
 
