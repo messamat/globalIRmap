@@ -1256,7 +1256,6 @@ ggcompare <- function(datmerge, binarg) {
                       xmax = xmax_inset,
                       ymin = ymin_inset,
                       ymax = Inf)
-  plot_join
   return(plot_join)
 }
 
@@ -2617,7 +2616,7 @@ ggrivers <- function(in_basemaps) {
     geom_sf(data = in_basemaps[['grat']],
             color = alpha("black", 1/5), size = 0.25/.pt) +
     geom_sf(data = in_basemaps[['wland']],
-            alpha=1/2, color=NA) +
+            color='#dee0e0') +
     geom_sf(data = in_basemaps[['wlakes']],
             alpha=1/3, fill='black', color=NA) +
     # geom_sf(data=in_basemaps['riv_simple'][riv_simple$ORD_STRA < 6,][1:10000,],
@@ -2626,7 +2625,7 @@ ggrivers <- function(in_basemaps) {
     #         aes(size=ORD_STRA), color=alpha('black', 1/10), show.legend = F) +
     scale_size_continuous(range=c(0.2, 1.0)) +
     coord_sf(datum = NA, expand=F,
-             xlim=c(-16500000, 16500000), ylim=c(-7000000,8700000)) +
+             xlim=c(-14500000, 18000000), ylim=c(-7000000,8700000)) +
     theme_map() +
     theme(legend.position=c(0.1,0),
           legend.direction="horizontal",
@@ -2638,28 +2637,114 @@ ggrivers <- function(in_basemaps) {
 }
 
 #------ gggauges --------------------------
-gggauges <- function(in_gaugepred, in_basemaps) {
+binarg <- c(30, 50, 100)
+binvar <- 'totalYears_kept'
+
+gggauges <- function(in_gaugepred, in_basemaps,
+                     binarg) {
   gaugepred <- in_gaugepred %>%
     sfformat_wintri
 
+  #Bin data
+  dt <- as.data.table(gaugepred)
+  byd <- dt[, binvar, with=F]
+  l_freq    <- append(min(byd), binarg)
+  u_freq    <- c(binarg, (max(byd, na.rm = TRUE) + 1))
+  bins      <- length(binarg) + 1
+
+  for (i in seq_len(bins)) {
+    gaugepred[dt[,get(binvar)] >= l_freq[[i]] &
+                dt[,get(binvar)] < u_freq[[i]], 'bin'] <- i
+
+    if (i == bins) {
+      gaugepred[dt[,get(binvar)]  == u_freq[i], 'bin'] <- i
+    }
+  }
+
+  gaugepred$bin <- factor(gaugepred$bin, levels=seq_len(bins))
+
+
+  #Create color scales
+  cs_per <- scales::seq_gradient_pal('#45c6f7', '#152540', "Lab")(
+    seq(0,1,length.out=bins)) #'#0F9FD6'
+  cs_ir <- scales::seq_gradient_pal('#ffb88f','#940404', "Lab")( #'#ff9b52'  '#a32d18'
+    seq(0,1,length.out=bins)) #
+
+
+  #Subset data into perennial and intermittent rivers
   perennial_gauges <- gaugepred[gaugepred$intermittent=='0',]
-  p_pr <- ggrivers(in_basemaps) +
-    geom_sf(data=perennial_gauges, aes(color=totalYears_kept), size=1, alpha=0.8) +
-    scale_color_gradient(name='Years of data', low='#0F9FD6', high='#152540',
-                         breaks=c(min(perennial_gauges$totalYears_kept), 100 ,
-                                  max(perennial_gauges$totalYears_kept))) +
-    coord_sf(datum = NA, expand=F,
-             xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
-
   ir_gauges <-  gaugepred[gaugepred$intermittent=='1',]
-  p_ir <- ggrivers(in_basemaps) +
-    geom_sf(data=ir_gauges, aes(color=totalYears_kept), size=1, alpha=0.8) +
-    scale_color_gradient(name='Years of data', low='#ff9b52', high='#a32d18',
-                         breaks=c(min(ir_gauges$totalYears_kept), 100,
-                                  max(ir_gauges$totalYears_kept))) +
-    coord_sf(datum = NA, expand=F,
-             xlim=c(-17000000, 17000000), ylim=c(-7000000,8700000))
 
+
+  #Make histograms
+  gggaugehist <- function(in_gdf, cs) {
+    x_tick <- c(0, unique(as.numeric(levels(in_gdf$bin)))) + 0.5
+    binarg_tick <- c(0, seq_len(bins))
+    len <- length(x_tick)
+
+    permean <- as.data.table(in_gdf)[,  mean(get(binvar))]
+    permeanbindiff <- c(permean - l_freq)
+    meanbin <- which(permeanbindiff > 0)[which.min(permeanbindiff[permeanbindiff  > 0])]
+    meanpos <- meanbin + (permean-l_freq[meanbin])/(u_freq[meanbin]-l_freq[meanbin])
+
+    gaugehist <- ggplot(in_gdf, aes(x=as.numeric(bin), fill=bin)) +
+      geom_histogram(stat="count", width=1) +
+      geom_vline(xintercept = meanpos - 1) +
+      annotate(geom='text', angle=90,
+               x=meanpos-0.6,
+               y=0.5*max(as.data.table(in_gdf)[, .N, by=bin]$N),
+               label=paste(round(permean), 'y')) +
+      scale_fill_manual(values=cs) +
+      scale_x_continuous(name = 'Years of data',
+                         breaks = c(binarg_tick, x_tick),
+                         labels = c(rep(c(""), len), c(l_freq, u_freq[bins]))) +
+      # scale_y_continuous(name = paste0('Number of gauging stations (total: ',
+      #                                  nrow(in_gdf),
+      #                                  ')'))+
+      coord_cartesian(clip='off', expand=c(0,0)) +
+      theme_classic() +
+      theme(legend.position = 'none',
+            text = element_text(size=12),
+            plot.background = element_blank(),
+            panel.background = element_blank(),
+            axis.title.y = element_blank(),
+            axis.title.x = element_text(vjust=3),
+            axis.ticks.x = element_line(color = c(rep(NA, len - 1),
+                                                  rep("black", len))))
+    return(gaugehist)
+  }
+
+  histper <- gggaugehist(perennial_gauges, cs=cs_per)
+  histir <- gggaugehist(ir_gauges, cs=cs_ir)
+
+
+  #Plot it
+  p_pr <- ggrivers(in_basemaps) +
+    geom_sf(data=perennial_gauges, aes(color=bin), size=1.2, alpha=0.8) +
+    scale_color_manual(values=cs_per) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-16000000, 18000000), ylim=c(-7000000,8700000)) +
+    theme(legend.position = 'none') +
+    annotation_custom(grob = ggplotGrob(histper),
+                      xmin = -16000000,
+                      xmax = -8000000,
+                      ymin = -9000000,
+                      ymax = -1000000)
+
+
+  p_ir <- ggrivers(in_basemaps) +
+    geom_sf(data=ir_gauges, aes(color=bin), size=1) +
+    scale_color_manual(values=cs_ir) +
+    coord_sf(datum = NA, expand=F,
+             xlim=c(-16000000, 18000000), ylim=c(-7000000,8700000)) +
+    theme(legend.position = 'none') +
+    annotation_custom(grob = ggplotGrob(histir),
+                      xmin = -16000000,
+                      xmax = -8000000,
+                      ymin = -9000000,
+                      ymax = -1000000)
+
+  p_pr/p_ir
   return(p_pr/p_ir)
 }
 
