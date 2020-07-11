@@ -145,7 +145,7 @@ plan <- drake_plan(
 
   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 
-  pd_plot = ggpd(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
+  pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
                  nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
 
   basemaps = get_basemapswintri(in_filestructure = filestructure),

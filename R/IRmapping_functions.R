@@ -55,6 +55,27 @@ zero_lomf <- function(x, first=TRUE) {
   }
 }
 
+#------ comp_ymean -------------
+#Compute weighted mean across 12 columns corresponding to 12 months
+#mstart is the start of the two-number month
+comp_ymean<- function(in_dt, fieldex, mstart) {
+  refd <- data.table(month=c('01', '02', '03', '04', '05', '06',
+                             '07', '08', '09', '10', '11', '12'),
+                     dimonth = c(31, 28.25, 31, 30, 31, 30,
+                                 31, 31, 30, 31, 30, 31))
+  refd[, mcols := paste0(substr(fieldex, 1, mstart-1),
+                         month,
+                         substr(fieldex, mstart+2, nchar(fieldex)))]
+  in_dt2 <- copy(in_dt[, refd$mcols, with=F])
+  in_dt2[, comp_ymeanID := .I]
+  in_dt[, outcol] <- melt(in_dt2,
+                          id.vars='comp_ymeanID',
+                          variable.name = 'mcols') %>%
+    .[refd, on='mcols'] %>%
+    .[, weighted.mean(value, dimonth), by=comp_ymeanID] %>%
+    .[,'V1',with=F]
+}
+
 #------ comp_derivedvar -----------------
 #' Compute derived variables
 #'
@@ -96,62 +117,86 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
     in_dt2 <- in_dt
   }
 
+
   #---- Inspect and correct -9999 values ----
   print('Inspect and correct -9999 values')
-  #check <- riveratlas[cmi_ix_uyr == -9999,] #All have precipitation = 0
-  in_dt2[cmi_ix_uyr == -9999, cmi_ix_uyr := 0]
-
   #check <- riveratlas[snw_pc_cyr == -9999,] #One reach in the middle of the Pacific
   in_dt2[snw_pc_cyr == -9999, snw_pc_cyr:=0]
   in_dt2[snw_pc_cmx == -9999, snw_pc_cmx:=0]
-
-  #check <- in_dt2[is.na(sgr_dk_rav),]
 
   print('Number of NA values per column')
   colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
   print(colNAs)
 
   #Convert -9999 values to NA
+  gladcols <- c('wloss_pc_cav', 'wdryp_pc_cav', 'wwetp_pc_cav',
+                   'whfrq_pc_cav', 'wseas_pc_cav', 'wperm_pc_cav',
+                   'wfresh_pc_cav',
+                   'wloss_pc_uav', 'wdryp_pc_uav', 'wwetp_pc_uav',
+                   'whfrq_pc_uav', 'wseas_pc_uav', 'wperm_pc_uav',
+                   'wfresh_pc_uav')
+  sgcols <- c('cly_pc_cav','slt_pc_cav', 'snd_pc_cav',
+              'cly_pc_uav','slt_pc_uav', 'snd_pc_uav')
+  biocols <- unlist(lapply(c('cav', 'uav'),
+                           function(s) paste0('bio', 1:11, '_dc_', s)
+                           ))
+  biocolsnegative <- grep('bio[15689][01]*_.*', biocols, value=T)
+
   for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
-    set(in_dt2,which(in_dt2[[j]]==-9999),j, NA)} #Set those to 0 if -9999
+    if (!(j %in% c(gladcols, sgcols))) {
+      set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to 0 if -9999
+      }
+    }
+
+  cmi_cmcols <- paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))
+  cmi_umcols <- paste0('cmi_ix_u', str_pad(1:12, width=2, side='left', pad=0))
+
+  #Scale variables based on HydroATLAS v1.0 documentation and v1.1 processing
+  in_dt2[, `:=`(
+    ari_ix_cav = ari_ix_cav/100,
+    ari_ix_uav = ari_ix_uav/100,
+    dor_pc_pva = dor_pc_pva/100,
+    lka_pc_cse = lka_pc_cse/10,
+    lka_pc_use = lka_pc_use/10,
+    gwt_m_cav = gwt_cm_cav/100
+  )]
+
+  in_dt2[, (gladcols) := lapply(.SD, function(x) x/100), .SDcols = gladcols]
+  in_dt2[, (biocols) := lapply(.SD, function(x) (x/100)), .SDcols = biocols]
+  in_dt2[, (biocolsnegative) := lapply(.SD, function(x) x-100), .SDcols=biocolsnegative]
+  in_dt2[, (cmi_cmcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_cmcols]
+  in_dt2[, (cmi_umcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_umcols]
 
   #---- Compute derived predictor variables ----
   print('Compute derived predictor variables')
-  pre_mcols <- paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)) #Monthly precipitation columns
-  in_dt2[, `:=`(pre_mm_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
-                pre_mm_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
-         .SDcols= pre_mcols] %>%
-    #       min/max monthly catchment precip (while dealing with times when )
-    .[, `:=`(pre_mm_cvar= fifelse(pre_mm_cmx==0, 0, pre_mm_cmn/pre_mm_cmx),
+  comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_c01', mstart=8, outcol='cmi_ix_cyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_u01', mstart=8, outcol='cmi_ix_uyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_c01', mstart=8, outcol='pet_mm_cyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=8, outcol='pet_mm_uyr')
+
+  in_dt2[, `:=`(cmi_ix_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
+                cmi_ix_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
+         .SDcols= cmi_cmcols] %>%
+    .[, `:=`(cmi_ix_umn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
+             cmi_ix_umx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
+      .SDcols= cmi_umcols] %>%
+    .[, swc_pc_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
+      .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly swc
+    .[, `:=`(#min/max monthly CMI
+             cmi_ix_cvar= fifelse(cmi_ix_cmx==0, 0, cmi_ix_cmn/cmi_ix_cmx),
+             cmi_ix_uvar= fifelse(cmi_ix_umx==0, 0, cmi_ix_umn/cmi_ix_umx),
              #min/max monthly watershed discharge
              dis_m3_pvar=fifelse(dis_m3_pmx==0, 1, dis_m3_pmn/dis_m3_pmx),
              #min monthly/average yearly watershed discharge
              dis_m3_pvaryr=fifelse(dis_m3_pyr==0, 1, dis_m3_pmn/dis_m3_pyr),
              #catchment average elv - watershec average elev
-             ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav))]
-
-  in_dt2[, cmi_ix_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
-         .SDcols= paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))] %>% #Get minimum monthly cmi
-    .[, swc_pc_cmn := do.call(pmin, c(.SD, list(na.rm=TRUE))),
-      .SDcols= paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0))] #Get minimum monthly swc
-
-
-  #Scale variables based on HydroATLAS documentation
-  in_dt2[, `:=`(
-    ari_ix_cav = ari_ix_cav/100,
-    ari_ix_uav = ari_ix_uav/100,
-    cmi_ix_cmn = cmi_ix_cmn/100,
-    cmi_ix_uyr = cmi_ix_uyr/100,
-    dor_pc_pva = dor_pc_pva/100,
-    lka_pc_cse = lka_pc_cse/10,
-    lka_pc_use = lka_pc_use/10,
-    tmp_dc_cmn =  tmp_dc_cmn/10,
-    tmp_dc_cmx =  tmp_dc_cmx/10,
-    tmp_dc_cyr =  tmp_dc_cyr/10,
-    tmp_dc_uyr =  tmp_dc_uyr/10,
-    gwt_m_cav = gwt_cm_cav/100
-  )]
-
+             ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav),
+             #runoff coefficient (runoff/precipitation)
+             runc_ix_cyr = run_mm_cyr/pre_mm_cyr,
+             #Specific discharge
+             sdis_ms_uyr = dis_m3_pyr/UPLAND_SKM,
+             sdis_ms_umn = dis_m3_pmn/UPLAND_SKM
+             )]
   return(in_dt2)
 }
 
@@ -606,7 +651,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 #' Uses \link[edarf]{partial_dependence} for computing.
 #'
 #' @seealso \link{weighted_vimportance_nestedrf},
-#'  \link{ggpd}
+#'  \link{ggpd_bivariate}
 #'
 #' @section Warning:
 #' Has only been tested on \link[mlr3learners]{mlr_learners_classif.ranger}
@@ -616,7 +661,8 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 #'
 #' @export
 
-extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf, selcols, ngrid) {
+extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
+                                selcols, nvariate, ngrid) {
   in_mod <- in_rftuned$learners[[learner_id]]
   #in_mod <- nestedresamp_ranger$learners[[1]]
 
@@ -626,29 +672,42 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf, selcols, ngrid)
     in_fit <- in_mod$learner$model
   }
 
+  #Get fold-specific performance measure
   foldperf <- extract_impperf_nestedrf(in_mod, imp=F, perf=T, pvalue=F)
 
   # selcols <- in_vimp_plot$data %>% #Can use that if extracting from tunredrf is expensive
   #   setorder(-imp_wmean) %>%
   #   .[colnums, variable]
 
-  vargrid <- combn(selcols, 2, simplify=F) %>%
-    do.call(rbind, .)
-
-  ngridvec <- c(ngrid, ngrid)
-
-  pdcomb <- mapply(function(i, j) {
-    pdout <- edarf::partial_dependence(in_fit, vars = c(i, j), n = ngridvec,
-                                       interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
-      setDT %>%
-      .[,(names(foldperf)) := foldperf] %>%
-      .[, `:=`(var1=i, var2=j)] %>%
-      setnames(c(i,j), c('value1', 'value2'))
+  #Make dataset of all combinations of selected column names, two at a time
+  if (nvariate == 1) {
 
 
-    return(pdout)
-  }, vargrid[,1], vargrid[,2], SIMPLIFY = FALSE) %>%
-    do.call(rbind, .)
+
+
+
+  } else if (nvariate == 2) {
+    vargrid <- combn(selcols, 2, simplify=F) %>%
+      do.call(rbind, .)
+
+    ngridvec <- c(ngrid, ngrid)
+
+    #Get marginal distribution of the effect of two columns at a time
+    pdcomb <- mapply(function(i, j) {
+      pdout <- edarf::partial_dependence(in_fit, vars = c(i, j), n = ngridvec,
+                                         interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
+        setDT %>%
+        .[,(names(foldperf)) := foldperf] %>%
+        .[, `:=`(var1=i, var2=j)] %>%
+        setnames(c(i,j), c('value1', 'value2'))
+
+
+      return(pdout)
+    }, vargrid[,1], vargrid[,2], SIMPLIFY = FALSE) %>%
+      do.call(rbind, .)
+  } else {
+    print('Warning: function cannot yet work with more than two variables at a time')
+  }
 
   return(pdcomb)
 }
@@ -1293,7 +1352,7 @@ def_filestructure <- function() {
   # Directory containing hydrometric data
   in_gaugedir <-  file.path(datdir, 'GRDCdat_day')
   # River atlas formatted variables
-  in_riveratlas_meta <- file.path(datdir, 'HydroATLAS', 'HydroATLAS_metadata_MLM.xlsx')
+  in_riveratlas_meta <- file.path(datdir, 'HydroATLAS', 'HydroATLAS_metadata_MLMv11.xlsx')
   #Average monthly discharge for HydroSHEDS network
   in_monthlynetdischarge <- file.path(datdir, 'HydroSHEDS',
                                       'HS_discharge_monthly.gdb',
@@ -1302,6 +1361,9 @@ def_filestructure <- function() {
   in_bufrasdir <- file.path(resdir, 'bufrasdir')
   # River atlas attribute data1
   in_riveratlas <- file.path(resdir, 'RiverATLAS_v10tab.csv')
+
+  # River atlas attribute data2
+  in_riveratlas2 <- file.path(resdir, 'RiverATLAS_v11tab.csv')
 
   # French river network for comparison
   compresdir <- file.path(resdir, 'Comparison_databases')
@@ -1318,7 +1380,8 @@ def_filestructure <- function() {
            in_monthlynetdischarge = in_monthlynetdischarge,
            in_bufrasdir = in_bufrasdir,
            in_netfr = in_netfr, in_basfr = in_basfr,
-           out_gauge=out_gauge, in_riveratlas=in_riveratlas,
+           out_gauge=out_gauge,
+           in_riveratlas=in_riveratlas, in_riveratlas2=in_riveratlas2,
            out_riveratlas = out_riveratlas))
 }
 
@@ -1359,7 +1422,17 @@ read_gaugep <- function(in_filestructure, dist, in_monthlydischarge) {
                     layer = basename(in_filestructure['in_gaugep'])) %>%
     .[.$station_river_distance<dist,]
 
-  gaugep_monthlydischarge <- merge(gaugep, in_monthlydischarge,
+  riveratlas2 <- fread(in_filestructure['in_riveratlas2'])
+  setnames(riveratlas2,
+           names(riveratlas2),
+           gsub('_11$', '', names(riveratlas2)))
+
+  keepcols <- c('REACH_ID', 'Shape',
+                names(gaugep)[!(names(gaugep) %in% names(riveratlas2))])
+  gaugep_attriall <- merge(gaugep[,keepcols, with=F], riveratlas2,
+                           by = 'REACH_ID')
+
+  gaugep_monthlydischarge <- merge(gaugep_attriall, in_monthlydischarge,
                                    by.x = 'HYRIV_ID', by.y = 'REACH_ID',
                                    all.x=TRUE, all.y=FALSE)
 
@@ -1517,6 +1590,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
 
   return(gaugestats_join)
 }
+
 #------ selectformat_predvars -----------------
 selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- List predictor variables ----
@@ -1526,13 +1600,15 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 
   predcols<- c(
     monthlydischarge_preds,
-    'ORD_STRA',
+    'UPLAND_SKM',
     'dis_m3_pyr',
     'dis_m3_pmn',
     'dis_m3_pmx',
     'dis_m3_pvar',
     'dis_m3_pvaryr',
     'run_mm_cyr',
+    'runc_ix_cyr', #runoff coefficient (runoff/precipitation)
+    'sdis_ms_uyr', #specific discharge
     'inu_pc_umn',
     'inu_pc_umx',
     'inu_pc_cmn',
@@ -1541,20 +1617,10 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'dor_pc_pva',
     'gwt_m_cav',
     'ele_pc_rel',
-    # 'sgr_dk_rav', #Don't use stream gradient as data are missing for all of Greenland due to shitty DEM
+    'slp_dg_cav',
+    'slp_dg_uav',
     'clz_cl_cmj',
-    'tmp_dc_cyr',
-    'tmp_dc_cmn',
-    'tmp_dc_cmx',
-    'tmp_dc_uyr',
-    'pre_mm_uyr',
-    'pre_mm_cvar',
-    'pre_mm_cmn',
     'pet_mm_uyr',
-    'ari_ix_uav',
-    'ari_ix_cav',
-    'cmi_ix_uyr',
-    'cmi_ix_cmn',
     'snw_pc_uyr',
     'snw_pc_cyr',
     'snw_pc_cmx',
@@ -1572,12 +1638,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'gla_pc_cse',
     'prm_pc_use',
     'prm_pc_cse',
-    'cly_pc_uav',
-    'cly_pc_cav',
-    'slt_pc_uav',
-    'slt_pc_cav',
-    'snd_pc_uav',
-    'snd_pc_cav',
     'soc_th_uav',
     'soc_th_cav',
     'swc_pc_uyr',
@@ -1594,8 +1654,124 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'hft_ix_u93',
     'hft_ix_c09',
     'hft_ix_u09',
-    'hdi_ix_cav')
+    'hdi_ix_cav',
 
+    'cly_pc_cav',
+    'cly_pc_uav',
+    'slt_pc_cav',
+    'slt_pc_uav',
+    'snd_pc_cav',
+    'snd_pc_uav',
+    'pre_mm_c01',
+    'pre_mm_c02',
+    'pre_mm_c03',
+    'pre_mm_c04',
+    'pre_mm_c05',
+    'pre_mm_c06',
+    'pre_mm_c07',
+    'pre_mm_c08',
+    'pre_mm_c09',
+    'pre_mm_c10',
+    'pre_mm_c11',
+    'pre_mm_c12',
+    'pre_mm_u01',
+    'pre_mm_u02',
+    'pre_mm_u03',
+    'pre_mm_u04',
+    'pre_mm_u05',
+    'pre_mm_u06',
+    'pre_mm_u07',
+    'pre_mm_u08',
+    'pre_mm_u09',
+    'pre_mm_u10',
+    'pre_mm_u11',
+    'pre_mm_u12',
+    'pet_mm_cyr',
+    'pet_mm_uyr',
+    'cmi_ix_cyr',
+    'cmi_ix_uyr',
+    'cmi_ix_cmn',
+    'cmi_ix_umn',
+    'cmi_ix_cvar',
+    'cmi_ix_uvar',
+    'cmi_ix_c01',
+    'cmi_ix_c02',
+    'cmi_ix_c03',
+    'cmi_ix_c04',
+    'cmi_ix_c05',
+    'cmi_ix_c06',
+    'cmi_ix_c07',
+    'cmi_ix_c08',
+    'cmi_ix_c09',
+    'cmi_ix_c10',
+    'cmi_ix_c11',
+    'cmi_ix_c12',
+    'cmi_ix_u01',
+    'cmi_ix_u02',
+    'cmi_ix_u03',
+    'cmi_ix_u04',
+    'cmi_ix_u05',
+    'cmi_ix_u06',
+    'cmi_ix_u07',
+    'cmi_ix_u08',
+    'cmi_ix_u09',
+    'cmi_ix_u10',
+    'cmi_ix_u11',
+    'cmi_ix_u12',
+    'ari_ix_cav',
+    'ari_ix_uav',
+    'wloss_pc_cav',
+    'wdryp_pc_cav',
+    'wwetp_pc_cav',
+    'whfrq_pc_cav',
+    'wseas_pc_cav',
+    'wperm_pc_cav',
+    'wfresh_pc_cav',
+    'wloss_pc_uav',
+    'wdryp_pc_uav',
+    'wwetp_pc_uav',
+    'whfrq_pc_uav',
+    'wseas_pc_uav',
+    'wperm_pc_uav',
+    'wfresh_pc_uav',
+    'bio1_dc_cav',
+    'bio2_dc_cav',
+    'bio3_dc_cav',
+    'bio4_dc_cav',
+    'bio5_dc_cav',
+    'bio6_dc_cav',
+    'bio7_dc_cav',
+    'bio8_dc_cav',
+    'bio9_dc_cav',
+    'bio10_dc_cav',
+    'bio11_dc_cav',
+    'bio12_mm_cav',
+    'bio13_mm_cav',
+    'bio14_mm_cav',
+    'bio15_mm_cav',
+    'bio16_mm_cav',
+    'bio17_mm_cav',
+    'bio18_mm_cav',
+    'bio19_mm_cav',
+    'bio1_dc_uav',
+    'bio2_dc_uav',
+    'bio3_dc_uav',
+    'bio4_dc_uav',
+    'bio5_dc_uav',
+    'bio6_dc_uav',
+    'bio7_dc_uav',
+    'bio8_dc_uav',
+    'bio9_dc_uav',
+    'bio10_dc_uav',
+    'bio11_dc_uav',
+    'bio12_mm_uav',
+    'bio13_mm_uav',
+    'bio14_mm_uav',
+    'bio15_mm_uav',
+    'bio16_mm_uav',
+    'bio17_mm_uav',
+    'bio18_mm_uav',
+    'bio19_mm_uav')
 
   #Check that all columns are in dt
   message(paste(length(predcols[!(predcols %in% names(in_gaugestats))]),
@@ -1642,10 +1818,15 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                                     'Discharge watershed Annual min/max',
                                     'Discharge watershed Annual min/average',
                                     'Elevation catchment average - watershed average',
+                                    'Runoff coefficient catchment Annual average',
+                                    'Specific discharge watershed Annual average',
+                                    'Specific discharge watershed Annual min',
                                     paste0('Discharge watershed ', month.name)),
                           varcode=c('pre_mm_cvar',
                                     'dis_m3_pvar', 'dis_m3_pvaryr',
                                     'ele_pc_rel',
+                                    'runc_ix_cyr',
+                                    'sdis_ms_uyr', 'sdis_ms_umn',
                                     monthlydischarge_preds
                           )
   )
@@ -1683,6 +1864,33 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     Citation = 'Döll et al. 2003'
   )]
 
+  predcols_dt[varcode=='runc_ix_cyr', `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Runoff coefficient',
+    `Spatial representation`='c',
+    `Temporal/Statistical aggreg.`='yr',
+    Source = 'WaterGAP v2.2, WorldClim v2',
+    Citation = 'Döll et al. 2003'
+  )]
+
+  predcols_dt[varcode=='sdis_ms_uyr', `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Specific discharge',
+    `Spatial representation`='u',
+    `Temporal/Statistical aggreg.`='yr',
+    Source = 'WaterGAP v2.2',
+    Citation = 'Döll et al. 2003'
+  )]
+
+  predcols_dt[varcode=='sdis_ms_umn', `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Specific discharge',
+    `Spatial representation`='u',
+    `Temporal/Statistical aggreg.`='mn',
+    Source = 'WaterGAP v2.2',
+    Citation = 'Döll et al. 2003'
+  )]
+
   predcols_dt[grepl('DIS_[0-9]{2}.*', varcode), `:=`(
     Category = 'Hydrology',
     Attribute= 'Nature Discharge',
@@ -1699,15 +1907,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     `Temporal/Statistical aggreg.`='(cav-uav)/uav',
     Source = 'EarthEnv-DEM90',
     Citation = 'Robinson et al. 2014'
-  )]
-
-  predcols_dt[varcode=='pre_mm_cvar', `:=`(
-    Category = 'Climate',
-    Attribute= 'Precipitation',
-    `Spatial representation`='c',
-    `Temporal/Statistical aggreg.`='mn/mx',
-    Source = 'WorldClim v1.4',
-    Citation = 'Hijmans et al. 2005'
   )]
 
   return(predcols_dt)
@@ -2265,9 +2464,9 @@ ggmisclass_single <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp
   return(gout)
 }
 
-#------ ggpd -----------------
-ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
-                  parallel=T, spatial_rsp=FALSE) {
+#------ ggpd_bivariate -----------------
+ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
+                            parallel=T, spatial_rsp=FALSE) {
 
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
@@ -2293,6 +2492,7 @@ ggpd <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                                       in_rftuned = rsmp_res,
                                       datdf = datdf,
                                       selcols = selcols,
+                                      nvariate=2,
                                       ngrid = ngrid,
                                       future.scheduling = structure(TRUE,ordering = "random"),
                                       future.packages = c("data.table","edarf","ranger"))
@@ -2429,7 +2629,7 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
       scale_color_manual(values=colorpal,
                          name='Observed regime',
                          labels = c('Perennial', 'Intermittent')) +
-      labs(x='Value', y='Model Uncertainty and Error (MUE)') +
+      labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
       #scale_x_sqrt(expand=c(0,0)) +
       coord_cartesian(expand=FALSE, clip='off') +
       facet_wrap(~variable, scales='free') +
@@ -2458,7 +2658,7 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
                       fill=intermittent, color=intermittent),
                   alpha=0.75, color=NA) +
       geom_hline(yintercept=0, alpha=1/2) +
-      labs(x='Value', y='Model Uncertainty and Error (MUE)') +
+      labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
       coord_cartesian(expand=FALSE, clip='off') +
       scale_fill_manual(values=colorpal,
                         name='Observed regime',
@@ -2856,24 +3056,24 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
                        "dis_m3_pyr", "dor_pc_pva","for_pc_use", "gla_pc_use",
                        "kar_pc_use", "lka_pc_use", "pet_mm_uyr", "snw_pc_uyr",
                        "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr", "hdi_ix_cav",
-                       "hft_ix_c93", "ORD_STRA", "gwt_m_cav",  "ire_pc_use")
+                       "hft_ix_c93", "UPLAND_SKM", "gwt_m_cav",  "ire_pc_use")
 
   scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
 
-  gaugeformat <- as.data.table(in_gaugepred)[, `:=`(
-    ari_ix_cav = ari_ix_cav/100,
-    ari_ix_uav = ari_ix_uav/100,
-    cmi_ix_cmn = cmi_ix_cmn/100,
-    cmi_ix_uyr = cmi_ix_uyr/100,
-    dor_pc_pva = dor_pc_pva/100,
-    lka_pc_cse = lka_pc_cse/10,
-    lka_pc_use = lka_pc_use/10,
-    tmp_dc_cmn =  tmp_dc_cmn/10,
-    tmp_dc_cmx =  tmp_dc_cmx/10,
-    tmp_dc_cyr =  tmp_dc_cyr/10,
-    tmp_dc_uyr =  tmp_dc_uyr/10,
-    gwt_m_cav = gwt_cm_cav/100
-  )]
+  # gaugeformat <- as.data.table(in_gaugepred)[, `:=`(
+  #   ari_ix_cav = ari_ix_cav/100,
+  #   ari_ix_uav = ari_ix_uav/100,
+  #   cmi_ix_cmn = cmi_ix_cmn/100,
+  #   cmi_ix_uyr = cmi_ix_uyr/100,
+  #   dor_pc_pva = dor_pc_pva/100,
+  #   lka_pc_cse = lka_pc_cse/10,
+  #   lka_pc_use = lka_pc_use/10,
+  #   tmp_dc_cmn =  tmp_dc_cmn/10,
+  #   tmp_dc_cmx =  tmp_dc_cmx/10,
+  #   tmp_dc_cyr =  tmp_dc_cyr/10,
+  #   tmp_dc_uyr =  tmp_dc_uyr/10,
+  #   gwt_m_cav = gwt_cm_cav/100
+  # )]
 
   penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
                            in_gaugedt = gaugeformat,
@@ -3182,9 +3382,12 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
                       with=F], on='HYRIV_ID']
   in_dir <- file.path(in_filestructure[['datdir']],
                       'Comparison_databases/US')
-  in_netpath <- file.path(in_filestructure[['datdir']],
-                          'Comparison_databases/US',
-                          'NHD_attris.csv')
+  in_netpath_hr <- file.path(in_filestructure[['datdir']],
+                             'Comparison_databases/US',
+                             'NHDhr_attris.csv')
+  in_netpath_mr <- file.path(in_filestructure[['datdir']],
+                             'Comparison_databases/US',
+                             'NHDmr_attris.csv')
   in_baspath <- file.path(in_filestructure[['resdir']],
                           'Comparison_databases/us.gdb',
                           'hydrobasins12')
@@ -3196,35 +3399,37 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
   #46006: Stream/River: Hydrographic Category = Perennial
   #46007: Stream/River: Hydrographic Category = Ephemeral
 
-  net <- fread(in_netpath,
+  nethr <- fread(in_netpath_hr,
                colClasses = c('character', 'character', 'numeric', 'character',
                               'integer', 'numeric', 'numeric'))
-  net[, HUC8 := substr(as.character(ReachCode), 1, 8)]
+  nethr[, HUC8 := substr(as.character(ReachCode), 1, 8)]
+
+  #Compare total
 
   #Check the percentage of each type of line in the NHD by HUC8 and Drainage area
-  # net[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  # nethr[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #     HUC8sum := .N, by=HUC8]
-  # FCode_HUC8 <- net[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  # FCode_HUC8 <- nethr[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #                   as.integer(100*max(.SD[, .N]/HUC8sum)), by=.(HUC8, FCode)]
   #
-  netbinned <- bin_dt(in_dt=net[TotDASqKm > 0,],
+  nethrbinned <- bin_dt(in_dt=nethr[TotDASqKm > 0,],
                       binvar='TotDASqKm',
                       valuevar='intermittent',
                       binfunc='manual',
                       binarg=binarg)
-  # netbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  # nethrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #           DAsum := .N, by=bin_lformat]
-  # FCode_DA <- netbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  # FCode_DA <- nethrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #                       as.integer(100*max(.SD[, .N]/DAsum)), by=.(bin_lformat, FCode)]
 
   #Exclude all HUC8s with more than 5% of non-identified FCode (46000)
-  netsub <- netbinned[!(HUC8 %in% net[FCode==46000 & V1>10,unique(HUC8)]) &
+  nethrsub <- nethrbinned[!(HUC8 %in% nethr[FCode==46000 & V1>10,unique(HUC8)]) &
                         TotDASqKm > -9999,]
 
   #Create intermittency variable
-  netsub[, intermittent := fifelse(FCode %in% c(46003, 46007), '1', '0')]
-  netsub[FCode == 55800, intermittent := -1]
-  netsub[!(FCode %in% c(55800, 46003, 46007, 46006)), intermittent := NA]
+  nethrsub[, intermittent := fifelse(FCode %in% c(46003, 46007), '1', '0')]
+  nethrsub[FCode == 55800, intermittent := -1]
+  nethrsub[!(FCode %in% c(55800, 46003, 46007, 46006)), intermittent := NA]
 
   #Get HydroSHEDS basins that overlap with selected NHD HUC8s
   bas <- st_read(dsn = dirname(in_baspath),
@@ -3234,14 +3439,14 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
   rivpredsub <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
     .[, UPLAND_SKM := round(UPLAND_SKM)] %>%
-    .[HUC8 %in% unique(netsub$HUC8),]
+    .[HUC8 %in% unique(nethrsub$HUC8),]
 
   #Get bin labels
   binlabels <- label_manualbins(binarg=binarg,
-                                minval=min(netsub$TotDASqKm))
+                                minval=min(nethrsub$TotDASqKm))
 
   #Compute bin statistics ncluding "artificial flow path"
-  tidyperc_usall <- formathistab(in_dt = netsub[!is.na(intermittent),],
+  tidyperc_usall <- formathistab(in_dt = nethrsub[!is.na(intermittent),],
                                  castvar = "TotDASqKm",
                                  valuevar = "intermittent",
                                  valuevarsub = valuevarsub,
@@ -3253,7 +3458,7 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
     .[, binsumlength := binsumlength]
 
   #Compute bin statistics excluding "artificial flow path"
-  tidyperc_usnoartificial <- formathistab(in_dt = netsub[!is.na(intermittent) &
+  tidyperc_usnoartificial <- formathistab(in_dt = nethrsub[!is.na(intermittent) &
                                                            intermittent != -1,],
                                           castvar = "TotDASqKm",
                                           valuevar = "intermittent",
@@ -3381,7 +3586,7 @@ qc_pnw <- function(in_filestructure, in_rivernetwork) {
                        name='Observed regime',
                        labels = c('Perennial', 'Intermittent')) +
     coord_cartesian(expand=FALSE, clip='off') +
-    labs(x='Value', y='Model Uncertainty and Error (MUE)') +
+    labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
     theme_classic() +
     theme(legend.position = c(0.9, 0.45),
           legend.background = element_blank()) +
