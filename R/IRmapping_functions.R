@@ -143,7 +143,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   biocolsnegative <- grep('bio[15689][01]*_.*', biocols, value=T)
 
   for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
-    if (!(j %in% c(gladcols, sgcols))) {
+    if (!(j %in% c(gladcols, sgcols, 'wet_cl_cmj'))) {
       set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to 0 if -9999
       }
     }
@@ -681,9 +681,15 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
 
   #Make dataset of all combinations of selected column names, two at a time
   if (nvariate == 1) {
-
-
-
+    pdcomb <- lapply(selcols, function(i) {
+      pdout <- edarf::partial_dependence(in_fit, vars = i, n = ngrid,
+                                         interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
+        setDT %>%
+        .[,(names(foldperf)) := foldperf] %>%
+        .[, `:=`(var1=i)] %>%
+        setnames(i, 'value1')
+    }
+    )
 
 
   } else if (nvariate == 2) {
@@ -727,7 +733,7 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
 #'
 #' @export
 
-fread_cols <- function(file_name, cols_tokeep) {
+fread_cols <- function(file_name, cols_tokeep, colClasses=NULL) {
   #Only read the first row from the file
   header <- fread(file_name, nrows = 1, header = FALSE)
   #Check which columns are in the table
@@ -737,7 +743,10 @@ fread_cols <- function(file_name, cols_tokeep) {
         'columns out of ', length(cols_tokeep), 'supplied column names')
   #Reading in table
   paste(missingcols, 'columns are not in the file...')
-  return(fread(input=file_name, header=TRUE, select=keptcols, verbose=TRUE))
+
+  dt <- fread(input=file_name, header=TRUE,
+              select=keptcols, verbose=TRUE)
+  return(dt)
 }
 
 #------ get_oversamp_ratio -----------------
@@ -1427,10 +1436,10 @@ read_gaugep <- function(in_filestructure, dist, in_monthlydischarge) {
            names(riveratlas2),
            gsub('_11$', '', names(riveratlas2)))
 
-  keepcols <- c('REACH_ID', 'Shape',
-                names(gaugep)[!(names(gaugep) %in% names(riveratlas2))])
+  keepcols <- names(gaugep)[!(names(gaugep) %in% names(riveratlas2))]
   gaugep_attriall <- merge(gaugep[,keepcols, with=F], riveratlas2,
-                           by = 'REACH_ID')
+                                   by.x = 'HYRIV_ID', by.y = 'REACH_ID',
+                                   all.x=TRUE, all.y=FALSE)
 
   gaugep_monthlydischarge <- merge(gaugep_attriall, in_monthlydischarge,
                                    by.x = 'HYRIV_ID', by.y = 'REACH_ID',
@@ -1737,7 +1746,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'bio1_dc_cav',
     'bio2_dc_cav',
     'bio3_dc_cav',
-    'bio4_dc_cav',
+    #'bio4_dc_cav',
     'bio5_dc_cav',
     'bio6_dc_cav',
     'bio7_dc_cav',
@@ -1756,7 +1765,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'bio1_dc_uav',
     'bio2_dc_uav',
     'bio3_dc_uav',
-    'bio4_dc_uav',
+    #'bio4_dc_uav',
     'bio5_dc_uav',
     'bio6_dc_uav',
     'bio7_dc_uav',
@@ -3380,6 +3389,8 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
     .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
                           'UPLAND_SKM'),
                       with=F], on='HYRIV_ID']
+
+
   in_dir <- file.path(in_filestructure[['datdir']],
                       'Comparison_databases/US')
   in_netpath_hr <- file.path(in_filestructure[['datdir']],
@@ -3393,43 +3404,33 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
                           'hydrobasins12')
   valuevarsub <- "1"
 
+
+  #GEt NHD high and medium resolution
   #55800: Artificial path
   #46000: Stream/River
   #46003: Stream/River: Hydrographic Category = Intermittent
   #46006: Stream/River: Hydrographic Category = Perennial
   #46007: Stream/River: Hydrographic Category = Ephemeral
+  keepfcodes <- c(55800, 46000, 46003, 46007, 46006) #Flow line types to keep
 
+  #Read and format NHD high res
   nethr <- fread(in_netpath_hr,
                colClasses = c('character', 'character', 'numeric', 'character',
                               'integer', 'numeric', 'numeric'))
-  nethr[, HUC8 := substr(as.character(ReachCode), 1, 8)]
+  nethr[, HUC8 := substr(ReachCode, 1, 8)]
 
-  #Compare total
+  #Read NHD medium res
+  mrcolclasses <- list(character=c('COMID', 'REACHCODE'),
+                       numeric=c('LENGTHKM', 'TotDASqKM', 'QE_MA'),
+                       integer = c('FTYPE', 'FCODE', 'StreamOrde'))
+  netmr <- fread(in_netpath_mr,
+        colClasses = list(character=c('COMID', 'REACHCODE'),
+                          numeric=c('LENGTHKM', 'TotDASqKM', 'QE_MA'),
+                          integer = c('FTYPE', 'FCODE', 'StreamOrde'))) %>%
+    .[,unlist(mrcolclasses), with=F]
+  netmr[, HUC8 := substr(REACHCODE, 1, 8)]
 
-  #Check the percentage of each type of line in the NHD by HUC8 and Drainage area
-  # nethr[FCode %in% c(55800, 46000, 46003, 46006, 46007),
-  #     HUC8sum := .N, by=HUC8]
-  # FCode_HUC8 <- nethr[FCode %in% c(55800, 46000, 46003, 46006, 46007),
-  #                   as.integer(100*max(.SD[, .N]/HUC8sum)), by=.(HUC8, FCode)]
-  #
-  nethrbinned <- bin_dt(in_dt=nethr[TotDASqKm > 0,],
-                      binvar='TotDASqKm',
-                      valuevar='intermittent',
-                      binfunc='manual',
-                      binarg=binarg)
-  # nethrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
-  #           DAsum := .N, by=bin_lformat]
-  # FCode_DA <- nethrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
-  #                       as.integer(100*max(.SD[, .N]/DAsum)), by=.(bin_lformat, FCode)]
-
-  #Exclude all HUC8s with more than 5% of non-identified FCode (46000)
-  nethrsub <- nethrbinned[!(HUC8 %in% nethr[FCode==46000 & V1>10,unique(HUC8)]) &
-                        TotDASqKm > -9999,]
-
-  #Create intermittency variable
-  nethrsub[, intermittent := fifelse(FCode %in% c(46003, 46007), '1', '0')]
-  nethrsub[FCode == 55800, intermittent := -1]
-  nethrsub[!(FCode %in% c(55800, 46003, 46007, 46006)), intermittent := NA]
+  netmrsubhr <- netmr[HUC8 %in% unique(nethr$HUC8),]
 
   #Get HydroSHEDS basins that overlap with selected NHD HUC8s
   bas <- st_read(dsn = dirname(in_baspath),
@@ -3437,20 +3438,110 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
     .[, c('HYBAS_ID', 'HUC8'), with=F]
 
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
-  rivpredsub <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
-    .[, UPLAND_SKM := round(UPLAND_SKM)] %>%
-    .[HUC8 %in% unique(nethrsub$HUC8),]
+  rivpredbas <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
+  rivpredsubhr <- rivpredbas[, UPLAND_SKM := round(UPLAND_SKM)] %>%
+    .[HUC8 %in% unique(nethr$HUC8),]
+  rivpredsubmr <- rivpredbas[HUC8 %in% unique(netmr$HUC8),]
+
+  #Compare some statistics
+  nethrlen <- nethr[FCode %in% keepfcodes,
+                    round(sum(LengthKM, na.rm=T)/(10^6), 1)]
+
+  print(paste0('Total length of streams in NHDplus highres:' ,
+               nethrlen,
+               ' million km'))
+  print(paste0(round(nethrlen/netmrsubhr[FCODE %in% keepfcodes,
+                             sum(LENGTHKM, na.rm=T)/(10^6)],
+                     1),
+               ' times the length in HDplus res'))
+  print(paste0(round(nethrlen/rivpredsubhr[, sum(LENGTH_KM)/(10^6)],
+                     1),
+               ' times the length in HydroSHEDS'))
+
+
+  print(paste0('% of stream length in NHDplus highres with DA < 10 km2:' ,
+               round(
+                 100 * nethr[FCode %in% keepfcodes &
+                               !is.na(TotDASqKm) & TotDASqKm < 10,
+                             sum(LengthKM, na.rm=T)]/
+                   nethr[FCode %in% keepfcodes & !is.na(TotDASqKm),
+                         sum(LengthKM, na.rm=T)]
+               ), ' %'))
+
+  #Total range in intermittency
+  print(paste0(
+  'Range of prvalence of intermittency in NHDplus high resolution,',
+  'depending on whether unclassified reaches are counted as fully intermittent or perennial: ',
+  round(100*nethr[FCode %in% c(46003, 46007), sum(LengthKM)]/
+    nethr[FCode %in% keepfcodes, sum(LengthKM)]),
+  '-',
+  round(100*nethr[FCode %in% c(46003, 46007, 46000, 55800), sum(LengthKM)]/
+    nethr[FCode %in% keepfcodes, sum(LengthKM)]),
+  '%'))
+
+  print(paste0(
+    'Range of prevalence of intermittency in NHDplus medium resolution,',
+    'depending on whether unclassified reaches are counted as fully intermittent or perennial: ',
+    round(100*netmrsubhr[FCODE %in% c(46003, 46007), sum(LENGTHKM)]/
+            netmrsubhr[FCODE %in% keepfcodes, sum(LENGTHKM)]),
+    '-',
+    round(100*netmrsubhr[FCODE %in% c(46003, 46007, 46000, 55800), sum(LENGTHKM)]/
+            netmrsubhr[FCODE %in% keepfcodes, sum(LENGTHKM)]),
+    '%'))
+
+
+  netmr_o10 <- netmr[(TotDASqKM >= 10 | (QE_MA*0.028316847) >= 0.1),]
+
+  print(paste0(
+    'Range of prevalence of intermittency in NHDplus medium resolution >= 10 km2,',
+    'depending on whether unclassified reaches are counted as fully intermittent or perennial: ',
+    round(100*netmr_o10[FCODE %in% c(46003, 46007), sum(LENGTHKM)]/
+            netmr_o10[FCODE %in% keepfcodes, sum(LENGTHKM)]),
+    '-',
+    round(100*netmr_o10[FCODE %in% c(46003, 46007, 46000, 55800), sum(LENGTHKM)]/
+            netmr_o10[FCODE %in% keepfcodes, sum(LENGTHKM)]),
+    '%'))
+
+
+  print(paste0(
+    'Total estimated prevalence in HydroSHEDS: ',
+    rivpredsubmr[predbasic800cat==1,sum(LENGTH_KM)]/
+      rivpredsubmr[,sum(LENGTH_KM)]
+  ))
+
+
+  #Check the percentage of each type of line in the NHD by HUC8 and Drainage area
+  netmr_fsub <- copy(netmr[FCODE %in% keepfcodes,])
+  netmr_fsub[, HUC8sum := sum(LENGTHKM), by=HUC8]
+  FCode_HUC8 <- netmr_fsub[FCODE %in% keepfcodes,
+                           as.integer(100*.SD[,sum(LENGTHKM)]/max(HUC8sum)),
+                           by=.(HUC8, FCODE)]
+
+  netmrbinned <- bin_dt(in_dt=netmr[TotDASqKM > 0,],
+                        binvar='TotDASqKM',
+                        valuevar='intermittent',
+                        binfunc='manual',
+                        binarg=binarg)
+  # netmrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  #           DAsum := .N, by=bin_lformat]
+  # FCode_DA <- netmrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
+  #                       as.integer(100*max(.SD[, .N]/DAsum)), by=.(bin_lformat, FCode)]
+
+  #Create intermittency variable
+  netmr_fsub[, intermittent := fifelse(FCODE %in% c(46003, 46007), '1', '0')]
+  netmr_fsub[FCODE %in% c(46000, 55800), intermittent := -1]
+  netmr_fsub[!(FCODE %in% keepfcodes), intermittent := NA]
 
   #Get bin labels
   binlabels <- label_manualbins(binarg=binarg,
-                                minval=min(nethrsub$TotDASqKm))
+                                minval=min(netmr_fsub$TotDASqKM))
 
   #Compute bin statistics ncluding "artificial flow path"
-  tidyperc_usall <- formathistab(in_dt = nethrsub[!is.na(intermittent),],
-                                 castvar = "TotDASqKm",
+  tidyperc_usall <- formathistab(in_dt = netmr_fsub[!is.na(intermittent),],
+                                 castvar = "TotDASqKM",
                                  valuevar = "intermittent",
                                  valuevarsub = valuevarsub,
-                                 weightvar = "LengthKM",
+                                 weightvar = "LENGTHKM",
                                  binfunc = 'manual',
                                  binarg =  binarg,
                                  binlabels = binlabels,
@@ -3458,12 +3549,12 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
     .[, binsumlength := binsumlength]
 
   #Compute bin statistics excluding "artificial flow path"
-  tidyperc_usnoartificial <- formathistab(in_dt = nethrsub[!is.na(intermittent) &
+  tidyperc_usnoartificial <- formathistab(in_dt = netmr_fsub[!is.na(intermittent) &
                                                            intermittent != -1,],
-                                          castvar = "TotDASqKm",
+                                          castvar = "TotDASqKM",
                                           valuevar = "intermittent",
                                           valuevarsub = valuevarsub,
-                                          weightvar = "LengthKM",
+                                          weightvar = "LENGTHKM",
                                           binfunc = 'manual',
                                           binarg =  binarg,
                                           binlabels = binlabels,
@@ -3471,7 +3562,7 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
     .[, binsumlength := binsumlength]
 
   #Compute bin statistics for river networks
-  tidyperc_riv  <- formathistab(in_dt = rivpredsub,
+  tidyperc_riv  <- formathistab(in_dt = rivpredsubmr,
                                 castvar = 'UPLAND_SKM',
                                 valuevar = 'predbasic800cat',
                                 valuevarsub = valuevarsub,
@@ -3480,6 +3571,7 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
                                 binarg =  binarg,
                                 binlabels = binlabels,
                                 datname = 'Global predictions')
+
 
   #Merge statistics
   datmerge_all <- rbind(tidyperc_usall, tidyperc_riv) %>%
@@ -3492,7 +3584,7 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
 
   #Create plot
   return(
-    ggcompare(datmerge_all) +
+    ggcompare(datmerge_all, binarg=binarg) +
       geom_bar(data=datmerge_noartificial, alpha=0.75,
                stat='identity', position='dodge')
   )
