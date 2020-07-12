@@ -13,11 +13,13 @@ plan <- drake_plan(
                           maxgap = 20, monthsel = NULL, #Other arguments in function
                           .progress = TRUE),
 
-  gaugestats_format = format_gaugestats(gaugestats, gaugep),
+  gaugestats_format = format_gaugestats(in_gaugestats = gaugestats,
+                                        in_gaugep = gaugep),
 
   predvars = selectformat_predvars(filestructure, in_gaugestats = gaugestats_format),
 
-  tasks = create_tasks(in_gaugestats = gaugestats_format, in_predvars = predvars),
+  tasks = create_tasks(in_gaugestats = gaugestats_format,
+                       in_predvars = predvars),
 
   baselearners = target(
     create_baselearners(tasks),
@@ -34,7 +36,7 @@ plan <- drake_plan(
     set_tuning(in_learner = seplearners,
                in_measures = measures,
                nfeatures = length(tasks$classif$feature_names),
-               insamp_nfolds = 5, insamp_neval = 100,
+               insamp_nfolds = 1, insamp_neval = 2,
                insamp_nbatch = parallel::detectCores(logical=FALSE)-1
     ),
     dynamic = map(seplearners)
@@ -42,35 +44,35 @@ plan <- drake_plan(
 
   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
                                    in_task = tasks$classif,
-                                   outsamp_nrep = 2,
-                                   outsamp_nfolds = 3),
+                                   outsamp_nrep = 1,
+                                   outsamp_nfolds = 2),
 
-  rfresampled_classif = target(
-    dynamic_resample(in_task = tasks$classif,
-                     in_learner = autotuningset,
-                     in_resampling = resamplingset,
-                     store_models = TRUE,
-                     type = 'classif'),
-    dynamic = map(autotuningset)
-  ),
-
-  rfresampled_regr = target(
-    dynamic_resample(in_task = in_tsk,
-                     in_learner = in_lrn,
-                     in_resampling = resamplingset,
-                     store_models = TRUE,
-                     type = 'regr'),
-    transform = map(in_tsk = c(tasks$regr, tasks$regover),
-                    in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
-                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
-
-  ),
-
-  rfbm_classif = target(
-    combine_bm(readd(rfresampled_classif, subtarget_list = TRUE),
-               out_qs = file_out(!!file.path(readd(filestructure)[['resdir']],
-                                             'rfbm_classif.qs')))
-  ),
+  # rfresampled_classif = target(
+  #   dynamic_resample(in_task = tasks$classif,
+  #                    in_learner = autotuningset,
+  #                    in_resampling = resamplingset,
+  #                    store_models = TRUE,
+  #                    type = 'classif'),
+  #   dynamic = map(autotuningset)
+  # ),
+  #
+  # rfresampled_regr = target(
+  #   dynamic_resample(in_task = in_tsk,
+  #                    in_learner = in_lrn,
+  #                    in_resampling = resamplingset,
+  #                    store_models = TRUE,
+  #                    type = 'regr'),
+  #   transform = map(in_tsk = c(tasks$regr, tasks$regover),
+  #                   in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
+  #                   .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
+  #
+  # ),
+  #
+  # rfbm_classif = target(
+  #   combine_bm(readd(rfresampled_classif, subtarget_list = TRUE),
+  #              out_qs = file_out(!!file.path(readd(filestructure)[['resdir']],
+  #                                            'rfbm_classif.qs')))
+  # ),
 
   # bm_checked = target(
   #   analyze_benchmark(in_bm, in_measure = measures),

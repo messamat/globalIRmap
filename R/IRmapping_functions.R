@@ -58,14 +58,13 @@ zero_lomf <- function(x, first=TRUE) {
 #------ comp_ymean -------------
 #Compute weighted mean across 12 columns corresponding to 12 months
 #mstart is the start of the two-number month
-comp_ymean<- function(in_dt, fieldex, mstart) {
+comp_ymean<- function(in_dt, fieldex, mstart, outcol) {
   refd <- data.table(month=c('01', '02', '03', '04', '05', '06',
                              '07', '08', '09', '10', '11', '12'),
                      dimonth = c(31, 28.25, 31, 30, 31, 30,
                                  31, 31, 30, 31, 30, 31))
   refd[, mcols := paste0(substr(fieldex, 1, mstart-1),
-                         month,
-                         substr(fieldex, mstart+2, nchar(fieldex)))]
+                         month)]
   in_dt2 <- copy(in_dt[, refd$mcols, with=F])
   in_dt2[, comp_ymeanID := .I]
   in_dt[, outcol] <- melt(in_dt2,
@@ -118,14 +117,21 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   }
 
 
-  #---- Inspect and correct -9999 values ----
+  #---- Inspect and correct -9999 and NA values ----
   print('Inspect and correct -9999 values')
   #check <- riveratlas[snw_pc_cyr == -9999,] #One reach in the middle of the Pacific
   in_dt2[snw_pc_cyr == -9999, snw_pc_cyr:=0]
   in_dt2[snw_pc_cmx == -9999, snw_pc_cmx:=0]
 
+  in_dt2[is.na(cly_pc_cav), cly_pc_cav := -9999] #To look into
+  in_dt2[is.na(cly_pc_uav), cly_pc_uav := -9999]
+
   print('Number of NA values per column')
-  colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x) | x==-9999))]
+  colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x)))]
+  print(colNAs)
+
+  print('Number of -9999 values per column')
+  col9999<- in_dt2[, lapply(.SD, function(x) sum(x==-9999))]
   print(colNAs)
 
   #Convert -9999 values to NA
@@ -137,19 +143,22 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
                    'wfresh_pc_uav')
   sgcols <- c('cly_pc_cav','slt_pc_cav', 'snd_pc_cav',
               'cly_pc_uav','slt_pc_uav', 'snd_pc_uav')
+
   biocols <- unlist(lapply(c('cav', 'uav'),
                            function(s) paste0('bio', 1:11, '_dc_', s)
                            ))
+  biocols <- biocols[(biocols %in% names(in_dt2))]  ################### remove afterwards
   biocolsnegative <- grep('bio[15689][01]*_.*', biocols, value=T)
-
-  for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
-    if (!(j %in% c(gladcols, sgcols, 'wet_cl_cmj'))) {
-      set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to 0 if -9999
-      }
-    }
+  biocolsnegative <- biocolsnegative[(biocolsnegative %in% names(in_dt2))]  ################### remove afterwards
 
   cmi_cmcols <- paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))
   cmi_umcols <- paste0('cmi_ix_u', str_pad(1:12, width=2, side='left', pad=0))
+
+  for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
+    if (!(j %in% which(names(in_dt2) %in% c(gladcols, sgcols, 'wet_cl_cmj')))) {
+      set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to 0 if -9999
+      }
+  }
 
   #Scale variables based on HydroATLAS v1.0 documentation and v1.1 processing
   in_dt2[, `:=`(
@@ -163,19 +172,20 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
 
   in_dt2[, (gladcols) := lapply(.SD, function(x) x/100), .SDcols = gladcols]
   in_dt2[, (biocols) := lapply(.SD, function(x) (x/100)), .SDcols = biocols]
-  in_dt2[, (biocolsnegative) := lapply(.SD, function(x) x-100), .SDcols=biocolsnegative]
-  in_dt2[, (cmi_cmcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_cmcols]
-  in_dt2[, (cmi_umcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_umcols]
+  #in_dt2[, (biocolsnegative) := lapply(.SD, function(x) x-100), .SDcols=biocolsnegative]
+  # in_dt2[, (cmi_cmcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_cmcols]
+  # in_dt2[, (cmi_umcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_umcols]
 
   #---- Compute derived predictor variables ----
   print('Compute derived predictor variables')
-  comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_c01', mstart=8, outcol='cmi_ix_cyr')
-  comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_u01', mstart=8, outcol='cmi_ix_uyr')
-  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_c01', mstart=8, outcol='pet_mm_cyr')
-  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=8, outcol='pet_mm_uyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_c01', mstart=9, outcol='cmi_ix_cyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_u01', mstart=9, outcol='cmi_ix_uyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_c01', mstart=9, outcol='pet_mm_cyr')
+  #comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=9, outcol='pet_mm_uyr')
 
-  in_dt2[, `:=`(cmi_ix_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
-                cmi_ix_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
+  in_dt2[,
+         `:=`(cmi_ix_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
+              cmi_ix_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
          .SDcols= cmi_cmcols] %>%
     .[, `:=`(cmi_ix_umn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
              cmi_ix_umx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
@@ -679,24 +689,25 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
   #   setorder(-imp_wmean) %>%
   #   .[colnums, variable]
 
+  ngridvec <- c(ngrid, ngrid)
+
   #Make dataset of all combinations of selected column names, two at a time
   if (nvariate == 1) {
     pdcomb <- lapply(selcols, function(i) {
-      pdout <- edarf::partial_dependence(in_fit, vars = i, n = ngrid,
-                                         interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
+      print(i)
+      pdout <- edarf::partial_dependence(in_fit, vars = c(i),
+                                         n = ngridvec, data = datdf) %>% #Warning: does not work with data_table
         setDT %>%
         .[,(names(foldperf)) := foldperf] %>%
         .[, `:=`(var1=i)] %>%
         setnames(i, 'value1')
     }
-    )
-
+    ) %>%
+      do.call(rbind, .)
 
   } else if (nvariate == 2) {
     vargrid <- combn(selcols, 2, simplify=F) %>%
       do.call(rbind, .)
-
-    ngridvec <- c(ngrid, ngrid)
 
     #Get marginal distribution of the effect of two columns at a time
     pdcomb <- mapply(function(i, j) {
@@ -733,7 +744,7 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
 #'
 #' @export
 
-fread_cols <- function(file_name, cols_tokeep, colClasses=NULL) {
+fread_cols <- function(file_name, cols_tokeep) {
   #Only read the first row from the file
   header <- fread(file_name, nrows = 1, header = FALSE)
   #Check which columns are in the table
@@ -1629,7 +1640,6 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'slp_dg_cav',
     'slp_dg_uav',
     'clz_cl_cmj',
-    'pet_mm_uyr',
     'snw_pc_uyr',
     'snw_pc_cyr',
     'snw_pc_cmx',
@@ -1693,7 +1703,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'pre_mm_u08',
     'pre_mm_u09',
     'pre_mm_u10',
-    'pre_mm_u11',
+    #'pre_mm_u11',
     'pre_mm_u12',
     'pet_mm_cyr',
     'pet_mm_uyr',
@@ -1713,7 +1723,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'cmi_ix_c08',
     'cmi_ix_c09',
     'cmi_ix_c10',
-    'cmi_ix_c11',
+    #'cmi_ix_c11',
     'cmi_ix_c12',
     'cmi_ix_u01',
     'cmi_ix_u02',
@@ -1725,7 +1735,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'cmi_ix_u08',
     'cmi_ix_u09',
     'cmi_ix_u10',
-    'cmi_ix_u11',
+    #'cmi_ix_u11',
     'cmi_ix_u12',
     'ari_ix_cav',
     'ari_ix_uav',
@@ -1766,7 +1776,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'bio2_dc_uav',
     'bio3_dc_uav',
     #'bio4_dc_uav',
-    'bio5_dc_uav',
+    #'bio5_dc_uav',
     'bio6_dc_uav',
     'bio7_dc_uav',
     'bio8_dc_uav',
@@ -1813,6 +1823,8 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     .[metastat, on = 'Keystat',
       allow.cartesian=TRUE]
 
+  ########################## DEAL WITH 1-12 str.pad 2
+
   meta_format[, `:=`(
     unit = substr(`Column(s)`, 5, 6),
     varcode = paste0(gsub('[-]{3}', '', `Column(s)`),
@@ -1830,13 +1842,15 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                                     'Runoff coefficient catchment Annual average',
                                     'Specific discharge watershed Annual average',
                                     'Specific discharge watershed Annual min',
-                                    paste0('Discharge watershed ', month.name)),
+                                    paste0('Discharge watershed ', month.name),
+                                    'Drainage area'),
                           varcode=c('pre_mm_cvar',
                                     'dis_m3_pvar', 'dis_m3_pvaryr',
                                     'ele_pc_rel',
                                     'runc_ix_cyr',
                                     'sdis_ms_uyr', 'sdis_ms_umn',
-                                    monthlydischarge_preds
+                                    monthlydischarge_preds,
+                                    'UPLAND_SKM'
                           )
   )
 
@@ -1902,7 +1916,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
 
   predcols_dt[grepl('DIS_[0-9]{2}.*', varcode), `:=`(
     Category = 'Hydrology',
-    Attribute= 'Nature Discharge',
+    Attribute= 'Natural Discharge',
     `Spatial representation`='p',
     `Temporal/Statistical aggreg.`= gsub('[A-Z_]', '', varcode),
     Source = 'WaterGAP v2.2',
@@ -1918,13 +1932,18 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     Citation = 'Robinson et al. 2014'
   )]
 
-  return(predcols_dt)
+  #Remove duplicates by joining
+  predcols_dtnodupli<- predcols_dt[!(
+    duplicated(varcode) &
+      grepl('Class.*', `Temporal/Statistical aggreg.`)),] %>%
+    .[!duplicated(varcode),]
+
+  return(predcols_dtnodupli)
 }
 #------ create_tasks  -----------------
 create_tasks <- function(in_gaugestats, in_predvars) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
-  datsel <- in_gaugestats[!is.na(cly_pc_cav),
-                          c('intermittent',in_predvars$varcode, 'X', 'Y'),
+  datsel <- in_gaugestats[, c('intermittent',in_predvars$varcode, 'X', 'Y'),
                           with=F]
 
   #Basic task for classification
@@ -2349,19 +2368,32 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
 
 #------ rformat_network ------------------
 rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
-  cols_tokeep <-  c("HYRIV_ID", "HYBAS_L12", "UPLAND_SKM", "LENGTH_KM",
+  cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "UPLAND_SKM", "LENGTH_KM",
                     in_predvars[!is.na(ID), varcode],
                     'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
                     'hft_ix_c09', 'hft_ix_u09',
-                    paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
                     paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
 
   riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
-                           cols_tokeep = cols_tokeep) %>%
+                           cols_tokeep = cols_toread) %>%
     merge(as.data.table(in_monthlydischarge),
           by.x='HYRIV_ID', by.y='REACH_ID') %>%
-    comp_derivedvar
+    setorder(HYRIV_ID)
+  remove(in_monthlydischarge)
+
+  riveratlas2 <- fread(in_filestructure['in_riveratlas2']) %>%
+    setorder(REACH_ID)
+  setnames(riveratlas2, names(riveratlas2), gsub('_11$', '', names(riveratlas2)))
+
+  cols_tokeep <- names(riveratlas)[!(names(riveratlas) %in% names(riveratlas2))]
+  riveratlas_format <- cbind(riveratlas[, cols_tokeep, with=F], riveratlas2)
+
+
+  #  comp_derivedvar
+
+  return(riveratlas_format)
 }
 
 #------ write_preds -----------------
@@ -2475,6 +2507,7 @@ ggmisclass_single <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp
 
 #------ ggpd_bivariate -----------------
 ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
+                            nvariate = 2,
                             parallel=T, spatial_rsp=FALSE) {
 
   #Get outer resampling of interest
@@ -2501,7 +2534,7 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                                       in_rftuned = rsmp_res,
                                       datdf = datdf,
                                       selcols = selcols,
-                                      nvariate=2,
+                                      nvariate = nvariate,
                                       ngrid = ngrid,
                                       future.scheduling = structure(TRUE,ordering = "random"),
                                       future.packages = c("data.table","edarf","ranger"))
@@ -2514,39 +2547,60 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                  in_rftuned = rsmp_res,
                  datdf = datdf,
                  selcols = selcols,
+                 nvariate = nvariate,
                  ngrid = ngrid)
   }
 
   #Get weighted mean
+  varvec <- paste0('var', 1:nvariate)
+  valvec <- paste0('value', 1:nvariate)
+
   pdformat <- do.call(rbind, pd) %>%
     setDT %>%
     .[, list(mean1 = weighted.mean(`1`, classif.bacc)),
-      by= c('var1', 'var2', 'value1', 'value2')] %>%
-    .[, variables := paste(var1, var2)]
+      by= c(varvec, valvec)] %>%
+    .[, variables := var1]
 
-  vargrid <- t(combn(1:length(selcols), 2))
-  #leglims <- pdformat[, c(min(mean1), max(mean1))]
+  ##############################################################################
+  if (nvariate ==1) {
+    tileplots_l <- pdformat[,list(list(ggplotGrob(
+      ggplot(.SD, aes(x=value1, y=mean1)) +
+        geom_line() +
+        # geom_rug(data=datdf,
+        #          aes_string(x=eval(var1),y='intermittent'),
+        #          alpha=1/3) +
+        scale_y_continuous(name='Partial dependence (probability of intermittency)') +
+        scale_x_continuous(name=get(variables)) +
+        theme_classic() +
+        theme(text = element_text(size=12))
+    ))), by=.(var1)]
+    ############################### STILL TO CORRECT ##########################
 
-  #Iterate over every pair of variables
+  } else if (nvariate == 2) {
+    pdformat[, variables := paste(var1, var2)]
 
-  tileplots_l <- pdformat[,list(list(ggplotGrob(
-    ggplot(.SD, aes(x=value1, y=value2)) +
-      geom_tile(aes(fill = mean1)) +
-      scale_fill_distiller(palette='Grey') +
-      geom_jitter(data=datdf,
-                  aes_string(color='intermittent', x=eval(var1),y=eval(var2)),
-                  alpha=1/3) +
-      scale_color_manual(values=c('#0F9FD6','#ff9b52')) +
-      labs(x=stringr::str_wrap(in_predvars[varcode==eval(var1), varname],
-                               width = 20),
-           y=stringr::str_wrap(in_predvars[varcode==eval(var2), varname],
-                               width = 20)) +
-      theme_bw() +
-      theme(text = element_text(size=12))
-  )))
-  , by=.(var1, var2)]
+    vargrid <- t(combn(1:length(selcols), 2))
+    #leglims <- pdformat[, c(min(mean1), max(mean1))]
 
+    #Iterate over every pair of variables
 
+    tileplots_l <- pdformat[,list(list(ggplotGrob(
+      ggplot(.SD, aes(x=value1, y=value2)) +
+        geom_tile(aes(fill = mean1)) +
+        scale_fill_distiller(palette='Grey') +
+        geom_jitter(data=datdf,
+                    aes_string(color='intermittent', x=eval(var1),y=eval(var2)),
+                    alpha=1/3) +
+        scale_color_manual(values=c('#0F9FD6','#ff9b52')) +
+        labs(x=stringr::str_wrap(in_predvars[varcode==eval(var1), varname],
+                                 width = 20),
+             y=stringr::str_wrap(in_predvars[varcode==eval(var2), varname],
+                                 width = 20)) +
+        theme_bw() +
+        theme(text = element_text(size=12))
+    )))
+    , by=.(var1, var2)]
+  }
 
   pagelayout <-   lapply(1:(nrow(tileplots_l) %/% 9), function(p_i) {
     (p_i-1)*9+(1:9)
@@ -2554,6 +2608,7 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
   if (nrow(tileplots_l) %% 9 > 0) {
     pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <- (p_i-1)*9+(1:(nrow(tileplots_l) %% 9))
   }
+
 
   tileplots_multipl <- lapply(pagelayout, function(page) {
     print(page)
