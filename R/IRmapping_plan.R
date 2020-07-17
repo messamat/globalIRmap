@@ -11,6 +11,7 @@ plan <- drake_plan(
   gaugestats = future_map(gauged_filenames, #To map
                           comp_durfreq, #Function to run on each file name
                           maxgap = 20, monthsel = NULL, #Other arguments in function
+                          mdurthresh = 1,
                           .progress = TRUE),
 
   gaugestats_format = format_gaugestats(in_gaugestats = gaugestats,
@@ -36,7 +37,7 @@ plan <- drake_plan(
     set_tuning(in_learner = seplearners,
                in_measures = measures,
                nfeatures = length(tasks$classif$feature_names),
-               insamp_nfolds = 1, insamp_neval = 2,
+               insamp_nfolds = 4, insamp_neval = 100,
                insamp_nbatch = parallel::detectCores(logical=FALSE)-1
     ),
     dynamic = map(seplearners)
@@ -44,35 +45,35 @@ plan <- drake_plan(
 
   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
                                    in_task = tasks$classif,
-                                   outsamp_nrep = 1,
-                                   outsamp_nfolds = 2),
+                                   outsamp_nrep = 2,
+                                   outsamp_nfolds = 3),
 
-  # rfresampled_classif = target(
-  #   dynamic_resample(in_task = tasks$classif,
-  #                    in_learner = autotuningset,
-  #                    in_resampling = resamplingset,
-  #                    store_models = TRUE,
-  #                    type = 'classif'),
-  #   dynamic = map(autotuningset)
-  # ),
-  #
-  # rfresampled_regr = target(
-  #   dynamic_resample(in_task = in_tsk,
-  #                    in_learner = in_lrn,
-  #                    in_resampling = resamplingset,
-  #                    store_models = TRUE,
-  #                    type = 'regr'),
-  #   transform = map(in_tsk = c(tasks$regr, tasks$regover),
-  #                   in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
-  #                   .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
-  #
-  # ),
-  #
-  # rfbm_classif = target(
-  #   combine_bm(readd(rfresampled_classif, subtarget_list = TRUE),
-  #              out_qs = file_out(!!file.path(readd(filestructure)[['resdir']],
-  #                                            'rfbm_classif.qs')))
-  # ),
+  rfresampled_classif = target(
+    dynamic_resample(in_task = tasks$classif,
+                     in_learner = autotuningset,
+                     in_resampling = resamplingset,
+                     store_models = TRUE,
+                     type = 'classif'),
+    dynamic = map(autotuningset)
+  ),
+
+  rfresampled_regr = target(
+    dynamic_resample(in_task = in_tsk,
+                     in_learner = in_lrn,
+                     in_resampling = resamplingset,
+                     store_models = TRUE,
+                     type = 'regr'),
+    transform = map(in_tsk = c(tasks$regr, tasks$regover),
+                    in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
+                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
+
+  ),
+
+  rfbm_classif = target(
+    combine_bm(readd(rfresampled_classif, subtarget_list = TRUE),
+               out_qs = file_out(!!file.path(readd(filestructure)[['resdir']],
+                                             'rfbm_classif.qs')))
+  ),
 
   # bm_checked = target(
   #   analyze_benchmark(in_bm, in_measure = measures),
@@ -82,21 +83,23 @@ plan <- drake_plan(
   #                 #in_measure = list(measures$classif, measures$regr))
   # ),
 
+  selected_learner = target("oversample.classif.ranger"),
+
   resamplingset_featsel = target(
     set_cvresampling(rsmp_id = in_strategy,
                      in_task = tasks$classif,
                      outsamp_nrep = in_outrep,
                      outsamp_nfolds = in_outfolds),
     transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
-                    in_outrep = c(1, 1),
-                    in_outfolds = c(2, 2),
+                    in_outrep = c(2, 2),
+                    in_outfolds = c(3, 3),
                     .names = c('featsel_cv', 'featsel_spcv'))
   ),
 
   tasks_featsel = select_features(
     in_bm = file_in(!!file.path(readd(filestructure)[['resdir']],
                                 'rfbm_classif.qs')),
-    in_lrnid =  "oversample.classif.ranger",
+    in_lrnid =  selected_learner,
     in_task = tasks$classif,
     pcutoff = 0.05
   ),
@@ -105,7 +108,7 @@ plan <- drake_plan(
     dynamic_resamplebm(in_task = in_taskfeatsel,
                        in_bm = file_in(!!file.path(readd(filestructure)[['resdir']],
                                                    'rfbm_classif.qs')),
-                       in_lrnid =  "oversample.classif.ranger",
+                       in_lrnid =  selected_learner,
                        in_resampling = in_resampling,
                        store_models = TRUE,
                        type = 'classif'),
@@ -115,44 +118,64 @@ plan <- drake_plan(
                                 'res_featsel_cv', 'res_featsel_spcv'))
   ),
 
-  rfeval_featsel = target(
-    c(res_all_cv, res_all_spcv,
-      res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
+  rfeval_featall = target(c(res_all_cv, res_all_spcv)),
+
+  rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv) #Cannot use combine as lead to BenchmarkResult directly in the branching
   ),
+
+  rfbm_featall= analyze_benchmark(in_bm = rfeval_featall,
+                                  in_measure = measures$classif),
 
   rfbm_featsel = analyze_benchmark(in_bm = rfeval_featsel,
                                    in_measure = measures$classif),
 
+  interthresh = target(rfbm_featsel$interthresh_dt[learner == selected_learner,
+                                                   thresh]),
+
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
   rftuned = target(
-    selecttrain_rf(in_rf = rfeval_featsel,
-                   in_learnerid ="oversample.classif.ranger",
+    selecttrain_rf(in_rf = res_featsel_spcv,
+                   in_learnerid = selected_learner,
                    in_taskid = "inter_basicsp_featsel",
-                   insamp_nfolds = 2,
-                   insamp_nevals = 1)),
+                   insamp_nfolds = 4,
+                   insamp_nevals = 100)),
 
   rivernetwork = rformat_network(in_filestructure = filestructure,
                                  in_predvars = predvars,
                                  in_monthlydischarge = monthlydischarge),
 
-  uncertainty_plot = gguncertainty(in_rftuned = rftuned,
-                                   in_gaugestats = gaugestats_format,
-                                   in_predvars = predvars,
-                                   spatial_rsp = TRUE),
+  gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
+                             in_gaugestats = gaugestats_format,
+                             in_predvars = predvars,
+                             spatial_rsp = TRUE,
+                             interthresh = interthresh),
 
-  rfpreds = write_preds(in_filestructure = filestructure, in_gaugep = gaugep,
-                        in_gaugestats = gaugestats_format, in_network = rivernetwork,
-                        in_rftuned = rftuned, in_predvars = predvars,
-                        in_uncertainty = uncertainty_plot[['out_uncertainty']]),
+  rfpreds = write_preds(in_filestructure = filestructure,
+                        in_gaugep = gaugep,
+                        in_gaugestats = gaugestats_format,
+                        in_network = rivernetwork,
+                        in_rftuned = rftuned,
+                        in_predvars = predvars,
+                        in_gaugeIPR = gaugeIPR_plot[['out_gaugeIPR']],
+                        interthresh = interthresh),
+
+  rivpred = target(
+    fread(file_in(!!filestructure['out_riveratlas']))%>%
+      .[rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
+                         'UPLAND_SKM'),
+                     with=F], on='HYRIV_ID']
+  ),
 
   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 
-  pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars, colnums=1:10,
+  pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars, colnums=1:20,
                  nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
 
   basemaps = get_basemapswintri(in_filestructure = filestructure),
 
-  gauges_plot = gggauges(in_gaugepred = rfpreds, in_basemaps = basemaps),
+  gauges_plot = gggauges(in_gaugepred = rfpreds, in_basemaps = basemaps,
+                         binarg <- c(30, 60, 100),
+                         binvar <- 'totalYears_kept'),
 
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
                              in_gaugepred = rfpreds,
@@ -164,7 +187,7 @@ plan <- drake_plan(
       in_bm = list(
         file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
         c(rfresampled_regr_res, rfresampled_regover_res),
-        rfeval_featsel),
+        c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
       .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
   ),
@@ -175,7 +198,7 @@ plan <- drake_plan(
       in_bm = list(
         file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
         c(rfresampled_regr_res, rfresampled_regover_res),
-        rfeval_featsel),
+        c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
       .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
   ),
@@ -184,8 +207,10 @@ plan <- drake_plan(
                                      misclass_regr1,
                                      misclass_classif2)),
 
-  krigepreds = krige_spuncertainty(in_filestructure = filestructure, in_rftuned = rftuned,
-                                   in_gaugep = gaugep, in_gaugestats = gaugestats_format,
+  krigepreds = krige_spgaugeIPR(in_filestructure = filestructure,
+                                   in_rftuned = rftuned,
+                                   in_gaugep = gaugep,
+                                   in_gaugestats = gaugestats_format,
                                    kcutoff=50000, overwrite=T),
 
   krigepreds_mosaic = mosaic_kriging(in_filestructure = filestructure,
@@ -205,19 +230,22 @@ plan <- drake_plan(
                            na.rm=T, tidy = FALSE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
-  ),
+  )
+  ,
 
   fr_plot = compare_fr(in_filestructure = filestructure,
-                       in_rivernetwork = rivernetwork,
+                       in_rivpred = rivpred,
                        binarg = c(10,20,50,100,200,500,1000,
                                   2000,5000,10000,50000,100000,150000)),
 
   us_plot = compare_us(in_filestructure = filestructure,
-                       in_rivernetwork = rivernetwork,
+                       in_rivpred = rivpred,
                        binarg = c(10,20,50,100,200,500,1000,
-                                  2000,5000,10000,50000,100000,2000000, 3200000)),
+                                  2000,5000,10000,50000,100000,2000000, 3200000))
+  ,
 
   pnw_plot = qc_pnw(in_filestructure = filestructure,
-                    in_rivernetwork = rivernetwork)
+                    in_rivpred = rivpred,
+                    interthresh = interthresh)
 )
 

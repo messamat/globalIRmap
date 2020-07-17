@@ -56,8 +56,22 @@ zero_lomf <- function(x, first=TRUE) {
 }
 
 #------ comp_ymean -------------
-#Compute weighted mean across 12 columns corresponding to 12 months
-#mstart is the start of the two-number month
+#' Compute annual mean
+#'
+#' Compute annual mean of a variable based on columns of monthly means.
+#'
+#' @param in_dt data table, contains columns of monthly values.
+#' @param fieldex character, example column name containing monthly value.
+#' It must include the month number in %m format (two digits e.g. 02 for February)
+#' @param mstart integer; position of the first digit of the month in the column
+#' of monthly values.
+#' @param outcol character; name of new column to be created containing monthly mean
+#'
+#' @return Modifies in_dt in place. Add column of weighted mean across months
+#' (based on number of days in months)
+#'
+#' @export
+
 comp_ymean<- function(in_dt, fieldex, mstart, outcol) {
   refd <- data.table(month=c('01', '02', '03', '04', '05', '06',
                              '07', '08', '09', '10', '11', '12'),
@@ -132,38 +146,40 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
 
   print('Number of -9999 values per column')
   col9999<- in_dt2[, lapply(.SD, function(x) sum(x==-9999))]
-  print(colNAs)
+  print(col9999)
 
-  #Convert -9999 values to NA
-  gladcols <- c('wloss_pc_cav', 'wdryp_pc_cav', 'wwetp_pc_cav',
-                   'whfrq_pc_cav', 'wseas_pc_cav', 'wperm_pc_cav',
-                   'wfresh_pc_cav',
-                   'wloss_pc_uav', 'wdryp_pc_uav', 'wwetp_pc_uav',
-                   'whfrq_pc_uav', 'wseas_pc_uav', 'wperm_pc_uav',
-                   'wfresh_pc_uav')
+  #Define column groups
+  gladcols <- unlist(lapply(c('cav', 'uav'),function(s) {
+    lapply(c('wloss', 'wdryp', 'wwetp', 'whfrq', 'wseas', 'wperm', 'wfresh'),
+           function(v) {
+             paste0(v, '_pc_', s)
+           })
+  })
+  )
+
   sgcols <- c('cly_pc_cav','slt_pc_cav', 'snd_pc_cav',
               'cly_pc_uav','slt_pc_uav', 'snd_pc_uav')
 
-  biocols <- unlist(lapply(c('cav', 'uav'),
+  #Bioclim columns in celsius degrees
+  biocolsdc <- unlist(lapply(c('cav', 'uav'),
                            function(s) paste0('bio', 1:11, '_dc_', s)
                            ))
-  biocols <- biocols[(biocols %in% names(in_dt2))]  ################### remove afterwards
-  biocolsnegative <- grep('bio[15689][01]*_.*', biocols, value=T)
-  biocolsnegative <- biocolsnegative[(biocolsnegative %in% names(in_dt2))]  ################### remove afterwards
+  biocolsnegative <- grep('bio[189][01]*_.*', biocolsdc, value=T)
 
   cmi_cmcols <- paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))
   cmi_umcols <- paste0('cmi_ix_u', str_pad(1:12, width=2, side='left', pad=0))
 
+  #Convert -9999 to NAs
   for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
     if (!(j %in% which(names(in_dt2) %in% c(gladcols, sgcols, 'wet_cl_cmj')))) {
       set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to 0 if -9999
       }
   }
 
-  #Scale variables based on HydroATLAS v1.0 documentation and v1.1 processing
+  #Scale variables based on HydroATLAS v1.0 documentation and v1.0.9 processing
   in_dt2[, `:=`(
-    ari_ix_cav = ari_ix_cav/100,
-    ari_ix_uav = ari_ix_uav/100,
+    ari_ix_cav = ari_ix_cav/1000,
+    ari_ix_uav = ari_ix_uav/1000,
     dor_pc_pva = dor_pc_pva/100,
     lka_pc_cse = lka_pc_cse/10,
     lka_pc_use = lka_pc_use/10,
@@ -171,17 +187,16 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   )]
 
   in_dt2[, (gladcols) := lapply(.SD, function(x) x/100), .SDcols = gladcols]
-  in_dt2[, (biocols) := lapply(.SD, function(x) (x/100)), .SDcols = biocols]
-  #in_dt2[, (biocolsnegative) := lapply(.SD, function(x) x-100), .SDcols=biocolsnegative]
-  # in_dt2[, (cmi_cmcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_cmcols]
-  # in_dt2[, (cmi_umcols) := lapply(.SD, function(x) x-100), .SDcols=cmi_umcols]
+  in_dt2[, (biocolsdc) := lapply(.SD, function(x) (x/100)), .SDcols = biocolsdc]
+  in_dt2[, (biocolsnegative) := lapply(.SD, function(x) x-100),
+         .SDcols=biocolsnegative]
 
   #---- Compute derived predictor variables ----
   print('Compute derived predictor variables')
   comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_c01', mstart=9, outcol='cmi_ix_cyr')
   comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_u01', mstart=9, outcol='cmi_ix_uyr')
   comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_c01', mstart=9, outcol='pet_mm_cyr')
-  #comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=9, outcol='pet_mm_uyr')
+  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=9, outcol='pet_mm_uyr')
 
   in_dt2[,
          `:=`(cmi_ix_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
@@ -202,7 +217,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
              #catchment average elv - watershec average elev
              ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav),
              #runoff coefficient (runoff/precipitation)
-             runc_ix_cyr = run_mm_cyr/pre_mm_cyr,
+             runc_ix_cyr = run_mm_cyr/bio12_mm_cav,
              #Specific discharge
              sdis_ms_uyr = dis_m3_pyr/UPLAND_SKM,
              sdis_ms_umn = dis_m3_pmn/UPLAND_SKM
@@ -1370,9 +1385,10 @@ def_filestructure <- function() {
   # hydrometric stations that have been joined to RiverATLAS
   in_gaugep <- file.path(outgdb, 'GRDCstations_riverjoin')
   # Directory containing hydrometric data
-  in_gaugedir <-  file.path(datdir, 'GRDCdat_day')
+  in_gaugedir <-  file_in(!!file.path(datdir, 'GRDCdat_day'))
   # River atlas formatted variables
-  in_riveratlas_meta <- file.path(datdir, 'HydroATLAS', 'HydroATLAS_metadata_MLMv11.xlsx')
+  in_riveratlas_meta <- file_in(!!file.path(datdir, 'HydroATLAS',
+                                          'HydroATLAS_metadata_MLMv11.xlsx'))
   #Average monthly discharge for HydroSHEDS network
   in_monthlynetdischarge <- file.path(datdir, 'HydroSHEDS',
                                       'HS_discharge_monthly.gdb',
@@ -1380,10 +1396,10 @@ def_filestructure <- function() {
   #Rasters of dissolved buffers around gauge stations
   in_bufrasdir <- file.path(resdir, 'bufrasdir')
   # River atlas attribute data1
-  in_riveratlas <- file.path(resdir, 'RiverATLAS_v10tab.csv')
+  in_riveratlas <- file_in(!!file.path(resdir, 'RiverATLAS_v10tab.csv'))
 
   # River atlas attribute data2
-  in_riveratlas2 <- file.path(resdir, 'RiverATLAS_v11tab.csv')
+  in_riveratlas2 <- file_in(!!file.path(resdir, 'RiverATLAS_v11tab.csv'))
 
   # French river network for comparison
   compresdir <- file.path(resdir, 'Comparison_databases')
@@ -1396,7 +1412,8 @@ def_filestructure <- function() {
   out_riveratlas <- file.path(resdir, 'RiverATLAS_predbasic800.csv')
 
   return(c(rootdir=rootdir, datdir=datdir, resdir=resdir, outgdb=outgdb,
-           in_gaugep=in_gaugep, in_gaugedir=in_gaugedir, in_riveratlas_meta=in_riveratlas_meta,
+           in_gaugep=in_gaugep, in_gaugedir=in_gaugedir,
+           in_riveratlas_meta=in_riveratlas_meta,
            in_monthlynetdischarge = in_monthlynetdischarge,
            in_bufrasdir = in_bufrasdir,
            in_netfr = in_netfr, in_basfr = in_basfr,
@@ -1406,6 +1423,18 @@ def_filestructure <- function() {
 }
 
 #------ read_monthlydis -------------
+#' Read monthly discharge
+#'
+#' Import Naturalized mean monthly discharge from WaterGAP v2.2 downscaled to
+#' the HydroSHEDS river network (12 monthly values for each river reach)
+#'
+#' @param in_filestructure named list containing path to RiverATLAS spatial data
+#' with monthly discharge, named \code{in_monthlynetdischarge}.
+#'
+#' @return Data frame of monthly discharge for every reach in RiverATLAS
+#'
+#' @export
+#'
 read_monthlydis <- function(in_filestructure) {
   monthlydischarge <- as.data.frame(st_read(
     dsn = dirname(in_filestructure['in_monthlynetdischarge']),
@@ -1426,6 +1455,8 @@ read_monthlydis <- function(in_filestructure) {
 #' stations, named \code{in_gaugep}
 #' @param dist maximum distance from the river network beyond which gauging
 #' stations are excluded.
+#' @param in_monthlydischarge data frame of naturalized monthly discharge for
+#' every river reach in HydroSHEDS
 #'
 #' @return object of class sf
 #'
@@ -1437,21 +1468,24 @@ read_monthlydis <- function(in_filestructure) {
 
 read_gaugep <- function(in_filestructure, dist, in_monthlydischarge) {
   #Import gauge stations and only keep those < dist m from a HydroSHEDS reach
-
   gaugep <- st_read(dsn = dirname(in_filestructure['in_gaugep']),
                     layer = basename(in_filestructure['in_gaugep'])) %>%
     .[.$station_river_distance<dist,]
 
+  #Get new and updated environmental predictors from RiverATLAS v1.0.9
   riveratlas2 <- fread(in_filestructure['in_riveratlas2'])
   setnames(riveratlas2,
            names(riveratlas2),
            gsub('_11$', '', names(riveratlas2)))
 
+  #Replace variables from RiverATLAS v1.0 by those that have been re-calculated
+  #in v1.0.9
   keepcols <- names(gaugep)[!(names(gaugep) %in% names(riveratlas2))]
   gaugep_attriall <- merge(gaugep[,keepcols, with=F], riveratlas2,
                                    by.x = 'HYRIV_ID', by.y = 'REACH_ID',
                                    all.x=TRUE, all.y=FALSE)
 
+  #Merge with WaterGAP downscaled monthly naturalized discharge
   gaugep_monthlydischarge <- merge(gaugep_attriall, in_monthlydischarge,
                                    by.x = 'HYRIV_ID', by.y = 'REACH_ID',
                                    all.x=TRUE, all.y=FALSE)
@@ -1477,7 +1511,7 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_
   #Get data paths of daily records for gauge stations
   fileNames <- file.path(in_filestructure['in_gaugedir'], paste(in_gaugep$GRDC_NO,  ".txt", sep=""))
   #Check whether any GRDC record does not exist
-  print(paste(length(which(do.call(rbind, lapply(fileNames, file.exists)))),
+  print(paste(length(which(!do.call(rbind, lapply(fileNames, file.exists)))),
               'GRDC records do not exist...'))
   return(fileNames)
 }
@@ -1492,6 +1526,8 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_
 #' @param path file path to a GRDC-formatted streamflow time series table
 #' @param maxgap maximum number of days with missing data beyond which a year is
 #' not used in the computation of statistics
+#' @param mdurthresh threshold of mean annual number of zero-flow days beyond
+#' which to classify gauge as intermittent.
 #' @param monthsel selected months to compute the statistics over
 #'
 #' @return One row data.table with the following columns: \cr
@@ -1512,11 +1548,10 @@ read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_
 #'
 #' @export
 
-comp_durfreq <- function(path, maxgap, monthsel=NULL) {
-
-
+comp_durfreq <- function(path, maxgap, mdurthresh = 1, monthsel = NULL) {
   gaugetab <- cbind(fread(path, header=T, skip = 40, sep=";",
-                          colClasses=c('character', 'character', 'numeric', 'numeric', 'integer')),
+                          colClasses=c('character', 'character', 'numeric',
+                                       'numeric', 'integer')),
                     GRDC_NO = strsplit(basename(path), '[.]')[[1]][1])%>%
     setnames('YYYY-MM-DD', 'dates') %>%
     setorder(GRDC_NO, dates)
@@ -1526,8 +1561,10 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
     .[Original != 0, prevflowdate:=NA]
 
   #Compute number of missing days per year
-  gaugetab[!(Original == -999 | is.na(Original)), `:=`(missingdays = diny(year)-.N,
-                                                       datadays = .N), by= 'year']
+  gaugetab[!(Original == -999 | is.na(Original)),
+           `:=`(missingdays = diny(year)-.N,
+                datadays = .N),
+           by= 'year']
 
 
   gaugetab[,month:=as.numeric(substr(dates, 6, 7))] #create a month column
@@ -1551,6 +1588,7 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
   if (!is.null(monthsel)) {
     gaugetab <- gaugetab[month %in% monthsel, ]
   }
+
   #Compute number of days of zero flow for years with number of gap days under threshold
   gaugetab_yearly <- merge(gaugetab[, .(missingdays=max(missingdays, na.rm=T),
                                         datadays=max(datadays, na.rm=T)), by='year'],
@@ -1562,7 +1600,8 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
     .[dur==diny(year), freq:=1] %>%
     .[is.na(dur), `:=`(dur=0, freq=0)]
 
-
+  #Combine all statistics (and determine which stations are labeled as
+  #intermittent based on mdurthresh)
   gaugetab_all <- cbind(monthlyfreq,
                         gaugetab_yearly[, .(firstYear=min(year),
                                             lastYear=max(year),
@@ -1575,14 +1614,16 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
                                           sumDur = sum(dur),
                                           mDur = mean(dur),
                                           mFreq = mean(freq),
-                                          intermittent = factor(fifelse(mean(dur)>=1, 1, 0), levels=c('0','1')))]
+                                          intermittent =
+                                            factor(fifelse(mean(dur)>=mdurthresh, 1, 0),
+                                                   levels=c('0','1')))]
   )
   return(gaugetab_all)
 }
 #------ format_gaugestats --------------------------------------------------------
 #' Format gauge statistics
 #'
-#' Format gauge attributes, s
+#' Format gauge attributes
 #'
 #' @param path file path to a GRDC-formatted streamflow time series table
 #' @param maxgap maximum number of days with missing data beyond which a year is
@@ -1598,14 +1639,14 @@ comp_durfreq <- function(path, maxgap, monthsel=NULL) {
 #' @export
 
 format_gaugestats <- function(in_gaugestats, in_gaugep) {
-  #Format gaugestats into data.table
-
-  #Join intermittency statistics to predictor variables and subset to only include those gauges with at least
+  #Join intermittency statistics to predictor variables and subset to only
+  #include those gauges with at least 10 years of data
   gaugestats_join <- do.call(rbind, in_gaugestats) %>%
     setDT %>%
     .[as.data.table(in_gaugep), on='GRDC_NO'] %>%
     .[!is.na(totalYears_kept) & totalYears_kept>=10,] %>% # Only keep stations with at least 10 years of data
     .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
+    .[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
 
   return(gaugestats_join)
@@ -1644,11 +1685,19 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'snw_pc_cyr',
     'snw_pc_cmx',
     'glc_cl_cmj',
+    'glc_pc_c16',
+    'glc_pc_u16',
+
+
     'pnv_cl_cmj',
     'wet_pc_cg1',
     'wet_pc_cg2',
     'wet_pc_ug1',
     'wet_pc_ug2',
+    'wet_pc_c07',
+    'wet_pc_c09',
+    'wet_pc_u07',
+    'wet_pc_u09',
     'for_pc_use',
     'for_pc_cse',
     'ire_pc_use',
@@ -1703,7 +1752,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'pre_mm_u08',
     'pre_mm_u09',
     'pre_mm_u10',
-    #'pre_mm_u11',
+    'pre_mm_u11',
     'pre_mm_u12',
     'pet_mm_cyr',
     'pet_mm_uyr',
@@ -1723,7 +1772,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'cmi_ix_c08',
     'cmi_ix_c09',
     'cmi_ix_c10',
-    #'cmi_ix_c11',
+    'cmi_ix_c11',
     'cmi_ix_c12',
     'cmi_ix_u01',
     'cmi_ix_u02',
@@ -1735,7 +1784,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'cmi_ix_u08',
     'cmi_ix_u09',
     'cmi_ix_u10',
-    #'cmi_ix_u11',
+    'cmi_ix_u11',
     'cmi_ix_u12',
     'ari_ix_cav',
     'ari_ix_uav',
@@ -1756,7 +1805,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'bio1_dc_cav',
     'bio2_dc_cav',
     'bio3_dc_cav',
-    #'bio4_dc_cav',
+    'bio4_dc_cav',
     'bio5_dc_cav',
     'bio6_dc_cav',
     'bio7_dc_cav',
@@ -1775,8 +1824,8 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'bio1_dc_uav',
     'bio2_dc_uav',
     'bio3_dc_uav',
-    #'bio4_dc_uav',
-    #'bio5_dc_uav',
+    'bio4_dc_uav',
+    'bio5_dc_uav',
     'bio6_dc_uav',
     'bio7_dc_uav',
     'bio8_dc_uav',
@@ -1829,7 +1878,9 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     unit = substr(`Column(s)`, 5, 6),
     varcode = paste0(gsub('[-]{3}', '', `Column(s)`),
                      Keyscale,
-                     Keystat),
+                     fifelse(grepl("[0-9]",Keystat),
+                             str_pad(Keystat, 2, side='left', pad='0'),
+                             Keystat)),
     varname = paste(Attribute,
                     Spatial.representation,
                     Temporal.or.statistical.aggregation.or.other.association))]
@@ -1843,14 +1894,16 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
                                     'Specific discharge watershed Annual average',
                                     'Specific discharge watershed Annual min',
                                     paste0('Discharge watershed ', month.name),
-                                    'Drainage area'),
+                                    'Drainage area',
+                                    'Groundwater table depth catchment average'),
                           varcode=c('pre_mm_cvar',
                                     'dis_m3_pvar', 'dis_m3_pvaryr',
                                     'ele_pc_rel',
                                     'runc_ix_cyr',
                                     'sdis_ms_uyr', 'sdis_ms_umn',
                                     monthlydischarge_preds,
-                                    'UPLAND_SKM'
+                                    'UPLAND_SKM',
+                                    'gwt_m_cav'
                           )
   )
 
@@ -1869,6 +1922,15 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
              `Spatial representation`, `Temporal/Statistical aggreg.`)
 
   #Format table
+  predcols_dt[varcode=='UPLAND_SKM', `:=`(
+    Category = 'Physiography',
+    Attribute= 'Drainage Area',
+    `Spatial representation`='u',
+    `Temporal/Statistical aggreg.`='',
+    Source = 'HydroSHEDS',
+    Citation = 'Lehner & Grill 2013'
+  )]
+
   predcols_dt[varcode=='dis_m3_pvar', `:=`(
     Category = 'Hydrology',
     Attribute= 'Natural Discharge',
@@ -1932,19 +1994,48 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     Citation = 'Robinson et al. 2014'
   )]
 
+  predcols_dt[varcode=='cmi_ix_cvar', `:=`(
+    Category = 'Climate',
+    Attribute= 'Climate Moisture Index',
+    `Spatial representation`='c',
+    `Temporal/Statistical aggreg.`='mn/mx',
+    Source = 'WorldClim v2 & Global-PET v2',
+    Citation = 'Fick et al. 2017'
+  )]
+
+  predcols_dt[varcode=='cmi_ix_uvar', `:=`(
+    Category = 'Climate',
+    Attribute= 'Climate Moisture Index',
+    `Spatial representation`='u',
+    `Temporal/Statistical aggreg.`='mn/mx',
+    Source = 'WorldClim v2 & Global-PET v2',
+    Citation = 'Fick et al. 2017'
+  )]
+
+  predcols_dt[varcode=='gwt_m_cav', `:=`(
+    Category = 'Hydrology',
+    Attribute= 'Groundwater table depth',
+    `Spatial representation`='c',
+    `Temporal/Statistical aggreg.`='av',
+    Source = 'Global Groundwater Map',
+    Citation = 'Fan et al. 2013'
+  )]
+
   #Remove duplicates by joining
   predcols_dtnodupli<- predcols_dt[!(
-    duplicated(varcode) &
+    Category == "Climate" &
       grepl('Class.*', `Temporal/Statistical aggreg.`)),] %>%
-    .[!duplicated(varcode),]
+    unique
 
   return(predcols_dtnodupli)
 }
+
 #------ create_tasks  -----------------
 create_tasks <- function(in_gaugestats, in_predvars) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[, c('intermittent',in_predvars$varcode, 'X', 'Y'),
-                          with=F]
+                          with=F] %>%
+    na.omit
 
   #Basic task for classification
   task_classif <- mlr3spatiotempcv::TaskClassifST$new(
@@ -1980,7 +2071,7 @@ create_baselearners <- function(in_task) {
 
     #Create basic learner
     lrns[['lrn_ranger']] <- mlr3::lrn('classif.ranger',
-                                      num.trees = 500,
+                                      num.trees = 800,
                                       sample.fraction = 0.632,
                                       replace = FALSE,
                                       splitrule = 'gini',
@@ -1991,9 +2082,9 @@ create_baselearners <- function(in_task) {
     #print(lrn_ranger$param_set)
 
     #Create a conditional inference forest learner with default parameters
-    # mtry = sqrt(nvar), fraction = 0.632
+    #mtry = sqrt(nvar), fraction = 0.632
     lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
-                                       ntree = 500,
+                                       ntree = 800,
                                        fraction = 0.632,
                                        replace = FALSE,
                                        alpha = 0.05,
@@ -2029,7 +2120,7 @@ create_baselearners <- function(in_task) {
   if (inherits(in_task, 'TaskRegr')) {
     #Create regression learner with maxstat
     lrns[['lrn_ranger_maxstat']] <- mlr3::lrn('regr.ranger',
-                                              num.trees=500,
+                                              num.trees=800,
                                               sample.fraction = 0.632,
                                               min.node.size = 10,
                                               replace=FALSE,
@@ -2055,7 +2146,7 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
 
     tune_rf <- ParamSet$new(list(
       ParamInt$new(grep(".*mtry", prmset, value=T),
-                   lower = 5,
+                   lower = floor(nfeatures/5),
                    upper = floor(nfeatures/2)), #Half number of features
       ParamDbl$new(grep(".*fraction", prmset, value=T),
                    lower = 0.2,
@@ -2088,7 +2179,7 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
 
   #Define termination rule
-  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after 20 rounds
+  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after insamp_neval rounds
 
   if (in_learner$task_type == 'classif') {
     if (grepl('classif[.]cforest$', in_learner$id)) {
@@ -2215,6 +2306,210 @@ combine_bm <- function(in_resampleresults, out_qs) {
   qs::qsave(bmrbase, out_qs)
 }
 
+#------ select_features ------------------
+select_features <- function(in_bm, in_lrnid, in_task, pcutoff) {
+
+  #If path, read qs
+  if (inherits(in_bm, "character")) {
+    in_bm <- qs::qread(in_bm)
+  }
+
+  #get desired resampled_results/learner
+  in_rf <- in_bm$filter(learner_ids = in_lrnid)
+
+  #Apply feature/variable selection
+  vimp <- weighted_vimportance_nestedrf(
+    rfresamp = in_rf$resample_result(uhash=unique(as.data.table(in_rf)$uhash)),
+    pvalue = TRUE) %>%
+    .[,imp_wmeanper := imp_wmean/sum(imp_wmean)]
+
+  task_featsel <- in_task$clone()$select(
+    vimp[imp_pvalue <= pcutoff, as.character(varnames)])
+  task_featsel$id <- paste0(in_task$id, '_featsel')
+
+  return(list(in_task, task_featsel))
+}
+
+#------ selecttrain_rf -----------------
+selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
+                           insamp_nfolds =  NULL, insamp_nevals = NULL) {
+  #Prepare autotuner for full training
+  if (inherits(in_rf, 'ResampleResult')) {
+    in_bmsel <- in_rf$clone()
+    lrn_autotuner <- in_bmsel$learners[[1]]
+    in_task <- in_bmsel$task
+    outer_resampling_output <- in_rf
+
+  } else {
+    in_bmsel <- in_rf$clone()$filter(learner_ids = in_learnerid,
+                                     task_id = in_taskid)
+
+    lrn_autotuner <- in_bmsel$clone()$learners$learner[[1]]
+    in_task <-in_bmsel$tasks$task[[1]]
+
+    #Return outer sampling object for selected model (or list of outer sampling objects)
+    uhashes <- unique(as.data.table(in_bmsel)$uhash)
+    if (length(uhashes) == 1) {
+      outer_resampling_output <- in_bmsel$resample_result(uhash=uhashes)
+    } else {
+      outer_resampling_output <- lapply(uhashes, function(x) {
+        in_bmsel$resample_result(uhash=x)
+      })
+    }
+  }
+
+
+  if (!is.null(insamp_nfolds)) {
+    lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
+  }
+
+  if (!is.null(insamp_nevals)) {
+    lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
+  }
+
+  #Train learners
+  lrn_autotuner$param_set$values = mlr3misc::insert_named(
+    lrn_autotuner$param_set$values,
+    list(classif.ranger.importance = 'permutation')
+  )
+  lrn_autotuner$train(in_task)
+
+  return(list(rf_outer = outer_resampling_output, #Resampling results
+              rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
+              task = in_task)) #Task
+}
+
+
+#------ rformat_network ------------------
+rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
+  cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "UPLAND_SKM", "LENGTH_KM",
+                    in_predvars[!is.na(ID), varcode],
+                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
+                    'hft_ix_c09', 'hft_ix_u09',
+                    #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
+
+  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
+                           cols_tokeep = cols_toread) %>%
+    merge(as.data.table(in_monthlydischarge),
+          by.x='HYRIV_ID', by.y='REACH_ID') %>%
+    setorder(HYRIV_ID)
+  remove(in_monthlydischarge)
+
+
+  cols_tokeep <- names(riveratlas)[
+    !(names(riveratlas) %in% names(
+      fread(in_filestructure['in_riveratlas2'], nrows=1)))]
+
+
+  riveratlas_format <- fread(in_filestructure['in_riveratlas2']) %>%
+    setorder(REACH_ID) %>%
+    setnames(gsub('_11$', '', names(.))) %>%
+    cbind(riveratlas[, cols_tokeep, with=F], .) %>%
+    comp_derivedvar
+
+  return(riveratlas_format)
+}
+
+#------ write_preds -----------------
+write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
+                        in_network, in_rftuned, in_predvars, in_gaugeIPR,
+                        interthresh = 0.5) {
+
+  #####################################################################
+  gpreds <- in_rftuned$rf_inner$predict(in_rftuned$task)
+  gpreds$set_threshold(1-interthresh)
+
+  # ---- Output GRDC predictions as points ----
+  in_gaugestatsformat <- in_gaugestats[,
+    ':='(IRpredprob = gpreds$prob[,2],
+         IRpredcat = gpreds$response)] %>%
+    .[in_gaugeIPR, on='GRDC_NO']
+
+  cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
+
+  out_gaugep <- merge(in_gaugep,
+                      in_gaugestatsformat[, !cols_toditch, with=F],
+                      by='GRDC_NO')
+
+  st_write(obj=out_gaugep,
+           dsn=in_filestructure['out_gauge'],
+           driver = 'gpkg',
+           delete_dsn=T)
+
+  # ----- Make predictions across river network -----
+  #Get rows for which a predictor variable is NA (seecomp_derivedvar for formatting/determining variables)
+  netnoNArows <- in_network[, c(!(.I %in% unique(unlist(
+    lapply(.SD, function(x) which(is.na(x))))))),
+    .SDcols = in_predvars$varcode]
+
+  #Predict model — chunk it up by climate zone to avoid memory errors
+  for (clz in unique(in_network$clz_cl_cmj)) {
+    print(clz)
+    tic()
+    in_network[netnoNArows & clz_cl_cmj == clz,
+               predbasic800 := in_rftuned$rf_inner$predict_newdata(
+                 as.data.frame(.SD))$prob[,2],]
+    toc()
+  }
+
+  #Label each reach categorically based on threshold
+  in_network[, predbasic800cat := fifelse(predbasic800>=interthresh, 1, 0)]
+
+  fwrite(in_network[, c('HYRIV_ID', 'HYBAS_L12', 'predbasic800', 'predbasic800cat'), with=F],
+         in_filestructure['out_riveratlas'])
+
+  # --------- Return data for plotting ------------------------
+  return(out_gaugep)
+}
+
+
+##### -------------------- Diagnostics functions -------------------------------
+
+#------ ggmisclass_single -----------------
+ggmisclass_single <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
+  #Get predicted probabilities of intermittency for each gauge
+  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
+  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
+  #Get misclassification error, sensitivity, and specificity for different classification thresholds
+  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
+  if (!is.null(in_rftuned)) {
+    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+    in_predictions <- rsmp_res$prediction()
+  }
+
+  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
+    setDT
+
+  #Get classification threshold at which sensitivity and specificity are the most similar
+  balanced_thresh <- threshold_confu_dt[which.min(abs(spec-sens)),]
+  print(paste('Sensitivity =', round(balanced_thresh$sens,2),
+              'and Specificity =', round(balanced_thresh$spec,2),
+              'at a classification threshold of', balanced_thresh$i))
+
+  gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
+                 aes(x=i, y=value, color=variable, linetype=variable)) +
+    geom_line(size=1.2) +
+    geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
+    geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
+    annotate('text', x=(balanced_thresh$i), y=0.4,
+             label=balanced_thresh$i, angle=-90) +
+    annotate('text', x=0.9, y=(balanced_thresh$spec),
+             label=round(balanced_thresh$sens,2)) +
+    scale_x_continuous(expand=c(0,0), name='Threshold') +
+    scale_y_continuous(expand=c(0,0), name='Value') +
+    scale_color_brewer(palette='Dark2',  #colorblind friendly
+                       labels=c('Misclassification rate',
+                                'Sensitivity (true positives)',
+                                'Specificity (true negatives)')) +
+    theme_bw()
+
+  #Plot it
+  return(list(plot = gout,
+              interthresh = balanced_thresh$i))
+}
+
 #------ analyze_benchmark -----------------
 analyze_benchmark <- function(in_bm, in_measure) {
 
@@ -2272,9 +2567,9 @@ analyze_benchmark <- function(in_bm, in_measure) {
     setDT
 
   tasklearner_unique[, learner_format := dplyr::case_when(
-    learner == 'classif.ranger.tuned'~'default RF',
-    learner == 'oversample.classif.ranger.tuned'~'default RF - oversampled',
-    learner == 'classweights.classif.ranger.tuned'~'default RF - weighted classes',
+    learner == 'classif.ranger'~'default RF',
+    learner == 'oversample.classif.ranger'~'default RF - oversampled',
+    learner == 'classweights.classif.ranger'~'default RF - weighted classes',
     learner == 'classif.cforest'~'CIF',
     learner == 'oversample.classif.cforest'~'CIF - oversampled',
     learner == 'classweights.classif.cforest'~'CIF - weighted classes',
@@ -2285,7 +2580,9 @@ analyze_benchmark <- function(in_bm, in_measure) {
     subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
                        learner == tasklearner_unique$learner[tsklrn],]
 
-    gout <- ggmisclass_single(in_predictions = subpred) +
+    ggmisclass_out <- ggmisclass_single(in_predictions = subpred)
+
+    gout <- ggmisclass_out$plot +
       ggtitle(paste(tasklearner_unique$task[tsklrn],
                     tasklearner_unique$learner_format[tsklrn])) +
       labs(x='Threshold', y='Value')
@@ -2295,151 +2592,24 @@ analyze_benchmark <- function(in_bm, in_measure) {
         theme(legend.position = 'none')
     }
 
-    return(ggplotGrob(gout))
-  })
-
-  return(list(bm_misclasscomp=do.call("grid.arrange", list(grobs=glist)),
-              bm_boxcomp = boxcomp))
-}
-#------ select_features ------------------
-select_features <- function(in_bm, in_lrnid, in_task, pcutoff) {
-
-  #If path, read qs
-  if (inherits(in_bm, "character")) {
-    in_bm <- qs::qread(in_bm)
-  }
-
-  #get desired resampled_results/learner
-  in_rf <- in_bm$filter(learner_ids = in_lrnid)
-
-  #Apply feature/variable selection
-  vimp <- weighted_vimportance_nestedrf(
-    rfresamp = in_rf$resample_result(uhash=unique(as.data.table(in_rf)$uhash)),
-    pvalue = TRUE) %>%
-    .[,imp_wmeanper := imp_wmean/sum(imp_wmean)]
-
-  task_featsel <- in_task$clone()$select(
-    vimp[imp_pvalue <= pcutoff, as.character(varnames)])
-  task_featsel$id <- paste0(in_task$id, '_featsel')
-
-  return(list(in_task, task_featsel))
-}
-
-#------ selecttrain_rf -----------------
-selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
-                           insamp_nfolds =  NULL, insamp_nevals = NULL) {
-  #Prepare autotuner for full training
-  in_bmsel <- in_rf$clone()$filter(learner_ids = in_learnerid,
-                                   task_id = in_taskid)
-
-  lrn_autotuner <- in_bmsel$clone()$learners$learner[[1]]
-  in_task <-in_bmsel$tasks$task[[1]]
-
-  if (!is.null(insamp_nfolds)) {
-    lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
-  }
-
-  if (!is.null(insamp_nevals)) {
-    lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
-  }
-
-  #Return outer sampling object for selected model (or list of outer sampling objects)
-  uhashes <- unique(as.data.table(in_bmsel)$uhash)
-  if (length(uhashes) == 1) {
-    outer_resampling_output <- in_bmsel$resample_result(uhash=uhashes)
-  } else {
-    outer_resampling_output <- lapply(uhashes, function(x) {
-      in_bmsel$resample_result(uhash=x)
-    })
-  }
-
-  #Train learners
-  lrn_autotuner$param_set$values = mlr3misc::insert_named(
-    lrn_autotuner$param_set$values,
-    list(classif.ranger.importance = 'permutation')
-  )
-  lrn_autotuner$train(in_task)
-
-  return(list(rf_outer = outer_resampling_output, #Resampling results
-              rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
-              task = in_task)) #Task
-}
+    return(list(plot = ggplotGrob(gout),
+                interthres_dt = data.table(
+                  learner = as.character(tasklearner_unique$learner[tsklrn]),
+                  thresh = ggmisclass_out$interthresh
+                  )
+           )
+    )
+  }) %>%
+    unlist(recursive=F)
 
 
-#------ rformat_network ------------------
-rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
-  cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "UPLAND_SKM", "LENGTH_KM",
-                    in_predvars[!is.na(ID), varcode],
-                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
-                    'hft_ix_c09', 'hft_ix_u09',
-                    #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
-
-  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
-                           cols_tokeep = cols_toread) %>%
-    merge(as.data.table(in_monthlydischarge),
-          by.x='HYRIV_ID', by.y='REACH_ID') %>%
-    setorder(HYRIV_ID)
-  remove(in_monthlydischarge)
-
-  riveratlas2 <- fread(in_filestructure['in_riveratlas2']) %>%
-    setorder(REACH_ID)
-  setnames(riveratlas2, names(riveratlas2), gsub('_11$', '', names(riveratlas2)))
-
-  cols_tokeep <- names(riveratlas)[!(names(riveratlas) %in% names(riveratlas2))]
-  riveratlas_format <- cbind(riveratlas[, cols_tokeep, with=F], riveratlas2)
-
-
-  #  comp_derivedvar
-
-  return(riveratlas_format)
-}
-
-#------ write_preds -----------------
-write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
-                        in_network, in_rftuned, in_predvars, in_uncertainty) {
-  # ---- Output GRDC predictions as points ----
-  in_gaugestatsformat <- in_gaugestats[
-    !is.na(cly_pc_cav),  #SHould change that to not have to adjust subselection in multiple spots
-    IRpredprob := in_rftuned$rf_inner$predict(in_rftuned$task)$prob[,2]] %>%
-    .[in_uncertainty, on='GRDC_NO']
-
-  cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
-
-
-  out_gaugep <- merge(in_gaugep,
-                      in_gaugestatsformat[, !cols_toditch, with=F],
-                      by='GRDC_NO')
-
-  st_write(obj=out_gaugep,
-           dsn=in_filestructure['out_gauge'],
-           driver = 'gpkg',
-           delete_dsn=T)
-
-  #Predict model (should take ~10-15 minutes for 9M rows x 40 cols — chunk it up by climate zone to avoid memory errors)
-  for (clz in unique(in_network$clz_cl_cmj)) {
-    print(clz)
-    tic()
-    in_network[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz,
-               predbasic800 := in_rftuned$rf_inner$predict_newdata(as.data.frame(.SD))$prob[,2],]
-    toc()
-  }
-
-  in_rftuned$rf_inner$predict_newdata(as.data.frame(
-    in_network[!is.na(cly_pc_cav) & !is.na(cly_pc_uav) & clz_cl_cmj == clz,]
+  return(list(
+    bm_misclasscomp=do.call("grid.arrange",
+                            list(grobs=glist[seq(1, length(glist), 2)])), #Get all plots out of the nested list
+    bm_boxcomp = boxcomp,
+    interthresh_dt = rbindlist(glist[seq(2, length(glist), 2)]) #Get all threshold data.table rows out of nested list
   ))
-
-  in_network[, predbasic800cat := ifelse(predbasic800>=0.5, 1, 0)]
-  fwrite(in_network[, c('HYRIV_ID', 'HYBAS_L12', 'predbasic800', 'predbasic800cat'), with=F],
-         in_filestructure['out_riveratlas'])
-
-  # --------- Return data for plotting ------------------------
-  return(out_gaugep)
 }
-
-
-##### -------------------- Diagnostics functions -------------------------------
 
 #------ ggvimp -----------------
 ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
@@ -2461,48 +2631,6 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     coord_cartesian(ylim=c(0,100)) +
     theme_classic() +
     theme(axis.text.x = element_text(size=8))
-}
-
-#------ ggmisclass_single -----------------
-ggmisclass_single <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
-  #Get predicted probabilities of intermittency for each gauge
-  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
-  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
-  #Get misclassification error, sensitivity, and specificity for different classification thresholds
-  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
-  if (!is.null(in_rftuned)) {
-    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-    in_predictions <- rsmp_res$prediction()
-  }
-
-  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
-    setDT
-
-  #Get classification threshold at which sensitivity and specificity are the most similar
-  balanced_thresh <- threshold_confu_dt[which.min(abs(spec-sens)),]
-  print(paste('Sensitivity =', round(balanced_thresh$sens,2),
-              'and Specificity =', round(balanced_thresh$spec,2),
-              'at a classification threshold of', balanced_thresh$i))
-
-  gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
-                 aes(x=i, y=value, color=variable, linetype=variable)) +
-    geom_line(size=1.2) +
-    geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
-    geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
-    annotate('text', x=(balanced_thresh$i), y=0.4,
-             label=balanced_thresh$i, angle=-90) +
-    annotate('text', x=0.9, y=(balanced_thresh$spec),
-             label=round(balanced_thresh$sens,2)) +
-    scale_x_continuous(expand=c(0,0), name='Threshold') +
-    scale_y_continuous(expand=c(0,0), name='Value') +
-    scale_color_brewer(palette='Dark2',  #colorblind friendly
-                       labels=c('Misclassification rate',
-                                'Sensitivity (true positives)',
-                                'Specificity (true negatives)')) +
-    theme_bw()
-
-  #Plot it
-  return(gout)
 }
 
 #------ ggpd_bivariate -----------------
@@ -2617,18 +2745,25 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
   return(tileplots_multipl)
 }
 
-#------ gguncertainty -----------------
-gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
+#------ gggaugeIPR -----------------
+gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
+                       interthresh = 0.5, in_learnerid = NULL) {
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
+  #Get binary classification threshold
+  if (inherits(interthresh, 'data.table')) {
+    interthresh <- interthresh[learner == in_learnerid, thresh]
+  }
+
   #Get average predictions for oversampled rows
   gaugepred <-  rsmp_res$prediction() %>%
+    .$set_threshold(1-interthresh) %>%
     as.data.table %>%
     .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
     setorder(row_id)
 
-  predattri <- cbind(in_gaugestats[!is.na(cly_pc_cav),], gaugepred) %>%
+  predattri <- cbind(in_gaugestats, gaugepred) %>%
     .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent)),
              yearskeptratio = totalYears_kept/totalYears)]
 
@@ -2636,7 +2771,6 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
     cbind(predattri[, c('GRDC_NO', 'intermittent'), with=F]) %>%
     melt(id.vars=c('GRDC_NO', 'intermittent', 'prob.1', 'preduncert'))
-
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
@@ -2667,11 +2801,11 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
   rectdf <- data.table(
     xmin=rep(-Inf, 4),
     xmax=rep(Inf, 4),
-    ymin=c(-1, -0.5, 0, 0.5),
-    ymax=c(-0.5, 0, 0.5, 1),
+    ymin=c(-1, -interthresh, 0, 1-interthresh),
+    ymax=c(-interthresh, 0, 1-interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
-  uncertainty_numplot <-
+  gaugeIPR_numplot <-
     ggplot(plotdt) +
       geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                             ymin=ymin, ymax=ymax, fill=fillpal),
@@ -2708,7 +2842,7 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
     levels(predmelt_cat$variable) <- c('Endorheic',
                                        'Climate Zone (catchment majority)')
 
-    uncertainty_catplot <-
+    gaugeIPR_catplot <-
       ggplot(predmelt_cat) +
       geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                                  ymin=ymin, ymax=ymax, fill=fillpal),
@@ -2733,13 +2867,13 @@ gguncertainty <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp) {
       facet_wrap(~variable, scales='free', labeller=label_value) +
       theme_classic()
 
-    return(list(uncertainty_numplot=uncertainty_numplot,
-              uncertainty_catplot=uncertainty_catplot,
-              out_uncertainty = predattri[, .(GRDC_NO, preduncert)]))
+    return(list(gaugeIPR_numplot=gaugeIPR_numplot,
+              gaugeIPR_catplot=gaugeIPR_catplot,
+              out_gaugeIPR = predattri[, .(GRDC_NO, preduncert)]))
 }
 
-#------ krige_spuncertainty----
-krige_spuncertainty <- function(in_filestructure, in_rftuned,
+#------ krige_spgaugeIPR----
+krige_spgaugeIPR <- function(in_filestructure, in_rftuned,
                                 in_gaugep, in_gaugestats, kcutoff=50000,
                                 overwrite = FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
@@ -2901,11 +3035,8 @@ ggrivers <- function(in_basemaps) {
 }
 
 #------ gggauges --------------------------
-binarg <- c(30, 50, 100)
-binvar <- 'totalYears_kept'
-
 gggauges <- function(in_gaugepred, in_basemaps,
-                     binarg) {
+                     binarg, binvar) {
   gaugepred <- in_gaugepred %>%
     sfformat_wintri
 
@@ -3274,7 +3405,7 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
                                    na.rm=T, tidy=FALSE) {
 
   #Import global predictions
-  rivpred <- fread(in_filestructure['out_riveratlas'])
+  rivpred <- fread(file_in(!!in_filestructure['out_riveratlas']))
   #Columns to import from full network
   incols <- c('HYRIV_ID', castvar, idvars, valuevar, weightvar)
   #Import global river network and join to predictions
@@ -3385,10 +3516,7 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
   return(tidyperc_format)
 }
 #------ compare_fr --------------------------------------
-compare_fr <- function(in_filestructure, in_rivernetwork, binarg) {
-  rivpred <- fread(in_filestructure['out_riveratlas']) %>%
-    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr', 'UPLAND_SKM'),
-                      with=F], on='HYRIV_ID']
+compare_fr <- function(in_filestructure, in_rivpred, binarg) {
   in_frdir <- file.path(in_filestructure[['resdir']],
                         'Comparison_databases/france.gdb')
   in_netpath <- file.path(in_frdir, 'network')
@@ -3402,7 +3530,7 @@ compare_fr <- function(in_filestructure, in_rivernetwork, binarg) {
                  layer = basename(in_baspath)) %>%
     .[, 'HYBAS_ID', with=F]
 
-  rivpredsub <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
+  rivpredsub <- merge(in_riverpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
     .[, UPLAND_SKM := round(UPLAND_SKM)]
 
   binlabels <- label_manualbins(binarg=binarg,
@@ -3439,13 +3567,7 @@ compare_fr <- function(in_filestructure, in_rivernetwork, binarg) {
 }
 
 #------ compare_us ----------------
-compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
-  rivpred <- fread(in_filestructure['out_riveratlas']) %>%
-    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
-                          'UPLAND_SKM'),
-                      with=F], on='HYRIV_ID']
-
-
+compare_us <- function(in_filestructure, in_rivpred, binarg) {
   in_dir <- file.path(in_filestructure[['datdir']],
                       'Comparison_databases/US')
   in_netpath_hr <- file.path(in_filestructure[['datdir']],
@@ -3493,7 +3615,7 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
     .[, c('HYBAS_ID', 'HUC8'), with=F]
 
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
-  rivpredbas <- merge(rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
+  rivpredbas <- merge(in_riverpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
   rivpredsubhr <- rivpredbas[, UPLAND_SKM := round(UPLAND_SKM)] %>%
     .[HUC8 %in% unique(nethr$HUC8),]
   rivpredsubmr <- rivpredbas[HUC8 %in% unique(netmr$HUC8),]
@@ -3647,11 +3769,7 @@ compare_us <- function(in_filestructure, in_rivernetwork, binarg) {
 
 
 #------ qc_pnw ------------
-qc_pnw <- function(in_filestructure, in_rivernetwork) {
-  rivpred <- fread(in_filestructure['out_riveratlas']) %>%
-    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
-                          'UPLAND_SKM'),
-                      with=F], on='HYRIV_ID']
+qc_pnw <- function(in_filestructure, in_rivpred, interthresh=0.5) {
   in_dir <- file.path(in_filestructure[['resdir']],
                       'Insitu_databases/pnw.gdb')
   in_refpts <- file.path(in_dir,
@@ -3688,7 +3806,7 @@ qc_pnw <- function(in_filestructure, in_rivernetwork) {
 
   #Merge points with rivernetwork by HYRIV_ID
   refpts_join <- merge(refpts_stats,
-                       rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
+                       in_riverpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
                                    predbasic800cat)],
                        by='HYRIV_ID', all.y=F) %>%
     .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
@@ -3709,8 +3827,8 @@ qc_pnw <- function(in_filestructure, in_rivernetwork) {
   rectdf <- data.table(
     xmin=rep(0.01, 4),
     xmax=rep(Inf, 4),
-    ymin=c(-1, -0.5, 0, 0.5),
-    ymax=c(-0.5, 0, 0.5, 1),
+    ymin=c(-1, -interthresh, 0, 1-interthresh),
+    ymax=c(-interthresh, 0, 1-interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
 
