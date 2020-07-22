@@ -1409,7 +1409,7 @@ def_filestructure <- function() {
   # Output geopackage of hydrometric stations with appended predicted intermittency class
   out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas predictions table
-  out_riveratlas <- file.path(resdir, 'RiverATLAS_predbasic800.csv')
+  out_riveratlaspred <- file.path(resdir, 'RiverATLAS_predbasic800.csv')
 
   return(c(rootdir=rootdir, datdir=datdir, resdir=resdir, outgdb=outgdb,
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir,
@@ -1419,7 +1419,7 @@ def_filestructure <- function() {
            in_netfr = in_netfr, in_basfr = in_basfr,
            out_gauge=out_gauge,
            in_riveratlas=in_riveratlas, in_riveratlas2=in_riveratlas2,
-           out_riveratlas = out_riveratlas))
+           out_riveratlaspred = out_riveratlaspred))
 }
 
 #------ read_monthlydis -------------
@@ -1435,10 +1435,10 @@ def_filestructure <- function() {
 #'
 #' @export
 #'
-read_monthlydis <- function(in_filestructure) {
+read_monthlydis <- function(in_path) {
   monthlydischarge <- as.data.frame(st_read(
-    dsn = dirname(in_filestructure['in_monthlynetdischarge']),
-    layer = basename(in_filestructure['in_monthlynetdischarge'])
+    dsn = dirname(in_path),
+    layer = basename(in_path)
   )) %>%
     .[, c(paste0('DIS_', str_pad(seq(1, 12), 2, pad=0), '_CMS'),
           'REACH_ID')]
@@ -1466,14 +1466,14 @@ read_monthlydis <- function(in_filestructure) {
 #'
 #' @export
 
-read_gaugep <- function(in_filestructure, dist, in_monthlydischarge) {
+read_gaugep <- function(inp_gaugep, dist, inp_riveratlas2, in_monthlydischarge) {
   #Import gauge stations and only keep those < dist m from a HydroSHEDS reach
-  gaugep <- st_read(dsn = dirname(in_filestructure['in_gaugep']),
-                    layer = basename(in_filestructure['in_gaugep'])) %>%
+  gaugep <- st_read(dsn = dirname(inp_gaugep),
+                    layer = basename(inp_gaugep)) %>%
     .[.$station_river_distance<dist,]
 
   #Get new and updated environmental predictors from RiverATLAS v1.0.9
-  riveratlas2 <- fread(in_filestructure['in_riveratlas2'])
+  riveratlas2 <- fread(inp_riveratlas2)
   setnames(riveratlas2,
            names(riveratlas2),
            gsub('_11$', '', names(riveratlas2)))
@@ -1507,9 +1507,10 @@ read_gaugep <- function(in_filestructure, dist, in_monthlydischarge) {
 #'
 #' @export
 
-read_gauged_paths <- function(in_filestructure, in_gaugep) { #, gaugeid = 'GRDC_NO' down the line
+read_gauged_paths <- function(inp_gaugedir, in_gaugep) { #, gaugeid = 'GRDC_NO' down the line
   #Get data paths of daily records for gauge stations
-  fileNames <- file.path(in_filestructure['in_gaugedir'], paste(in_gaugep$GRDC_NO,  ".txt", sep=""))
+  fileNames <- file.path(inp_gaugedir,
+                         paste(in_gaugep$GRDC_NO,  ".txt", sep=""))
   #Check whether any GRDC record does not exist
   print(paste(length(which(!do.call(rbind, lapply(fileNames, file.exists)))),
               'GRDC records do not exist...'))
@@ -1653,7 +1654,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep) {
 }
 
 #------ selectformat_predvars -----------------
-selectformat_predvars <- function(in_filestructure, in_gaugestats) {
+selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
   #---- List predictor variables ----
   monthlydischarge_preds <- paste0('DIS_',
                                    str_pad(seq(1, 12), 2, pad=0),
@@ -1848,17 +1849,17 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
   #---- Associate HydroATLAS column names with variables names ----
 
   #Get predictor variable names
-  metaall <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'],
+  metaall <- readxl::read_xlsx(inp_riveratlas_meta,
                                sheet='Overall') %>%
     setDT
 
-  metascale <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'],
+  metascale <- readxl::read_xlsx(inp_riveratlas_meta,
                                  sheet='scale') %>%
     setDT %>%
     setnames(c('Key','Spatial representation'),
              c('Keyscale', 'Spatial.representation'))
 
-  metastat <- readxl::read_xlsx(in_filestructure['in_riveratlas_meta'],
+  metastat <- readxl::read_xlsx(inp_riveratlas_meta,
                                 sheet='stat') %>%
     setDT %>%
     setnames(c('Key','Temporal or statistical aggregation or other association'),
@@ -2321,6 +2322,8 @@ combine_bm <- function(in_resampleresults, out_qs) {
   }
   print('Done combining, now writing to qs...')
   qs::qsave(bmrbase, out_qs)
+
+  return(out_qs)
 }
 
 #------ select_features ------------------
@@ -2398,29 +2401,28 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
 
 
 #------ rformat_network ------------------
-rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) {
-  cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "UPLAND_SKM", "LENGTH_KM",
-                    in_predvars[!is.na(ID), varcode],
+rformat_network <- function(in_predvars, in_monthlydischarge,
+                            inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
+  cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "LENGTH_KM",
+                    in_predvars[, varcode],
                     'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
-                    'hft_ix_c09', 'hft_ix_u09',
                     #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
                     #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+                    paste0('pet_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
                     paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
 
-  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
+  riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = cols_toread) %>%
     merge(as.data.table(in_monthlydischarge),
           by.x='HYRIV_ID', by.y='REACH_ID') %>%
     setorder(HYRIV_ID)
-  remove(in_monthlydischarge)
 
+  cols_v11 <-  names(fread(inp_riveratlas2, nrows=1)) %>%
+    gsub('_11$', '', .)
 
-  cols_tokeep <- names(riveratlas)[
-    !(names(riveratlas) %in% names(
-      fread(in_filestructure['in_riveratlas2'], nrows=1)))]
+  cols_tokeep <- names(riveratlas)[!(names(riveratlas) %in% cols_v11)]
 
-
-  riveratlas_format <- fread(in_filestructure['in_riveratlas2']) %>%
+  riveratlas_format <- fread(inp_riveratlas2) %>%
     setorder(REACH_ID) %>%
     setnames(gsub('_11$', '', names(.))) %>%
     cbind(riveratlas[, cols_tokeep, with=F], .) %>%
@@ -2430,9 +2432,10 @@ rformat_network <- function(in_filestructure, in_predvars, in_monthlydischarge) 
 }
 
 #------ write_preds -----------------
-write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
+write_preds <- function(in_gaugep, in_gaugestats,
                         in_network, in_rftuned, in_predvars, in_gaugeIPR,
-                        interthresh = 0.5) {
+                        interthresh = 0.5,
+                        outp_gaugep, outp_riveratlaspred) {
 
   #####################################################################
   gpreds <- in_rftuned$rf_inner$predict(in_rftuned$task)
@@ -2451,7 +2454,7 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
                       by='GRDC_NO')
 
   st_write(obj=out_gaugep,
-           dsn=in_filestructure['out_gauge'],
+           dsn=outp_gaugep,
            driver = 'gpkg',
            delete_dsn=T)
 
@@ -2475,10 +2478,11 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
   in_network[, predbasic800cat := fifelse(predbasic800>=interthresh, 1, 0)]
 
   fwrite(in_network[, c('HYRIV_ID', 'HYBAS_L12', 'predbasic800', 'predbasic800cat'), with=F],
-         in_filestructure['out_riveratlas'])
+         outp_riveratlaspred)
 
   # --------- Return data for plotting ------------------------
-  return(out_gaugep)
+  return(list(out_gaugep = out_gaugep,
+              rivpredpath = outp_riveratlaspred))
 }
 
 
@@ -2487,8 +2491,8 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
 ##### -------------------- Diagnostics functions -------------------------------
 
 #------ netpredformat ------
-netpredformat <- function(in_filestructure, in_rivernetwork) {
-  fread(file_in(!!in_filestructure[['out_riveratlas']]))%>%
+netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
+  fread(file_in(outp_riveratlaspred))%>%
   .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
                      'UPLAND_SKM'),
                  with=F], on='HYRIV_ID']
@@ -2900,9 +2904,9 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
 }
 
 #------ krige_spgaugeIPR----
-krige_spgaugeIPR <- function(in_filestructure, in_rftuned,
-                                in_gaugep, in_gaugestats, kcutoff=50000,
-                                overwrite = FALSE) {
+krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
+                             kcutoff=50000, inp_bufrasdir,
+                             overwrite = FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
   predsp <- rsmp_res$prediction() %>%
     as.data.table %>%
@@ -2918,9 +2922,9 @@ krige_spgaugeIPR <- function(in_filestructure, in_rftuned,
   predsp_gaugep <- merge(in_gaugep, predsp, by='GRDC_NO') %>%
     .[order(.[,'prederror_abs']$prederror_abs),]
 
-  bufras_vec <- file.path(in_filestructure[['in_bufrasdir']],
+  bufras_vec <- file.path(inp_bufrasdir,
                           grep('bufras_T.*proj[.]tif$',
-                               list.files(in_filestructure[['in_bufrasdir']]),
+                               list.files(inp_bufrasdir),
                                value=T)
   )
 
@@ -2977,7 +2981,7 @@ krige_spgaugeIPR <- function(in_filestructure, in_rftuned,
   return(kpl)
 }
 #------ mosaic_kriging -------------
-mosaic_kriging <- function(in_kpathlist, in_filestructure, overwrite) {
+mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
   kpl <- in_kpathlist
 
   kplextents <- lapply(kpl, function(ras_path) {
@@ -2988,9 +2992,8 @@ mosaic_kriging <- function(in_kpathlist, in_filestructure, overwrite) {
     .[, lapply(.SD, function(i) c(min(i), max(i)))]
 
   template <- raster(extent(kplextents[, x], kplextents[, y]))
-  out_krigingtif = file.path(in_filestructure[['resdir']],
-                             "prederror_krigingtest.tif")
-  writeRaster(template, file=out_krigingtif, datatype='INT2S',
+
+  writeRaster(template, file=outp_krigingtif, datatype='INT2S',
               format="GTiff", overwrite=overwrite)
   gdalUtils::mosaic_rasters(gdalfile=as.vector(kpl),
                             dst_dataset=out_krigingtif,
@@ -3003,7 +3006,7 @@ mosaic_kriging <- function(in_kpathlist, in_filestructure, overwrite) {
 
 ##### -------------------- Report functions -----------------------------------
 #------ get_basemaps ------------
-get_basemapswintri <- function(in_filestructure) {
+get_basemapswintri <- function() {
   crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
 
   wcountries <- rnaturalearth::ne_countries(
@@ -3424,7 +3427,9 @@ ggmisclass_bm <- function(in_threshdts) {
 #                                        na.rm=T,
 #                                        tidy = FALSE)
 
-tabulate_globalsummary <- function(in_filestructure, idvars,
+tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
+                                   inp_riveratlas_legends,
+                                   idvars,
                                    castvar, castvar_num=TRUE,
                                    weightvar,
                                    valuevar, valuevarsub,
@@ -3432,47 +3437,35 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
                                    na.rm=T, tidy=FALSE) {
 
   #Import global predictions
-  rivpred <- fread(file_in(!!in_filestructure['out_riveratlas']))
+  rivpred <- fread(file_in(!!outp_riveratlaspred))
   #Columns to import from full network
   incols <- c('HYRIV_ID', castvar, idvars, valuevar, weightvar)
   #Import global river network and join to predictions
-  riveratlas <- fread_cols(file_name=in_filestructure['in_riveratlas'],
+  riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = incols) %>%
     .[rivpred, on='HYRIV_ID']
 
   #If global administrative boundaries were selected for idvar, get country names
   if ('gad_id_cmj' %in% incols) {
-    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
-                                            'HydroATLAS',
-                                            'HydroATLAS_v10_Legends.xlsx'),
-                                  sheet='gad_id') %>%
+    gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='gad_id') %>%
       setDT
 
     riveratlas <- merge(riveratlas, gadnames, by.x='gad_id_cmj', by.y='Country_ID') %>%
       .[, gad_id_cmj := Country_Name]
   } else if ('fmh_cl_cmj' %in% incols) {
-    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
-                                            'HydroATLAS',
-                                            'HydroATLAS_v10_Legends.xlsx'),
-                                  sheet='fmh_cl') %>%
+    gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='fmh_cl') %>%
       setDT
 
     riveratlas <- merge(riveratlas, gadnames, by.x='fmh_cl_cmj', by.y='MHT_ID') %>%
       .[, fmh_cl_cmj := MHT_Name]
   } else if ('tbi_cl_cmj' %in% incols) {
-    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
-                                            'HydroATLAS',
-                                            'HydroATLAS_v10_Legends.xlsx'),
-                                  sheet='tbi_cl') %>%
+    gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='tbi_cl') %>%
       setDT
 
     riveratlas <- merge(riveratlas, gadnames, by.x='tbi_cl_cmj', by.y='Biome_ID') %>%
       .[, tbi_cl_cmj := Biome_Name]
   } else if ('clz_cl_cmj' %in% incols) {
-    gadnames <- readxl::read_xlsx(file.path(in_filestructure['datdir'],
-                                            'HydroATLAS',
-                                            'HydroATLAS_v10_Legends.xlsx'),
-                                  sheet='clz_cl') %>%
+    gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='clz_cl') %>%
       setDT
 
     riveratlas <- merge(riveratlas, gadnames, by.x='clz_cl_cmj', by.y='GEnZ_ID') %>%
@@ -3543,11 +3536,9 @@ tabulate_globalsummary <- function(in_filestructure, idvars,
   return(tidyperc_format)
 }
 #------ compare_fr --------------------------------------
-compare_fr <- function(in_filestructure, in_rivpred, binarg) {
-  in_frdir <- file.path(in_filestructure[['resdir']],
-                        'Comparison_databases/france.gdb')
-  in_netpath <- file.path(in_frdir, 'network')
-  in_baspath <- file.path(in_frdir, 'hydrobasins12')
+compare_fr <- function(inp_frdir, in_rivpred, binarg) {
+  in_netpath <- file.path(inp_frdir, 'network')
+  in_baspath <- file.path(inp_frdir, 'hydrobasins12')
   valuevarsub <- "1"
 
   net <- st_read(dsn = dirname(in_netpath),
@@ -3594,18 +3585,11 @@ compare_fr <- function(in_filestructure, in_rivpred, binarg) {
 }
 
 #------ compare_us ----------------
-compare_us <- function(in_filestructure, in_rivpred, binarg) {
-  in_dir <- file.path(in_filestructure[['datdir']],
-                      'Comparison_databases/US')
-  in_netpath_hr <- file.path(in_filestructure[['datdir']],
-                             'Comparison_databases/US',
-                             'NHDhr_attris.csv')
-  in_netpath_mr <- file.path(in_filestructure[['datdir']],
-                             'Comparison_databases/US',
-                             'NHDmr_attris.csv')
-  in_baspath <- file.path(in_filestructure[['resdir']],
-                          'Comparison_databases/us.gdb',
-                          'hydrobasins12')
+compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
+
+  in_netpath_hr <- file.path(inp_usdatdir,  'NHDhr_attris.csv')
+  in_netpath_mr <- file.path(inp_usdatdir, 'NHDmr_attris.csv')
+  in_baspath <- file.path(inp_usresdir, 'hydrobasins12')
   valuevarsub <- "1"
 
 
@@ -3796,13 +3780,9 @@ compare_us <- function(in_filestructure, in_rivpred, binarg) {
 
 
 #------ qc_pnw ------------
-qc_pnw <- function(in_filestructure, in_rivpred, interthresh=0.5) {
-  in_dir <- file.path(in_filestructure[['resdir']],
-                      'Insitu_databases/pnw.gdb')
-  in_refpts <- file.path(in_dir,
-                         'StreamflowPermObs_final')
-  in_fulldat <- file.path(in_dir,
-                          'StreamflowPermObs_sub')
+qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
+  in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
+  in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
 
   valuevarsub <- "1"
 

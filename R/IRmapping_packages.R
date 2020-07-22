@@ -34,6 +34,7 @@ suppressPackageStartupMessages(library(facetscales))
 
 suppressPackageStartupMessages(library(cowplot))
 suppressPackageStartupMessages(library(data.table))
+suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(drake))
 suppressPackageStartupMessages(library(future))
 suppressPackageStartupMessages(library(future.apply))

@@ -1,59 +1,40 @@
-# Get main directory for project
-rootdir <- find_root(has_dir("src"))
 
 plan <- drake_plan(
-  rootdir = find_root(has_dir("src")),
-  datdir =  file.path(rootdir, 'data'),
-  resdir = file.path(rootdir, 'results'),
-  outgdb = file.path(resdir, 'spatialoutputs.gdb'),
-  in_gaugep = file.path(outgdb, 'GRDCstations_riverjoin'),
-  in_gaugedir =  file_in(!!file.path(datdir, 'GRDCdat_day')),
-  in_riveratlas_meta = file_in(!!file.path(datdir, 'HydroATLAS',
-                                           'HydroATLAS_metadata_MLMv11.xlsx')),
-  in_monthlynetdischarge = file.path(datdir, 'HydroSHEDS',
-                                     'HS_discharge_monthly.gdb',
-                                     'Hydrosheds_discharge_monthly'),
-  in_bufrasdir = file.path(resdir, 'bufrasdir'),
-  in_riveratlas = file_in(!!file.path(resdir, 'RiverATLAS_v10tab.csv')),
-  in_riveratlas2 = file_in(!!file.path(resdir, 'RiverATLAS_v11tab.csv')),
-  compresdir = file.path(resdir, 'Comparison_databases')
-    # hydrometric stations that have been joined to RiverATLAS
-    fs[["in_gaugep = file.path(outgdb, 'GRDCstations_riverjoin')
-    # Directory containing hydrometric data
-    fs[["in_gaugedir =  file_in(!!file.path(datdir, 'GRDCdat_day'))
-    # River atlas formatted variables
-    fs[["in_riveratlas_meta = file_in(!!file.path(datdir, 'HydroATLAS',
-                                              'HydroATLAS_metadata_MLMv11.xlsx'))
-    #Average monthly discharge for HydroSHEDS network
-    fs[["in_monthlynetdischarge = file.path(datdir, 'HydroSHEDS',
-                                        'HS_discharge_monthly.gdb',
-                                        'Hydrosheds_discharge_monthly')
-    #Rasters of dissolved buffers around gauge stations
-    fs[["in_bufrasdir = file.path(resdir, 'bufrasdir')
-    # River atlas attribute data1
-    fs[["in_riveratlas = file_in(!!file.path(resdir, 'RiverATLAS_v10tab.csv'))
+  ##################### DEFINE INPUT AND OUTPUT FILES ##########################
+  #Note: for dependency tracking, drake only reads string literals inside file_in and file_out; hence the use of absolute paths
+  #Tidy evaluation (!!) didn't work for some reason -- can look into it later
+  path_gaugep = "C:\\globalIRmap\\results\\spatialoutputs.gdb\\GRDCstations_riverjoin",
+  path_gaugedir =  file_in("C:\\globalIRmap\\data\\GRDCdat_day"),
+  path_riveratlas_meta = file_in('C:\\globalIRmap\\data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx'),
+  path_riveratlas_legends = file_in('C:\\globalIRmap\\data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx'),
+  path_monthlynetdischarge = 'C:\\globalIRmap\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
+  path_riveratlas = file_in('C:\\globalIRmap\\results\\RiverATLAS_v10tab.csv'),
+  path_riveratlas2 = file_in('C:\\globalIRmap\\results\\RiverATLAS_v11tab.csv'),
+  path_compresdir = file.path('C:\\globalIRmap\\results\\Comparison_databases'),
+  path_frresdir = file.path(path_compresdir, 'france.gdb'),
+  path_usdatdir = file.path('C:\\globalIRmap\\data\\Comparison_databases', 'US'),
+  path_usresdir = file.path(path_compresdir, 'us.gdb'),
+  path_insitudir = file.path('C:\\globalIRmap\\results\\Insitu_databases'),
+  path_pnwresdir =  file.path(path_insitudir, 'pnw.gdb'),
 
-    # River atlas attribute data2
-    fs[["in_riveratlas2 = file_in(!!file.path(resdir, 'RiverATLAS_v11tab.csv'))
-
-    # French river network for comparison
-    fs[["compresdir = file.path(resdir, 'Comparison_databases')
-    fs[["in_netfr = file.path(compresdir, 'france.gdb', 'network')
-    fs[["in_basfr = file.path(compresdir, 'france.gdb', 'hydrobasins12')
-
-    # Output geopackage of hydrometric stations with appended predicted intermittency class
-    fs[["out_gauge = file.path(resdir, 'GRDCstations_predbasic800.gpkg')
-    # River atlas predictions table
-    fs[["out_riveratlas = file.path(resdir, 'RiverATLAS_predbasic800.csv')
-  ),
-
-  monthlydischarge = read_monthlydis(in_filestructure = filestructure),
+  outpath_rfclassif = 'C:\\globalIRmap\\results\\rfbm_classif.qs',
+  outpath_gaugep = file_out('C:\\globalIRmap\\results\\GRDCstations_predbasic800.gpkg'),
+  outpath_riveratlaspred = file_out('C:\\globalIRmap\\results\\RiverATLAS_predbasic800.csv'),
+  path_bufrasdir = file.path('C:\\globalIRmap\\results\\bufrasdir'),
+  outpath_krigingtif = file_out("C:\\globalIRmap\\results\\prederror_krigingtest.tif"),
 
 
-  gaugep = read_gaugep(in_filestructure = filestructure, dist = 200,
+  ##################### ANALYSIS ############################################
+  monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
+
+
+  gaugep = read_gaugep(inp_gaugep = path_gaugep,
+                       dist = 200,
+                       inp_riveratlas2 = path_riveratlas2,
                        in_monthlydischarge = monthlydischarge),
 
-  gauged_filenames = read_gauged_paths(filestructure, gaugep),
+  gauged_filenames = read_gauged_paths(inp_gaugedir = path_gaugedir,
+                                       gaugep),
 
   gaugestats = future_map(gauged_filenames, #To map
                           comp_durfreq, #Function to run on each file name
@@ -64,7 +45,8 @@ plan <- drake_plan(
   gaugestats_format = format_gaugestats(in_gaugestats = gaugestats,
                                         in_gaugep = gaugep),
 
-  predvars = selectformat_predvars(filestructure, in_gaugestats = gaugestats_format), ##########ADD pre_mm_u11!!!
+  predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
+                                   in_gaugestats = gaugestats_format), ##########ADD pre_mm_u11!!!
 
   tasks = create_tasks(in_gaugestats = gaugestats_format,
                        in_predvars = predvars),
@@ -118,14 +100,12 @@ plan <- drake_plan(
 
   rfbm_classif = target(
     combine_bm(readd(rfresampled_classif, subtarget_list = TRUE),
-               out_qs = file_out(!!file.path(readd(filestructure)[['resdir']],
-                                             'rfbm_classif.qs')))
+               out_qs = outpath_rfclassif)
   ),
 
   # bm_checked = target(
   #   analyze_benchmark(in_bm, in_measure = measures),
-  #   transform = map(in_bm = list(file_in(!!file.path(readd(filestructure)[['resdir']],
-  #                                                     'rfbm_classif.qs')),
+  #   transform = map(in_bm = list(file_in(!!file.path(resdir,'rfbm_classif.qs')),
   #                                c(rfresampled_regr_res, rfresampled_regover_res)))#,
   #                 #in_measure = list(measures$classif, measures$regr))
   # ),
@@ -144,8 +124,7 @@ plan <- drake_plan(
   ),
 
   tasks_featsel = select_features(
-    in_bm = file_in(!!file.path(readd(filestructure)[['resdir']],
-                                'rfbm_classif.qs')),
+    in_bm = rfbm_classif,
     in_lrnid =  selected_learner,
     in_task = tasks$classif,
     pcutoff = 0.05
@@ -153,8 +132,7 @@ plan <- drake_plan(
 
   rfresampled_featsel = target(
     dynamic_resamplebm(in_task = in_taskfeatsel,
-                       in_bm = file_in(!!file.path(readd(filestructure)[['resdir']],
-                                                   'rfbm_classif.qs')),
+                       in_bm = rfbm_classif,
                        in_lrnid =  selected_learner,
                        in_resampling = in_resampling,
                        store_models = TRUE,
@@ -187,9 +165,11 @@ plan <- drake_plan(
                    insamp_nfolds = 4,
                    insamp_nevals = 100)),
 
-  rivernetwork = rformat_network(in_filestructure = filestructure,
-                                 in_predvars = predvars,
-                                 in_monthlydischarge = monthlydischarge),
+  rivernetwork = rformat_network(in_predvars = predvars,
+                                 in_monthlydischarge = monthlydischarge,
+                                 inp_riveratlasmeta = path_riveratlas_meta,
+                                 inp_riveratlas = path_riveratlas,
+                                 inp_riveratlas2 = path_riveratlas2),
 
   gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
                              in_gaugestats = gaugestats_format,
@@ -197,38 +177,40 @@ plan <- drake_plan(
                              spatial_rsp = TRUE,
                              interthresh = interthresh),
 
-  rfpreds = write_preds(in_filestructure = filestructure,
-                        in_gaugep = gaugep,
+  rfpreds = write_preds(in_gaugep = gaugep,
                         in_gaugestats = gaugestats_format,
                         in_network = rivernetwork,
                         in_rftuned = rftuned,
                         in_predvars = predvars,
                         in_gaugeIPR = gaugeIPR_plot[['out_gaugeIPR']],
-                        interthresh = interthresh),
+                        interthresh = interthresh,
+                        outp_gaugep = outpath_gaugep,
+                        outp_riveratlaspred = outpath_riveratlaspred),
 
-  rivpred = netpredformat(in_filestructure = filestructure,
-                          in_rivernetwork = rivernetwork),
+  rivpred = netpredformat(in_rivernetwork = rivernetwork,
+                          outp_riveratlaspred = rfpreds[["rivpredpath"]]),
 
   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 
   pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars, colnums=1:20,
                  nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
 
-  basemaps = get_basemapswintri(in_filestructure = filestructure),
+  basemaps = get_basemapswintri(),
 
-  gauges_plot = gggauges(in_gaugepred = rfpreds, in_basemaps = basemaps,
+  gauges_plot = gggauges(in_gaugepred = rfpreds[["out_gaugep"]],
+                         in_basemaps = basemaps,
                          binarg <- c(30, 60, 100),
                          binvar <- 'totalYears_kept'),
 
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
-                             in_gaugepred = rfpreds,
+                             in_gaugepred =  rfpreds[["out_gaugep"]],
                              in_predvars = predvars),
 
   table_allbm = target(
     tabulate_benchmarks(in_bm, in_bmid),
     transform = map(
       in_bm = list(
-        file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
+        rfbm_classif,
         c(rfresampled_regr_res, rfresampled_regover_res),
         c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
@@ -239,7 +221,7 @@ plan <- drake_plan(
     formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
     transform = map(
       in_bm = list(
-        file_in(!!file.path(readd(filestructure)[['resdir']], 'rfbm_classif.qs')),
+        rfbm_classif,
         c(rfresampled_regr_res, rfresampled_regover_res),
         c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
@@ -250,18 +232,21 @@ plan <- drake_plan(
                                      misclass_regr1,
                                      misclass_classif2)),
 
-  krigepreds = krige_spgaugeIPR(in_filestructure = filestructure,
-                                   in_rftuned = rftuned,
-                                   in_gaugep = gaugep,
-                                   in_gaugestats = gaugestats_format,
-                                   kcutoff=50000, overwrite=T),
+  krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
+                                in_gaugep = gaugep,
+                                in_gaugestats = gaugestats_format,
+                                inp_bufrasdir = path_bufrasdir,
+                                kcutoff=50000, overwrite=T),
 
   krigepreds_mosaic = mosaic_kriging(in_filestructure = filestructure,
                                      in_kpathlist = krigepreds,
+                                     outp_krigingtif = outpath_krigingtif,
                                      overwrite = TRUE),
 
   globaltables = target(
-    tabulate_globalsummary(in_filestructure = filestructure,
+    tabulate_globalsummary(outp_riveratlaspred = rfpreds[["rivpredpath"]],
+                           inp_riveratlas = path_riveratlas,
+                           inp_riveratlas_legends = inp_riveratlas_legends,
                            idvars = in_idvars,
                            castvar = 'dis_m3_pyr',
                            castvar_num = FALSE,
@@ -290,5 +275,6 @@ plan <- drake_plan(
   pnw_plot = qc_pnw(in_filestructure = filestructure,
                     in_rivpred = rivpred,
                     interthresh = interthresh)
+################## END OF PLAN  #################################################################
 )
 
