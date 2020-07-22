@@ -1,7 +1,54 @@
+# Get main directory for project
+rootdir <- find_root(has_dir("src"))
+
 plan <- drake_plan(
-  filestructure = def_filestructure(),
+  rootdir = find_root(has_dir("src")),
+  datdir =  file.path(rootdir, 'data'),
+  resdir = file.path(rootdir, 'results'),
+  outgdb = file.path(resdir, 'spatialoutputs.gdb'),
+  in_gaugep = file.path(outgdb, 'GRDCstations_riverjoin'),
+  in_gaugedir =  file_in(!!file.path(datdir, 'GRDCdat_day')),
+  in_riveratlas_meta = file_in(!!file.path(datdir, 'HydroATLAS',
+                                           'HydroATLAS_metadata_MLMv11.xlsx')),
+  in_monthlynetdischarge = file.path(datdir, 'HydroSHEDS',
+                                     'HS_discharge_monthly.gdb',
+                                     'Hydrosheds_discharge_monthly'),
+  in_bufrasdir = file.path(resdir, 'bufrasdir'),
+  in_riveratlas = file_in(!!file.path(resdir, 'RiverATLAS_v10tab.csv')),
+  in_riveratlas2 = file_in(!!file.path(resdir, 'RiverATLAS_v11tab.csv')),
+  compresdir = file.path(resdir, 'Comparison_databases')
+    # hydrometric stations that have been joined to RiverATLAS
+    fs[["in_gaugep = file.path(outgdb, 'GRDCstations_riverjoin')
+    # Directory containing hydrometric data
+    fs[["in_gaugedir =  file_in(!!file.path(datdir, 'GRDCdat_day'))
+    # River atlas formatted variables
+    fs[["in_riveratlas_meta = file_in(!!file.path(datdir, 'HydroATLAS',
+                                              'HydroATLAS_metadata_MLMv11.xlsx'))
+    #Average monthly discharge for HydroSHEDS network
+    fs[["in_monthlynetdischarge = file.path(datdir, 'HydroSHEDS',
+                                        'HS_discharge_monthly.gdb',
+                                        'Hydrosheds_discharge_monthly')
+    #Rasters of dissolved buffers around gauge stations
+    fs[["in_bufrasdir = file.path(resdir, 'bufrasdir')
+    # River atlas attribute data1
+    fs[["in_riveratlas = file_in(!!file.path(resdir, 'RiverATLAS_v10tab.csv'))
+
+    # River atlas attribute data2
+    fs[["in_riveratlas2 = file_in(!!file.path(resdir, 'RiverATLAS_v11tab.csv'))
+
+    # French river network for comparison
+    fs[["compresdir = file.path(resdir, 'Comparison_databases')
+    fs[["in_netfr = file.path(compresdir, 'france.gdb', 'network')
+    fs[["in_basfr = file.path(compresdir, 'france.gdb', 'hydrobasins12')
+
+    # Output geopackage of hydrometric stations with appended predicted intermittency class
+    fs[["out_gauge = file.path(resdir, 'GRDCstations_predbasic800.gpkg')
+    # River atlas predictions table
+    fs[["out_riveratlas = file.path(resdir, 'RiverATLAS_predbasic800.csv')
+  ),
 
   monthlydischarge = read_monthlydis(in_filestructure = filestructure),
+
 
   gaugep = read_gaugep(in_filestructure = filestructure, dist = 200,
                        in_monthlydischarge = monthlydischarge),
@@ -17,7 +64,7 @@ plan <- drake_plan(
   gaugestats_format = format_gaugestats(in_gaugestats = gaugestats,
                                         in_gaugep = gaugep),
 
-  predvars = selectformat_predvars(filestructure, in_gaugestats = gaugestats_format),
+  predvars = selectformat_predvars(filestructure, in_gaugestats = gaugestats_format), ##########ADD pre_mm_u11!!!
 
   tasks = create_tasks(in_gaugestats = gaugestats_format,
                        in_predvars = predvars),
@@ -159,12 +206,8 @@ plan <- drake_plan(
                         in_gaugeIPR = gaugeIPR_plot[['out_gaugeIPR']],
                         interthresh = interthresh),
 
-  rivpred = target(
-    fread(file_in(!!filestructure['out_riveratlas']))%>%
-      .[rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
-                         'UPLAND_SKM'),
-                     with=F], on='HYRIV_ID']
-  ),
+  rivpred = netpredformat(in_filestructure = filestructure,
+                          in_rivernetwork = rivernetwork),
 
   vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
 

@@ -137,9 +137,6 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   in_dt2[snw_pc_cyr == -9999, snw_pc_cyr:=0]
   in_dt2[snw_pc_cmx == -9999, snw_pc_cmx:=0]
 
-  in_dt2[is.na(cly_pc_cav), cly_pc_cav := -9999] #To look into
-  in_dt2[is.na(cly_pc_uav), cly_pc_uav := -9999]
-
   print('Number of NA values per column')
   colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x)))]
   print(colNAs)
@@ -147,6 +144,9 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   print('Number of -9999 values per column')
   col9999<- in_dt2[, lapply(.SD, function(x) sum(x==-9999))]
   print(col9999)
+
+  #-9999 in cly_pc_cav, slt, and snd are places with no soil mask (urban areas, lakes, glaciers, etc.)
+
 
   #Define column groups
   gladcols <- unlist(lapply(c('cav', 'uav'),function(s) {
@@ -164,7 +164,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   biocolsdc <- unlist(lapply(c('cav', 'uav'),
                            function(s) paste0('bio', 1:11, '_dc_', s)
                            ))
-  biocolsnegative <- grep('bio[189][01]*_.*', biocolsdc, value=T)
+  biocolsnegative <- grep('bio[189][01]*_dc_uav', biocolsdc, value=T)
 
   cmi_cmcols <- paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))
   cmi_umcols <- paste0('cmi_ix_u', str_pad(1:12, width=2, side='left', pad=0))
@@ -196,7 +196,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_c01', mstart=9, outcol='cmi_ix_cyr')
   comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_u01', mstart=9, outcol='cmi_ix_uyr')
   comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_c01', mstart=9, outcol='pet_mm_cyr')
-  comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=9, outcol='pet_mm_uyr')
+  #comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=9, outcol='pet_mm_uyr')
 
   in_dt2[,
          `:=`(cmi_ix_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
@@ -1752,7 +1752,7 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     'pre_mm_u08',
     'pre_mm_u09',
     'pre_mm_u10',
-    'pre_mm_u11',
+    #'pre_mm_u11',
     'pre_mm_u12',
     'pet_mm_cyr',
     'pet_mm_uyr',
@@ -2021,11 +2021,28 @@ selectformat_predvars <- function(in_filestructure, in_gaugestats) {
     Citation = 'Fan et al. 2013'
   )]
 
-  #Remove duplicates by joining
+  #Remove duplicates (which were created with keystat meaning different things e.g; 09 meaning september, 2009, class 9)
   predcols_dtnodupli<- predcols_dt[!(
-    Category == "Climate" &
-      grepl('Class.*', `Temporal/Statistical aggreg.`)),] %>%
-    unique
+    (Category == "Climate" &
+       grepl('Class.*', `Temporal/Statistical aggreg.`)) |
+      (Category == "Landcover" &
+         !grepl('Class.*', `Temporal/Statistical aggreg.`))
+  ),] %>%
+    .[grepl('hft_ix_[cu]09', varcode),
+      `:=`(`Temporal/Statistical aggreg.`='2009',
+           varname = gsub('(?<=Human\\sFootprint\\s(watershed|catchment)).*',
+                          ' 2009',
+                          varname,
+                          perl=T)
+           )] %>%
+    .[grepl('hft_ix_[cu]93', varcode),
+      `:=`(`Temporal/Statistical aggreg.`='1993',
+           varname = gsub('(?<=Human\\sFootprint\\s(watershed|catchment)).*',
+                          ' 1993',
+                          varname,
+                          perl=T)
+      )] %>%
+    unique(by='varcode')
 
   return(predcols_dtnodupli)
 }
@@ -2465,7 +2482,17 @@ write_preds <- function(in_filestructure, in_gaugep, in_gaugestats,
 }
 
 
+
+
 ##### -------------------- Diagnostics functions -------------------------------
+
+#------ netpredformat ------
+netpredformat <- function(in_filestructure, in_rivernetwork) {
+  fread(file_in(!!in_filestructure[['out_riveratlas']]))%>%
+  .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
+                     'UPLAND_SKM'),
+                 with=F], on='HYRIV_ID']
+}
 
 #------ ggmisclass_single -----------------
 ggmisclass_single <-  function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
