@@ -46,7 +46,7 @@ plan <- drake_plan(
                                         in_gaugep = gaugep),
 
   predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-                                   in_gaugestats = gaugestats_format), ##########ADD pre_mm_u11!!!
+                                   in_gaugestats = gaugestats_format),
 
   tasks = create_tasks(in_gaugestats = gaugestats_format,
                        in_predvars = predvars),
@@ -155,7 +155,7 @@ plan <- drake_plan(
                                    in_measure = measures$classif),
 
   interthresh = target(rfbm_featsel$interthresh_dt[learner == selected_learner,
-                                                   thresh]),
+                                                   max(thresh)]),
 
   #  Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
   rftuned = target(
@@ -174,7 +174,7 @@ plan <- drake_plan(
   gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
                              in_gaugestats = gaugestats_format,
                              in_predvars = predvars,
-                             spatial_rsp = TRUE,
+                             spatial_rsp = FALSE,
                              interthresh = interthresh),
 
   rfpreds = write_preds(in_gaugep = gaugep,
@@ -190,10 +190,12 @@ plan <- drake_plan(
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
                           outp_riveratlaspred = rfpreds[["rivpredpath"]]),
 
-  vimp_plot = ggvimp(rftuned, predvars, varnum=20, spatial_rsp = FALSE),
+  vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
+                     varnum=20, spatial_rsp = FALSE),
 
   pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars, colnums=1:20,
-                 nodupli = TRUE, ngrid = 20, parallel = T, spatial_rsp = FALSE),
+                           nvariate=1,  nodupli = TRUE, ngrid = 20, parallel = T,
+                           spatial_rsp = FALSE),
 
   basemaps = get_basemapswintri(),
 
@@ -232,21 +234,21 @@ plan <- drake_plan(
                                      misclass_regr1,
                                      misclass_classif2)),
 
-  krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
-                                in_gaugep = gaugep,
-                                in_gaugestats = gaugestats_format,
-                                inp_bufrasdir = path_bufrasdir,
-                                kcutoff=50000, overwrite=T),
-
-  krigepreds_mosaic = mosaic_kriging(in_filestructure = filestructure,
-                                     in_kpathlist = krigepreds,
-                                     outp_krigingtif = outpath_krigingtif,
-                                     overwrite = TRUE),
+  # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
+  #                               in_gaugep = gaugep,
+  #                               in_gaugestats = gaugestats_format,
+  #                               inp_bufrasdir = path_bufrasdir,
+  #                               kcutoff=50000, overwrite=T),
+  #
+  # krigepreds_mosaic = mosaic_kriging(in_filestructure = filestructure,
+  #                                    in_kpathlist = krigepreds,
+  #                                    outp_krigingtif = outpath_krigingtif,
+  #                                    overwrite = TRUE),
 
   globaltables = target(
     tabulate_globalsummary(outp_riveratlaspred = rfpreds[["rivpredpath"]],
                            inp_riveratlas = path_riveratlas,
-                           inp_riveratlas_legends = inp_riveratlas_legends,
+                           inp_riveratlas_legends = path_riveratlas_legends,
                            idvars = in_idvars,
                            castvar = 'dis_m3_pyr',
                            castvar_num = FALSE,
@@ -255,24 +257,26 @@ plan <- drake_plan(
                            valuevarsub = 1,
                            binfunc = 'manual',
                            binarg = c(0.1, 1, 10, 100, 100, 10000, 100000),
-                           na.rm=T, tidy = FALSE),
+                           na.rm=T,
+                           tidy = FALSE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
   )
   ,
 
-  fr_plot = compare_fr(in_filestructure = filestructure,
+  fr_plot = compare_fr(inp_frdir = path_frresdir,
                        in_rivpred = rivpred,
                        binarg = c(10,20,50,100,200,500,1000,
                                   2000,5000,10000,50000,100000,150000)),
 
-  us_plot = compare_us(in_filestructure = filestructure,
+  us_plot = compare_us(inp_usresdir = path_usresdir,
+                       inp_usdatdir = path_usdatdir,
                        in_rivpred = rivpred,
                        binarg = c(10,20,50,100,200,500,1000,
                                   2000,5000,10000,50000,100000,2000000, 3200000))
   ,
 
-  pnw_plot = qc_pnw(in_filestructure = filestructure,
+  pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,
                     in_rivpred = rivpred,
                     interthresh = interthresh)
 ################## END OF PLAN  #################################################################

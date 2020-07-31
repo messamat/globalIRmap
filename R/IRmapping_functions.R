@@ -388,7 +388,7 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
   #Adapt whether return resample result or output from selecttrain_rf
   if (inherits(in_rftuned, 'list')) {
     #If there is more than one type of outer resampling
-    if (length(in_rftuned$rf_outer) > 0) {
+    if (length(in_rftuned$rf_outer$uhash) > 1) {
       #Check which resampling is spatial — only works if one is spatial
       sp_i <- which(unlist(lapply(in_rftuned$rf_outer, function(x) {
         grepl('.*Resampling.*Sp.*', x$resampling$format())
@@ -412,6 +412,7 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
 
       #If there is only one type of outer resampling
     } else {
+      print("Only one resampling result, ignoring spatial_rsp argument...")
       rsmp_res <- in_rftuned$rf_outer
     }
     #If in_rftuned is alreadyh a ResampleResult, simply return it
@@ -1707,8 +1708,6 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'gla_pc_cse',
     'prm_pc_use',
     'prm_pc_cse',
-    'soc_th_uav',
-    'soc_th_cav',
     'swc_pc_uyr',
     'swc_pc_cyr',
     'swc_pc_cmn',
@@ -1753,7 +1752,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'pre_mm_u08',
     'pre_mm_u09',
     'pre_mm_u10',
-    #'pre_mm_u11',
+    'pre_mm_u11',
     'pre_mm_u12',
     'pet_mm_cyr',
     'pet_mm_uyr',
@@ -1872,8 +1871,6 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     .[metascale, on = 'Keyscale'] %>%
     .[metastat, on = 'Keystat',
       allow.cartesian=TRUE]
-
-  ########################## DEAL WITH 1-12 str.pad 2
 
   meta_format[, `:=`(
     unit = substr(`Column(s)`, 5, 6),
@@ -2027,8 +2024,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     (Category == "Climate" &
        grepl('Class.*', `Temporal/Statistical aggreg.`)) |
       (Category == "Landcover" &
-         !grepl('Class.*', `Temporal/Statistical aggreg.`))
-  ),] %>%
+         !grepl('(Class|Spatial).*', `Temporal/Statistical aggreg.`))
+  ),]  %>%
     .[grepl('hft_ix_[cu]09', varcode),
       `:=`(`Temporal/Statistical aggreg.`='2009',
            varname = gsub('(?<=Human\\sFootprint\\s(watershed|catchment)).*',
@@ -2442,16 +2439,21 @@ write_preds <- function(in_gaugep, in_gaugestats,
   gpreds$set_threshold(1-interthresh)
 
   # ---- Output GRDC predictions as points ----
-  in_gaugestatsformat <- in_gaugestats[,
-    ':='(IRpredprob = gpreds$prob[,2],
-         IRpredcat = gpreds$response)] %>%
-    .[in_gaugeIPR, on='GRDC_NO']
+  in_gaugestatsformat <- na.omit(in_gaugestats,
+                                 c('intermittent',
+                                   in_predvars$varcode, 'X', 'Y'))[
+    , ':='(IRpredprob = gpreds$prob[,2],
+           IRpredcat = gpreds$response)] %>%
+    merge(in_gaugeIPR, by='GRDC_NO')
 
-  cols_toditch<- colnames(in_gaugep)[colnames(in_gaugep) != 'GRDC_NO']
+  cols_toditch<- colnames(in_gaugestatsformat)[
+    !(colnames(in_gaugestatsformat) %in% c('GRDC_NO', 'geometry'))]
 
-  out_gaugep <- merge(in_gaugep,
-                      in_gaugestatsformat[, !cols_toditch, with=F],
-                      by='GRDC_NO')
+  out_gaugep <- base::merge(
+    in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
+    in_gaugestatsformat[, -'geometry', with=F],
+    by='GRDC_NO',
+    all.x=F)
 
   st_write(obj=out_gaugep,
            dsn=outp_gaugep,
@@ -2720,20 +2722,22 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
       by= c(varvec, valvec)] %>%
     .[, variables := var1]
 
-  ##############################################################################
+  datdf2 <- as.data.table(datdf)[, intermittent := as.numeric(as.character(intermittent))]
+
   if (nvariate ==1) {
     tileplots_l <- pdformat[,list(list(ggplotGrob(
       ggplot(.SD, aes(x=value1, y=mean1)) +
         geom_line() +
-        # geom_rug(data=datdf,
-        #          aes_string(x=eval(var1),y='intermittent'),
-        #          alpha=1/3) +
-        scale_y_continuous(name='Partial dependence (probability of intermittency)') +
-        scale_x_continuous(name=get(variables)) +
+        geom_rug(data=datdf2,
+                 aes_string(x=eval(var1),y='intermittent'),
+                 alpha=1/3) +
+        scale_y_continuous(name='Partial dependence (probability of intermittency)',
+                           limits= c(min(mean1)-0.01, max(mean1)+0.01),  #c(0.25, 0.425),
+                           expand=c(0,0))+
+        scale_x_continuous(name=eval(variables)) +
         theme_classic() +
         theme(text = element_text(size=12))
     ))), by=.(var1)]
-    ############################### STILL TO CORRECT ##########################
 
   } else if (nvariate == 2) {
     pdformat[, variables := paste(var1, var2)]
@@ -2765,7 +2769,8 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     (p_i-1)*9+(1:9)
   })
   if (nrow(tileplots_l) %% 9 > 0) {
-    pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <- (p_i-1)*9+(1:(nrow(tileplots_l) %% 9))
+    pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <-
+      (nrow(tileplots_l) %/% 9)*9+(1:(nrow(tileplots_l) %% 9))
   }
 
 
@@ -2773,6 +2778,7 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     print(page)
     return(do.call("grid.arrange", list(grobs=(tileplots_l[page,V1]))))
   })
+  plot(tileplots_multipl[[1]])
   return(tileplots_multipl)
 }
 
@@ -2788,13 +2794,14 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
   }
 
   #Get average predictions for oversampled rows
-  gaugepred <-  rsmp_res$prediction() %>%
-    .$set_threshold(1-interthresh) %>%
+  gaugepred <-  rsmp_res$prediction()$set_threshold(1-interthresh) %>%
     as.data.table %>%
     .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
     setorder(row_id)
 
-  predattri <- cbind(in_gaugestats, gaugepred) %>%
+  predattri <- cbind(na.omit(in_gaugestats,
+                             c('intermittent',in_predvars$varcode, 'X', 'Y')),
+                     gaugepred) %>%
     .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent)),
              yearskeptratio = totalYears_kept/totalYears)]
 
@@ -2832,8 +2839,8 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
   rectdf <- data.table(
     xmin=rep(-Inf, 4),
     xmax=rep(Inf, 4),
-    ymin=c(-1, -interthresh, 0, 1-interthresh),
-    ymax=c(-interthresh, 0, 1-interthresh, 1),
+    ymin=c(-1, interthresh-1, 0, interthresh),
+    ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
   gaugeIPR_numplot <-
@@ -3278,30 +3285,15 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
 #------ layout_ggenvhist --------------------------
 layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
   varstoplot_hist <- c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_uyr",
-                       "dis_m3_pyr", "dor_pc_pva","for_pc_use", "gla_pc_use",
+                       "dis_m3_pyr", "dor_pc_pva", "for_pc_use", "wfresh_pc_cav",
                        "kar_pc_use", "lka_pc_use", "pet_mm_uyr", "snw_pc_uyr",
-                       "run_mm_cyr", "swc_pc_uyr", "tmp_dc_uyr", "hdi_ix_cav",
-                       "hft_ix_c93", "UPLAND_SKM", "gwt_m_cav",  "ire_pc_use")
+                       "run_mm_cyr", "swc_pc_uyr", "bio1_dc_uav", "hdi_ix_cav",
+                       "hft_ix_u09", "UPLAND_SKM", "gwt_m_cav", "ire_pc_use")
 
   scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
 
-  # gaugeformat <- as.data.table(in_gaugepred)[, `:=`(
-  #   ari_ix_cav = ari_ix_cav/100,
-  #   ari_ix_uav = ari_ix_uav/100,
-  #   cmi_ix_cmn = cmi_ix_cmn/100,
-  #   cmi_ix_uyr = cmi_ix_uyr/100,
-  #   dor_pc_pva = dor_pc_pva/100,
-  #   lka_pc_cse = lka_pc_cse/10,
-  #   lka_pc_use = lka_pc_use/10,
-  #   tmp_dc_cmn =  tmp_dc_cmn/10,
-  #   tmp_dc_cmx =  tmp_dc_cmx/10,
-  #   tmp_dc_cyr =  tmp_dc_cyr/10,
-  #   tmp_dc_uyr =  tmp_dc_uyr/10,
-  #   gwt_m_cav = gwt_cm_cav/100
-  # )]
-
   penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
-                           in_gaugedt = gaugeformat,
+                           in_gaugedt = in_gaugepred,
                            in_rivdt = in_rivernetwork,
                            in_predvars = in_predvars,
                            scalesenvhist = scalesenvhist)
@@ -3437,7 +3429,7 @@ tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
                                    na.rm=T, tidy=FALSE) {
 
   #Import global predictions
-  rivpred <- fread(file_in(!!outp_riveratlaspred))
+  rivpred <- fread(outp_riveratlaspred)
   #Columns to import from full network
   incols <- c('HYRIV_ID', castvar, idvars, valuevar, weightvar)
   #Import global river network and join to predictions
@@ -3548,7 +3540,7 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
                  layer = basename(in_baspath)) %>%
     .[, 'HYBAS_ID', with=F]
 
-  rivpredsub <- merge(in_riverpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
+  rivpredsub <- merge(in_rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
     .[, UPLAND_SKM := round(UPLAND_SKM)]
 
   binlabels <- label_manualbins(binarg=binarg,
@@ -3626,7 +3618,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
     .[, c('HYBAS_ID', 'HUC8'), with=F]
 
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
-  rivpredbas <- merge(in_riverpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
+  rivpredbas <- merge(in_rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
   rivpredsubhr <- rivpredbas[, UPLAND_SKM := round(UPLAND_SKM)] %>%
     .[HUC8 %in% unique(nethr$HUC8),]
   rivpredsubmr <- rivpredbas[HUC8 %in% unique(netmr$HUC8),]
@@ -3813,7 +3805,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
 
   #Merge points with rivernetwork by HYRIV_ID
   refpts_join <- merge(refpts_stats,
-                       in_riverpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
+                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
                                    predbasic800cat)],
                        by='HYRIV_ID', all.y=F) %>%
     .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
