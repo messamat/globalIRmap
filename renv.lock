@@ -89,12 +89,40 @@
       "Repository": "CRAN",
       "Hash": "1fdc9b3adfe2e2f8f77c22a59cf322ec"
     },
+    "R.methodsS3": {
+      "Package": "R.methodsS3",
+      "Version": "1.8.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "23822a838096ceb132e5041c9a68c3ef"
+    },
+    "R.oo": {
+      "Package": "R.oo",
+      "Version": "1.23.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "6be65e89d25f79fb4d147d65e19601e8"
+    },
+    "R.utils": {
+      "Package": "R.utils",
+      "Version": "2.9.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "63cdbbf467a00d0ed2aa3391f4918d6e"
+    },
     "R6": {
       "Package": "R6",
       "Version": "2.4.1",
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "292b54f8f4b94669b08f94e5acce6be2"
+    },
+    "RApiSerialize": {
+      "Package": "RApiSerialize",
+      "Version": "0.1.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "c5a68b4db79cfe8502878b3ed2b59853"
     },
     "RColorBrewer": {
       "Package": "RColorBrewer",
@@ -538,6 +566,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "3a99a9c2cb8ad474943bfcaea69016dc"
+    },
+    "gdalUtils": {
+      "Package": "gdalUtils",
+      "Version": "2.0.3.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "05ee75453c7c7cf6741a050af30927ba"
     },
     "generics": {
       "Package": "generics",
@@ -1189,6 +1224,13 @@
       "Repository": "CRAN",
       "Hash": "97def703420c8ab10d8f0e6c72101e02"
     },
+    "qs": {
+      "Package": "qs",
+      "Version": "0.22.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "27d1713539414e184cd14ca7accb78c0"
+    },
     "quantreg": {
       "Package": "quantreg",
       "Version": "5.55",
@@ -1209,6 +1251,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "5aef4b2e36fe729608b55abb04944827"
+    },
+    "rbin": {
+      "Package": "rbin",
+      "Version": "0.2.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "02cf08cced541c67295e396df35ecc21"
     },
     "rcmdcheck": {
       "Package": "rcmdcheck",
@@ -1310,10 +1359,10 @@
     },
     "rmarkdown": {
       "Package": "rmarkdown",
-      "Version": "2.1",
+      "Version": "2.2",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "9d1c61d476c448350c482d6664e1b28b"
+      "Hash": "aa82ab08b203d5a32a5b5f404e80c399"
     },
     "rmio": {
       "Package": "rmio",
@@ -1447,6 +1496,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "0a3635220b58f2c2faccd78e97b0cafd"
+    },
+    "stringfish": {
+      "Package": "stringfish",
+      "Version": "0.12.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "b30f88d8f5cfe559b4f13b3dbbf382ca"
     },
     "stringi": {
       "Package": "stringi",
@@ -1594,13 +1650,6 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "ecd17882a0b4419545691e095b74ee89"
-    },
-    "workflowr": {
-      "Package": "workflowr",
-      "Version": "1.6.2",
-      "Source": "Repository",
-      "Repository": "CRAN",
-      "Hash": "8d14d7ca1a1ac543614002af0b95c49e"
     },
     "xfun": {
       "Package": "xfun",
