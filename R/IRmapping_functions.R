@@ -3772,6 +3772,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
 
 
 #------ qc_pnw ------------
+############################### to re-programm #################################!!!!!!!!!!!!!!!!!!!!!
 qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
@@ -3858,6 +3859,103 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
 
   return(pnw_qcplot)
 }
+
+
+#------ qc_onde ------
+path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases')
+path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases')
+path_ondedatdir = file.path(path_insitudatdir, 'OndeEau')
+path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb')
+
+inp_ondedatdir = path_ondedatdir
+inp_onderesdir = path_onderesdir
+in_rivpred = readd(rivpred)
+loadd(interthresh)
+
+qc_onde <- function(inp_ondedatdir, inp_onderesdir, in_rivpred, interthresh=0.5) {
+  in_refpts <- file.path(inp_onderesdir, 'obs_finalwgs')
+  in_fulldat <- file.path(inp_ondedatdir, 'onde_france_merge.csv')
+
+  valuevarsub <- "1"
+
+  #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
+  refpts <- st_read(dsn = inp_onderesdir,
+                    layer = basename(in_refpts)) %>%
+    setDT %>%
+    setkey('F_CdSiteHydro_')
+
+  #All observations (excluding those that were not kept by PROSPER (aside from more recent osb, see python code for details)
+  #with duplicate records for single locations (multiple observations for different dates)
+  fulldat <- fread(in_fulldat) %>%
+    setkey('<CdSiteHydro>')
+
+  ################################ TO BE CONTINUED - RE-PROGRAMMING IN PROCESS #########!!!!!!!!!!!!!!!!!!!!!
+  #Join points and compute # of observations, min and max months of observations
+  refpts_full <- merge(refpts, fulldat, all.y=F) %>%
+    .[!is.na('fromM'),]
+
+  refpts_stats <- refpts_full[, `:=`(nobs=.N,
+                                     minmonth = min(Month),
+                                     maxmonth = max(Month)),
+                              by = dupligroup] %>%
+    .[!duplicated(dupligroup),]
+
+  #Merge points with rivernetwork by HYRIV_ID
+  refpts_join <- merge(refpts_stats,
+                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
+                                      predbasic800cat)],
+                       by='HYRIV_ID', all.y=F) %>%
+    .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
+    .[, prederror := predbasic800 - refinter] #Compute prediction error
+
+  #Scatterpoint of x = drainage area, y = predprobability - refinter
+  refpts_joinmelt <- melt(
+    refpts_join[, .(OBJECTID, prederror, UPLAND_SKM, dis_m3_pyr, nobs, refinter)],
+    id.vars = c('OBJECTID', 'prederror', 'refinter'))
+
+
+  levels(refpts_joinmelt$variable) <- c('Drainage area (km2)',
+                                        'Discharge (m3)',
+                                        '# of field obs.')
+
+
+  colorpal <- c('#1f78b4', '#ff7f00')
+  rectdf <- data.table(
+    xmin=rep(0.01, 4),
+    xmax=rep(Inf, 4),
+    ymin=c(-1, -interthresh, 0, 1-interthresh),
+    ymax=c(-interthresh, 0, 1-interthresh, 1),
+    fillpal = rep(colorpal, 2)
+  )
+
+  pnw_qcplot <- ggplot(refpts_joinmelt) +
+    geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+                               ymin=ymin, ymax=ymax, fill=fillpal),
+              alpha=1/4) +
+    scale_fill_manual(values=colorpal,
+                      name='Predicted regime',
+                      labels = c('Perennial', 'Intermittent')) +
+    geom_point(aes(x=value, y=prederror, color=factor(refinter)),
+               alpha=1/5) +
+    geom_hline(yintercept=0, alpha=1/2) +
+    new_scale_fill() +
+    geom_smooth(aes(x=value, y=prederror, color=factor(refinter)),
+                method='gam', formula = y ~ s(x, k=4)) +
+    scale_x_sqrt() +
+    geom_hline(yintercept=0) +
+    scale_color_manual(values=c('#1f78b4', '#ff7f00'),
+                       name='Observed regime',
+                       labels = c('Perennial', 'Intermittent')) +
+    coord_cartesian(expand=FALSE, clip='off') +
+    labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
+    theme_classic() +
+    theme(legend.position = c(0.9, 0.45),
+          legend.background = element_blank()) +
+    facet_wrap(~variable, scales ='free_x')
+
+  return(pnw_qcplot)
+}
+
 
 
 ########## END #############

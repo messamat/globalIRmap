@@ -14,8 +14,11 @@ plan <- drake_plan(
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
   path_usdatdir = file.path('C:\\globalIRmap\\data\\Comparison_databases', 'US'),
   path_usresdir = file.path(path_compresdir, 'us.gdb'),
-  path_insitudir = file.path('C:\\globalIRmap\\results\\Insitu_databases'),
-  path_pnwresdir =  file.path(path_insitudir, 'pnw.gdb'),
+  path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases'),
+  path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases'),
+  path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
+  path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
+  path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
 
   outpath_rfclassif = 'C:\\globalIRmap\\results\\rfbm_classif.qs',
   outpath_gaugep = file_out('C:\\globalIRmap\\results\\GRDCstations_predbasic800.gpkg'),
