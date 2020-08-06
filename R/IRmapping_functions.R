@@ -2920,14 +2920,14 @@ krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
     .[, list(IRpredprob_spcv = 100*mean(prob.1),
              IRpredcoefcv_spcv = sd(100*prob.1, na.rm=T)/mean(100*prob.1, na.rm=T)),
       by=.(row_id, truth)] %>%
-    .[, prederror := IRpredprob_spcv-100*as.numeric(as.character(truth))] %>%
-    .[, prederror_abs := abs(prederror)] %>%
+    .[, IPR := IRpredprob_spcv-100*as.numeric(as.character(truth))] %>%
+    .[, IPR_abs := abs(IPR)] %>%
     .[, IRpedcat_spcv := as.character(fifelse(IRpredprob_spcv > 40, 1, 0))] %>%
     setorder(row_id) %>%
     cbind(in_gaugestats[!is.na(cly_pc_cav), list(GRDC_NO=GRDC_NO)])
 
   predsp_gaugep <- merge(in_gaugep, predsp, by='GRDC_NO') %>%
-    .[order(.[,'prederror_abs']$prederror_abs),]
+    .[order(.[,'IPR_abs']$IPR_abs),]
 
   bufras_vec <- file.path(inp_bufrasdir,
                           grep('bufras_T.*proj[.]tif$',
@@ -2943,7 +2943,7 @@ krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
   # Compute the sample variogram; note that the f.1 trend model is one of the
   # parameters passed to variogram(). This tells the function to create the
   # variogram on the de-trended data.
-  var_smpl <- gstat::variogram(prederror ~ 1, predsp_gaugep_df,
+  var_smpl <- gstat::variogram(IPR ~ 1, predsp_gaugep_df,
                                cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
 
   ggplot(var_smpl, aes(x=dist, y=gamma)) +
@@ -2968,7 +2968,7 @@ krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
 
 
   #Predict error
-  kmod <- gstat(formula=prederror~1, locations=predsp_gaugep_df, model=dat_fit,
+  kmod <- gstat(formula=IPR~1, locations=predsp_gaugep_df, model=dat_fit,
                 maxdist = kcutoff)
   kpl <-  lapply(seq_along(bufras_vec), function(i) {
     bufmask <- raster(bufras_vec[[i]]) %>%
@@ -3810,12 +3810,12 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
                                    predbasic800cat)],
                        by='HYRIV_ID', all.y=F) %>%
     .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
-    .[, prederror := predbasic800 - refinter] #Compute prediction error
+    .[, IPR := predbasic800 - refinter] #Compute prediction error
 
   #Scatterpoint of x = drainage area, y = predprobability - refinter
   refpts_joinmelt <- melt(
-    refpts_join[, .(OBJECTID, prederror, UPLAND_SKM, dis_m3_pyr, nobs, refinter)],
-    id.vars = c('OBJECTID', 'prederror', 'refinter'))
+    refpts_join[, .(OBJECTID, IPR, UPLAND_SKM, dis_m3_pyr, nobs, refinter)],
+    id.vars = c('OBJECTID', 'IPR', 'refinter'))
 
 
   levels(refpts_joinmelt$variable) <- c('Drainage area (km2)',
@@ -3825,10 +3825,10 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
 
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf <- data.table(
-    xmin=rep(0.01, 4),
+    xmin=rep(-Inf, 4),
     xmax=rep(Inf, 4),
-    ymin=c(-1, -interthresh, 0, 1-interthresh),
-    ymax=c(-interthresh, 0, 1-interthresh, 1),
+    ymin=c(-1, interthresh-1, 0, interthresh),
+    ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
 
@@ -3839,11 +3839,11 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
     scale_fill_manual(values=colorpal,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
-    geom_point(aes(x=value, y=prederror, color=factor(refinter)),
+    geom_point(aes(x=value, y=IPR, color=factor(refinter)),
                alpha=1/5) +
     geom_hline(yintercept=0, alpha=1/2) +
     new_scale_fill() +
-    geom_smooth(aes(x=value, y=prederror, color=factor(refinter)),
+    geom_smooth(aes(x=value, y=IPR, color=factor(refinter)),
                 method='gam', formula = y ~ s(x, k=4)) +
     scale_x_sqrt() +
     geom_hline(yintercept=0) +
@@ -3882,64 +3882,149 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, in_rivpred, interthresh=0.5)
   refpts <- st_read(dsn = inp_onderesdir,
                     layer = basename(in_refpts)) %>%
     setDT %>%
-    setkey('F_CdSiteHydro_')
+    setnames(gsub('(F_)|_', '', names(.))) %>%
+    setkey('CdSiteHydro')
 
   #All observations (excluding those that were not kept by PROSPER (aside from more recent osb, see python code for details)
   #with duplicate records for single locations (multiple observations for different dates)
   fulldat <- fread(in_fulldat) %>%
-    setkey('<CdSiteHydro>')
+    setnames(gsub('<|>', '', names(.))) %>%
+    setkey('CdSiteHydro')
 
-  ################################ TO BE CONTINUED - RE-PROGRAMMING IN PROCESS #########!!!!!!!!!!!!!!!!!!!!!
-  #Join points and compute # of observations, min and max months of observations
-  refpts_full <- merge(refpts, fulldat, all.y=F) %>%
-    .[!is.na('fromM'),]
+  #Join formmatted and snapped points to full dataset of observations (keeping all
+  #observation instances)
+  refpts_colstokeep <- c("CdSiteHydro",
+                         names(refpts)[!(names(refpts) %in% names(fulldat))])
 
-  refpts_stats <- refpts_full[, `:=`(nobs=.N,
-                                     minmonth = min(Month),
-                                     maxmonth = max(Month)),
-                              by = dupligroup] %>%
-    .[!duplicated(dupligroup),]
+  refpts_full <- merge(fulldat, refpts[, refpts_colstokeep, with=F], all.x=F) %>%
+    .[!is.na(fromM),]
+
+  refpts_full[, Month := format.Date(DtRealObservation, '%m')]
+
+  #Get statistics for each site: total number of observations + N of each type of obs
+  #min and max year and months of observation
+  obstats <- refpts_full[, list(nobs=.N,
+                                minmonth = min(as.numeric(as.character(Month))),
+                                maxmonth = max(as.numeric(as.character(Month))),
+                                minyear = min(Annee),
+                                maxyear = max(Annee)),
+                         by = .(CdSiteHydro)] %>%
+    merge(dcast(refpts_full[, .N, by=.(CdSiteHydro, LbRsObservationNat)],
+                CdSiteHydro~LbRsObservationNat, value.var='N'),
+          by='CdSiteHydro')
+
+  setnames(obstats,
+           old=c('Assec',
+                 'Ecoulement visible',
+                 'Ecoulement non visible',
+                 'Observation impossible'),
+           new=c('Dry',
+                 'Flow',
+                 'NoFlow',
+                 'ObsImp'))
+
+  obstats[is.na(Dry), Dry := 0]
+  obstats[is.na(Flow), Flow := 0]
+  obstats[is.na(NoFlow), NoFlow := 0]
+  obstats[is.na(ObsImp), ObsImp := 0]
+
+  #Re-merge with site characteristics attributes
+  uniquesites <- refpts_full[, .(CdSiteHydro, LbSiteHydro,
+                                 NomEntiteHydrographique, Etat,
+                                 HYRIVIDjoinedit, fromM,
+                                 HYDROSHEDSDA, HYDROSHEDSdis,
+                                 POINTdis, POINTDA)] %>%
+    unique
+
+  obsattri <- merge(obstats, uniquesites, by='CdSiteHydro')
+
+  #Compute (observation point/hydrosheds reach pour point) ratio of discharge and drainage area
+  obsattri[, `:=`(RATIODA = POINTDA/(HYDROSHEDSDA*100),
+                  RATIOdis = POINTdis/(HYDROSHEDSdis*10^5),
+                  refinter_perc = (Dry + NoFlow)/nobs)]
+  obsattri[, refinter := as.numeric(refinter_perc > 0)]
 
   #Merge points with rivernetwork by HYRIV_ID
-  refpts_join <- merge(refpts_stats,
-                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
-                                      predbasic800cat)],
-                       by='HYRIV_ID', all.y=F) %>%
-    .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
-    .[, prederror := predbasic800 - refinter] #Compute prediction error
+  refpts_join <- merge(obsattri,
+                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, LENGTH_KM,
+                                      predbasic800, predbasic800cat, dis_m3_pyr)],
+                       by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
+    .[, IPR := predbasic800 - refinter] #Compute prediction error
+
+  #Compute BACC
+  onde_measures <- refpts_join[, list(
+    bacc = mlr3measures::bacc(factor(as.character(refinter),levels=c('0', '1')),
+                              factor(predbasic800cat,levels=c('0','1'))),
+    auc = mlr3measures::auc(factor(as.character(refinter),levels=c('0', '1')),
+                            predbasic800,
+                            positive='1'),
+    ce = mlr3measures::ce(factor(as.character(refinter),levels=c('0', '1')),
+                          factor(predbasic800cat,levels=c('0','1')))
+  )]
+
+  print(paste0('Balanced accuracy of predictions based on ONDE: ',
+               round(onde_measures$bacc, 3)))
+  print(paste0('AUC based on ONDE: ',
+               round(onde_measures$auc, 3)))
+  print(paste0('Misclassification rate based on ONDE: ',
+               round(onde_measures$ce, 3)))
+
+  #Compute relative position of observation point on HydroSHEDS reach line
+  refpts_join[, RATIOLENGTH := (fromM/1000)/LENGTH_KM]
+
+  #Write data out to points
+  predtowrite <- merge(st_read(dsn = inp_onderesdir,
+                               layer = basename(in_refpts))[, "F_CdSiteHydro_"],
+                       refpts_join,
+                       by.x = "F_CdSiteHydro_", by.y = 'CdSiteHydro') %>%
+    setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
+                   "predbasic800cat", "predbasic800"),
+             new=c("LINEdis", "LINEDA", "predcat", "predp"))
+
+  write_sf(predtowrite, file.path(dirname(inp_onderesdir), 'ondeobs_IPR4.shp'))
+
+  #Remove those whose ID doesn't fit what they were snapped to? (to inspect another time?)
+  refpts_joinsub <- refpts_join[RATIOLENGTH < 1.01 & RATIODA< 1.01,]
 
   #Scatterpoint of x = drainage area, y = predprobability - refinter
   refpts_joinmelt <- melt(
-    refpts_join[, .(OBJECTID, prederror, UPLAND_SKM, dis_m3_pyr, nobs, refinter)],
-    id.vars = c('OBJECTID', 'prederror', 'refinter'))
+    refpts_joinsub[, .(CdSiteHydro, IPR, HYDROSHEDSDA, RATIODA,
+                       HYDROSHEDSdis, RATIOdis, RATIOLENGTH,
+                       nobs, refinter, refinter_perc)],
+    id.vars = c('CdSiteHydro', 'IPR', 'refinter'))
 
 
-  levels(refpts_joinmelt$variable) <- c('Drainage area (km2)',
-                                        'Discharge (m3)',
-                                        '# of field obs.')
-
+  levels(refpts_joinmelt$variable) <- c('HydroSHEDS Drainage area (DA, km2)',
+                                        'Drainage area ratio',
+                                        'HydroSHEDS Discharge (m3)',
+                                        'Discharge ratio',
+                                        'Length ratio',
+                                        '# of field obs.',
+                                        'Percentage intermittent observations')
 
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf <- data.table(
-    xmin=rep(0.01, 4),
+    xmin=rep(0, 4),
     xmax=rep(Inf, 4),
-    ymin=c(-1, -interthresh, 0, 1-interthresh),
-    ymax=c(-interthresh, 0, 1-interthresh, 1),
+    ymin=c(-1, interthresh-1, 0, interthresh),
+    ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
 
-  pnw_qcplot <- ggplot(refpts_joinmelt) +
+  qplot(refpts_joinsub$RATIOLENGTH)
+
+  onde_qcplot <- ggplot(refpts_joinmelt) +
     geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, fill=fillpal),
               alpha=1/4) +
     scale_fill_manual(values=colorpal,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
-    geom_point(aes(x=value, y=prederror, color=factor(refinter)),
+    geom_point(aes(x=value, y=IPR, color=factor(refinter)),
                alpha=1/5) +
     geom_hline(yintercept=0, alpha=1/2) +
     new_scale_fill() +
-    geom_smooth(aes(x=value, y=prederror, color=factor(refinter)),
+    geom_smooth(aes(x=value, y=IPR, color=factor(refinter)),
                 method='gam', formula = y ~ s(x, k=4)) +
     scale_x_sqrt() +
     geom_hline(yintercept=0) +
@@ -3953,7 +4038,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, in_rivpred, interthresh=0.5)
           legend.background = element_blank()) +
     facet_wrap(~variable, scales ='free_x')
 
-  return(pnw_qcplot)
+  return(onde_qcplot)
 }
 
 
