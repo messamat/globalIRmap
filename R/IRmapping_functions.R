@@ -3772,7 +3772,16 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
 
 
 #------ qc_pnw ------------
-############################### to re-programm #################################!!!!!!!!!!!!!!!!!!!!!
+path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases')
+path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases')
+path_pnwdatdir = file.path(path_insitudatdir, 'pnw')
+path_pnwresdir = file.path(path_insituresdir, 'pnw.gdb')
+
+inp_pnwdatdir = path_pnwdatdir
+inp_pnwresdir = path_pnwresdir
+in_rivpred = readd(rivpred)
+loadd(interthresh)
+
 qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
@@ -3862,16 +3871,6 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
 
 
 #------ qc_onde ------
-path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases')
-path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases')
-path_ondedatdir = file.path(path_insitudatdir, 'OndeEau')
-path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb')
-
-inp_ondedatdir = path_ondedatdir
-inp_onderesdir = path_onderesdir
-in_rivpred = readd(rivpred)
-loadd(interthresh)
-
 qc_onde <- function(inp_ondedatdir, inp_onderesdir, in_rivpred, interthresh=0.5) {
   in_refpts <- file.path(inp_onderesdir, 'obs_finalwgs')
   in_fulldat <- file.path(inp_ondedatdir, 'onde_france_merge.csv')
