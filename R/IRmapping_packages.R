@@ -14,7 +14,7 @@
 # }
 
 #library(pdp) #https://bgreenwell.github.io/pdp/articles/pdp.html for partial dependence — but very slow
-# install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
+#install.packages("data.table", repos="https://Rdatatable.github.io/data.table")
 
 #remotes::install_github("https://github.com/mlr-org/mlr3spatiotempcv")
 #Conflicts with mlr3pipelines https://github.com/mlr-org/mlr3pipelines/pull/371
