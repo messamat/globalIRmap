@@ -7,7 +7,7 @@ plan <- drake_plan(
   path_GRDCgaugep = "C:\\globalIRmap\\results\\spatialoutputs.gdb\\grdcstations_cleanjoin",
   path_GRDCgaugedir =  file_in("C:\\globalIRmap\\data\\GRDCdat_day"),
   path_GSIMgaugep = "C:\\globalIRmap\\results\\GSIM\\GSIM.gdb\\GSIMstations_cleanriverjoin",
-  path_GSIMgaugedir =  file_in("C:\\globalIRmap\\data\\GSIM\\GSIM_indices\\TIMESERIES\\monthly"),
+  path_GSIMindicesdir =  file_in("C:\\globalIRmap\\data\\GSIM\\GSIM_indices"),
   path_riveratlas_meta = file_in('C:\\globalIRmap\\data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx'),
   path_riveratlas_legends = file_in('C:\\globalIRmap\\data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx'),
   path_monthlynetdischarge = 'C:\\globalIRmap\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
@@ -43,9 +43,15 @@ plan <- drake_plan(
     inp_GRDCgaugedir = path_GRDCgaugedir,
     in_gaugep = gaugep),
 
-  GSIMgauged_filenames = read_GSIMgauged_paths(
-    inp_GSIMgaugedir = path_GSIMgaugedir,
-    in_gaugep = gaugep),
+  GSIMgaugedmo_filenames = read_GSIMgauged_paths(
+    inp_GSIMindicesdir = path_GSIMindicesdir,
+    in_gaugep = gaugep,
+    timestep = 'month'),
+
+  GSIMgaugedse_filenames = read_GSIMgauged_paths(
+    inp_GSIMindicesdir = path_GSIMindicesdir,
+    in_gaugep = gaugep,
+    timestep = 'season'),
 
   GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
                               comp_GRDCdurfreq, #Function to run on each file name
