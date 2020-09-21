@@ -74,6 +74,7 @@ suppressPackageStartupMessages(library(tictoc))
 suppressPackageStartupMessages(library(profvis))
 suppressPackageStartupMessages(library(quantreg))
 suppressPackageStartupMessages(library(raster))
+suppressPackageStartupMessages(library(tidyhydat))
 suppressPackageStartupMessages(library(visNetwork))
 
 

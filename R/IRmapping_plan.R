@@ -48,7 +48,7 @@ plan <- drake_plan(
     in_gaugep = gaugep,
     timestep = 'month'),
 
-  GSIMgaugedse_filenames = read_GSIMgauged_paths(
+  GSIMgaugedsea_filenames = read_GSIMgauged_paths(
     inp_GSIMindicesdir = path_GSIMindicesdir,
     in_gaugep = gaugep,
     timestep = 'season'),
@@ -59,7 +59,16 @@ plan <- drake_plan(
                               in_gaugep = gaugep,
                               monthsel = NULL, #Other arguments in function
                               mdurthresh = 1,
-                              .progress = TRUE)
+                              .progress = TRUE),
+
+  GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
+                               GSIMgaugedsea_filenames,
+                               comp_GSIMdurfreq, #Function to run on each file name
+                               maxgap = 20,
+                               in_gaugep = gaugep,
+                               monthsel = NULL, #Other arguments in function
+                               mdurthresh = 1,
+                               .progress = TRUE)
   #
   # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats,
   #                                       in_gaugep = gaugep),

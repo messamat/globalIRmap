@@ -97,9 +97,10 @@ readformatGSIMmon <- function(path) {
       on='month']
 
   #Compute minimum number of zero-flow days for each month
-  gaugetab[, mDur_minmo := fcase(MIN==0L, 1L,
+  gaugetab[, mDur_minmo := fcase(MAX==0L, n.available,
                                  MIN7==0L, 7L,
-                                 MAX==0L, n.available)]
+                                 MIN==0L, 1L,
+                                 default = 0L)]
 
   #Compute number of missing days per year
   gaugetab[, `:=`(missingdays = diny(year) - sum(n.available),
@@ -125,19 +126,104 @@ readformatGSIMsea <- function(path) {
       on='month']
 
   #Compute minimum number of zero-flow days for each season
-  gaugetab[, mDur_minsea := fcase(MIN==0L, 1L,
-                                  MIN7==0L, 7L,
-                                  P10==0, as.integer(floor(0.1*n.available)),
-                                  P20==0, as.integer(floor(0.2*n.available)),
-                                  P30==0, as.integer(floor(0.3*n.available)),
-                                  P40==0, as.integer(floor(0.4*n.available)),
-                                  P50==0, as.integer(floor(0.5*n.available)),
-                                  P60==0, as.integer(floor(0.6*n.available)),
-                                  P70==0, as.integer(floor(0.7*n.available)),
+  gaugetab[, mDur_minsea := fcase(
+                                  P90==0, as.integer(floor(0.9*n.available)),
                                   P80==0, as.integer(floor(0.8*n.available)),
-                                  P90==0, as.integer(floor(0.9*n.available))
+                                  P70==0, as.integer(floor(0.7*n.available)),
+                                  P60==0, as.integer(floor(0.6*n.available)),
+                                  P50==0, as.integer(floor(0.5*n.available)),
+                                  P40==0, as.integer(floor(0.4*n.available)),
+                                  P30==0, as.integer(floor(0.3*n.available)),
+                                  P20==0, as.integer(floor(0.2*n.available)),
+                                  P10==0, as.integer(floor(0.1*n.available)),
+                                  MIN7==0L, 7L,
+                                  MIN==0L, 1L,
+                                  default = 0L
   )]
   return(gaugetab)
+}
+#------ plotGRDCtimeseries ----------------------
+plotGRDCtimeseries <- function(GRDCgaugestats_record, outpath) {
+  #Read and format discharge records
+  gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
+    .[!(Original %in% c(-999, -99, -9999)),] %>%
+    .[, dates := as.Date(dates)]
+
+  #Compute statistics on daily changes, including MEAN+SD
+  gaugetab[, abslag := abs(Original - data.table::shift(Original, n=1, type='lag'))] %>%
+    .[abslag > 0, logabslag := log(abslag)] %>%
+    .[abslag == 0, logabslag := .[abslag>0, min(logabslag, na.rm=T)-0.1]]
+  change_threshold <- gaugetab[, mean(logabslag, na.rm=T) +
+                                 sd(logabslag, na.rm=T)]
+
+  #Plot time series
+  qtiles <- union(gaugetab[, min(Original)],
+                  gaugetab[, quantile(Original, probs=seq(0, 1, 0.1))])
+
+  rawplot <- ggplot(gaugetab, aes(x=dates, y=Original)) +
+    geom_line(color='#045a8d', size=1, alpha=1/3) +
+    geom_point(color='#045a8d', size=1, alpha=1/2) +
+    geom_point(data=gaugetab[Original==0,], color='red', size=1.5) +
+    geom_point(data=gaugetab[Original==0 & logabslag > change_threshold,],
+               color='black', size=2) +
+    scale_y_sqrt(breaks=qtiles, labels=qtiles) +
+    scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+    scale_color_distiller(palette='Spectral') +
+    labs(y='Discharge (m3/s)',
+         title=paste0('GRDC: ', GRDCgaugestats_record$GRDC_NO)) +
+    coord_cartesian(expand=0, clip='off')+
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust=1),
+          axis.text.y = element_text())
+
+  if (!is.null(outpath)) {
+    if (!(file.exists(outpath))) {
+      ggsave(filename = outpath, plot = rawplot, device = 'png',
+             width = 10, height = 10, units='in', dpi = 300)
+    }
+  } else {
+    return(rawplot)
+  }
+}
+
+#------ plotGSIMtimeseries ----------------------
+plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath) {
+  #Read and format discharge records
+  gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
+    .[!is.na(MEAN),] %>%
+    setorder(date)
+
+  #Format for plotting: compute MEAN - 2*SD if > MIN, otherwise MIN
+  gaugetab[, `:=`(ribbonlow = max(c(MEAN-2*SD, MIN)),
+                  ribbonhigh = min(c(MEAN+2*SD, MAX))
+  ), by=date]
+
+  #Plot time series
+  qtiles <- gaugetab[, quantile(union(MIN, MAX), probs=seq(0, 1, 0.1))]
+
+  rawplot <- ggplot(gaugetab, aes(x=date, y=MEAN)) +
+    geom_line(color='#045a8d', size=1, alpha=1/3) +
+    geom_point(color='#045a8d', size=1, alpha=1/2) +
+    geom_ribbon(aes(ymin = ribbonlow, ymax = ribbonhigh), color='grey', alpha=1/3) +
+    geom_point(aes(y = MIN), color='black', alpha=1/2) +
+    geom_point(aes(y = MAX), color='black', alpha=1/2) +
+    scale_y_sqrt(breaks=qtiles, labels=qtiles) +
+    scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
+    labs(y='Discharge (m3/s)',
+         title=paste0('GSIM: ', GSIMgaugestats_record$gsim_no)) +
+    coord_cartesian(expand=0, clip='off')+
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust=1),
+          axis.text.y = element_text())
+
+  if (!is.null(outpath)) {
+    if (!(file.exists(outpath))) {
+      ggsave(filename = outpath, plot = rawplot, device = 'png',
+             width = 10, height = 10, units='in', dpi = 300)
+    }
+  } else {
+    return(rawplot)
+  }
 }
 #------ comp_ymean -------------
 #' Compute annual mean
@@ -1834,10 +1920,15 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                              in_gaugep, maxgap, mdurthresh = 1,
                              monthsel = NULL) {
 
-  #Read and format discharge records
+  #Read and format discharge records and join monthly and seasonal records
   gaugeno <- strsplit(basename(path_mo), '[.]')[[1]][1]
   gaugetab_mo <- readformatGSIMmon(path_mo)
   gaugetab_sea <- readformatGSIMsea(path_sea)
+  gaugetab <- merge(gaugetab_mo,
+                    gaugetab_sea[, .(year, month, mDur_minsea)],
+                    by=c('year', 'month'), all.x=T) %>%
+    setorder(date) %>%
+    .[, mDur_minsea := nafill(mDur_minsea, type='nocb')]
 
   #Function to compute mean zero-flow duration and event frequency by month
   #(average number of drying events in each month over record length)
@@ -1847,35 +1938,33 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
     if (gaugetab[(missingdays < maxgap) & (year >= yearthresh), .N>0]) { #Make sure that there are years with sufficient data
       monthlyfreq <- gaugetab[
         (missingdays < maxgap)  & (year >= yearthresh),
-        .(GRDC_NO = unique(GRDC_NO),
-          monthrelfreq = length(unique(na.omit(prevflowdate)))/length(unique(year)),
-          monthmdur = length(na.omit(prevflowdate))/length(unique(year))),
+        .(gsim_no = unique(gsim_no),
+          monthmdur = mean(mDur_minmo)),
         by='month'] #Count proportion of years with zero flow occurrence per month
     } else {
-      monthlyfreq <- data.table(GRDC_NO = gaugetab[, unique(GRDC_NO)],
+      monthlyfreq <- data.table(gsim_no = gaugetab[, unique(gsim_no)],
                                 month=1:12,
-                                monthrelfreq=rep(NA,12),
                                 monthmdur=rep(NA,12))
     }
     abbrev_months <- c("Jan", "Feb", "Mar", "Apr", "May", "Jun",
                        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
     monthlyfreq_format <- monthlyfreq %>%
-      dcast(GRDC_NO~month, value.var=c('monthrelfreq', 'monthmdur')) %>%
-      setnames(c('GRDC_NO',
-                 paste0(rep(abbrev_months, times=2), '_',
-                        rep(c('mfreq', 'mdur'), each=12)
+      dcast(gsim_no~month, value.var='monthmdur') %>%
+      setnames(c('gsim_no',
+                 paste0(abbrev_months, '_',
+                        rep('mdur', each=12)
                  )
       ))
 
     #Check whether average yearly number of zero-flow days is only above threshold
     # if includes zero-flow days during months with average temperature < 5C
-    gaugeirtemp <- as.data.table(in_gaugep)[GRDC_NO == gaugeno,
-                                            c('GRDC_NO',
+    gaugeirtemp <- as.data.table(in_gaugep)[gsim_no == gaugeno,
+                                            c('gsim_no',
                                               grep('^tmp.*_c[0-9]{2}',
                                                    colnames(in_gaugep),
                                                    value = T)),
                                             with=F] %>%
-      melt(id.vars='GRDC_NO') %>%
+      melt(id.vars='gsim_no') %>%
       .[, month := as.numeric(gsub('^tmp_dc_c', '', variable))] %>%
       merge(monthlyfreq, ., by='month')
 
@@ -1885,7 +1974,7 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
     monthlyfreq_format[, winteronlyir := as.numeric(
       mdur_otempthresh < mdurthresh &
         mdur_utempthresh >= mdurthresh)] %>%
-      .[, GRDC_NO := NULL]
+      .[, gsim_no := NULL]
 
     setnames(monthlyfreq_format,
              paste0(names(monthlyfreq_format), '_o', yearthresh))
@@ -1909,48 +1998,48 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
     gaugetab <- gaugetab[month %in% monthsel, ]
   }
 
-  #Compute number of days of zero flow for years with number of gap days under threshold
-  gaugetab_yearly <- merge(gaugetab[, .(missingdays=max(missingdays, na.rm=T),
-                                        datadays=max(datadays, na.rm=T)), by='year'],
-                           gaugetab[Original == 0, .(dur=.N,
-                                                     freq=length(unique(prevflowdate))), by='year'],
-                           by = 'year', all.x = T) %>%
-    .[!is.finite(missingdays), missingdays := diny(year)] %>%
-    .[!is.finite(datadays), datadays := diny(year)] %>%
-    .[dur==diny(year), freq:=1] %>%
-    .[is.na(dur), `:=`(dur=0, freq=0)]
 
   #Combine all statistics (and determine which stations are labeled as
   #intermittent based on mdurthresh)
-  gaugetab_all <- gaugetab_yearly[, .(GRDC_NO = gaugeno,
-                                      firstYear=min(year),
-                                      lastYear=max(year),
-                                      totalYears=length(unique(year))
+  gaugetab_all <- gaugetab[, .(gsim_no = gaugeno,
+                               firstYear=min(year),
+                               lastYear=max(year),
+                               totalYears=length(unique(year))
   )]
 
-  comp_irstats <- function(tabyearly, maxgap, mdurthresh, yearthresh) {
-    irstats <- gaugetab_yearly[missingdays <= maxgap & year >= yearthresh,
-                               .(firstYear_kept=min(year),
-                                 lastYear_kept=max(year),
-                                 totalYears_kept=length(unique(year)),
-                                 totaldays = sum(datadays),
-                                 sumDur = sum(dur),
-                                 mDur = mean(dur),
-                                 mFreq = mean(freq),
-                                 intermittent =
-                                   factor(fifelse(mean(dur)>=mdurthresh, 1, 0),
-                                          levels=c('0','1')))]
+  comp_irstats <- function(tab, maxgap, mdurthresh, yearthresh) {
+    #Compute the best estimate of minimum number of zero flow days per season
+    mDur_final <- tab[, .(mDur_minsea_final = max(mDur_minsea,
+                                                  sum(mDur_minmo, na.rm=T),
+                                                  na.rm = T)
+                          ), by=c('year', 'season')]
+
+    yearsel <- tab[missingdays <= maxgap & year >= yearthresh, unique(year)]
+
+    irstats <- tab[year %in% yearsel,
+                   .(firstYear_kept=min(year),
+                     lastYear_kept=max(year),
+                     totalYears_kept=length(unique(year)),
+                     totaldays = sum(n.available),
+                     sumDur = mDur_final[year %in% yearsel,
+                                         sum(mDur_minsea_final)],
+                     mDur = mDur_final[year %in% yearsel,
+                                       mean(mDur_minsea_final)]
+                   )] %>%
+      .[, intermittent := factor(fifelse(mDur>=mdurthresh, 1, 0),
+                                 levels=c('0','1'))]
+
     setnames(irstats, new = paste0(names(irstats), '_o', yearthresh))
     return(irstats)
   }
 
-  irstats_all <- comp_irstats(tabyearly = gaugetab_yearly, maxgap=maxgap,
+  irstats_all <- comp_irstats(tab = gaugetab, maxgap=maxgap,
                               mdurthresh = mdurthresh,
                               yearthresh = 1800)
-  irstats_1961 <- comp_irstats(tabyearly = gaugetab_yearly, maxgap=maxgap,
+  irstats_1961 <- comp_irstats(tab = gaugetab, maxgap=maxgap,
                                mdurthresh = mdurthresh,
                                yearthresh = 1961)
-  irstats_1971 <- comp_irstats(tabyearly = gaugetab_yearly, maxgap=maxgap,
+  irstats_1971 <- comp_irstats(tab = gaugetab, maxgap=maxgap,
                                mdurthresh = mdurthresh,
                                yearthresh = 1971)
 
@@ -1959,73 +2048,16 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                     monthlyirtemp_all, monthlyirtemp_o1961, monthlyirtemp_o1971)
 
   #Include local path to discharge records in table
-  statsout[, path := path]
+  statsout[, path := path_mo]
 
   return(statsout)
 }
 
-#------- analyze_gaugeir ----------------------------
-inp_resdir <- "C:\\globalIRmap\\results"
-
-plotGRDCtimeseries <- function(GRDCgaugestats_record, outpath) {
-  #Read and format discharge records
-  gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
-    .[!(Original %in% c(-999, -99, -9999)),] %>%
-    .[, dates := as.Date(dates)]
-
-  #Compute statistics on daily changes, including MEAN+SD
-  gaugetab[, abslag := abs(Original - data.table::shift(Original, n=1, type='lag'))] %>%
-    .[abslag > 0, logabslag := log(abslag)] %>%
-    .[abslag == 0, logabslag := .[abslag>0, min(logabslag, na.rm=T)-0.1]]
-  change_threshold <- gaugetab[, mean(logabslag, na.rm=T) +
-                                 sd(logabslag, na.rm=T)]
-
-  #Plot time series
-  qtiles <- union(0, gaugetab[, quantile(Original, probs=seq(0, 1, 0.1))])
-
-  rawplot <- ggplot(gaugetab, aes(x=dates, y=Original)) +
-    geom_line(color='#045a8d', size=1, alpha=1/3) +
-    geom_point(color='#045a8d', size=1, alpha=1/2) +
-    geom_point(data=gaugetab[Original==0,], color='red', size=1.5) +
-    geom_point(data=gaugetab[Original==0 & logabslag > change_threshold,],
-               color='black', size=2) +
-    scale_y_sqrt(breaks=qtiles, labels=qtiles) +
-    scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
-    scale_color_distiller(palette='Spectral') +
-    labs(y='Discharge (m3/s)',
-         title=paste0('GRDC: ', GRDCgaugestats_record$GRDC_NO)) +
-    coord_cartesian(expand=0, clip='off')+
-    theme_bw() +
-    theme(axis.text.x = element_text(angle = 45, hjust=1),
-          axis.text.y = element_text())
-
-  if (!is.null(outpath)) {
-    if (!(file.exists(outpath))) {
-      ggsave(filename = outpath, plot = rawplot, device = 'png',
-             width = 10, height = 10, units='in', dpi = 300)
-    }
-  } else {
-    return(rawplot)
-  }
-}
-
-analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
-                            in_gaugep, inp_resdir) {
-
-  ### Analyze GRDC data ####################################
-  GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
-
-  #----- Check changes in discharge data availability and flow regime over time
-  alluv_format <- melt(GRDCstatsdt, id.vars = 'GRDC_NO',
-                       measure.vars = c('intermittent_o1800',
-                                        'intermittent_o1961',
-                                        'intermittent_o1971')) %>%
-    .[, count := .N, by=.(variable, value)]
-
-  ggplot(alluv_format,
-         aes(x = variable, stratum = value, alluvium = GRDC_NO,
-             y = 1,
-             fill = value, label =count)) +
+#------ analyze_gaugeir ----------------------------
+ggalluvium_gaugecount <- function(dtformat, alluvvar) {
+  p <- ggplot(dtformat,
+              aes(x = variable, stratum = value, alluvium = get(alluvvar),
+                  y = 1, fill = value, label =count)) +
     scale_x_discrete(labels=c('Full record', 'post-1961', 'post-1971')) +
     scale_y_continuous(name='Number of gauges') +
     scale_fill_discrete(labels=c('Perennial', 'Intermittent', '< 10 years of data')) +
@@ -2036,23 +2068,120 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
     theme_classic() +
     theme(axis.title.x = element_blank(),
           legend.title = element_blank())
+  return(p)
+}
 
-  #---------- Check flags in winter IR
-  wintergaugeso61 <- GRDCstatsdt[winteronlyir_o1961 == 1 &
-                                   totalYears_kept_o1961 >= 10,]
+plot_winterir <- function(dt, dbname, inp_resdir) {
+  #Get data subset
+  wintergaugeso61 <- dt[winteronlyir_o1961 == 1 &
+                          totalYears_kept_o1961 >= 10,]
 
+  #Create output directory
   resdir_winterirplots <- file.path(inp_resdir,
-                               paste0('GRDCwinterir_rawplots_', format(Sys.Date(), '%Y%m%d')))
+                                    paste0(dbname, 'winterir_rawplots_',
+                                           format(Sys.Date(), '%Y%m%d')))
   if (!(dir.exists(resdir_winterirplots))) {
     print(paste0('Creating ', resdir_winterirplots ))
     dir.create(resdir_winterirplots )
   }
 
-  lapply(wintergaugeso61$GRDC_NO, function(gauge) {
-    plotGRDCtimeseries(GRDCgaugestats_record = wintergaugeso61[GRDC_NO == gauge,],
-                       outpath = file.path(resdir_winterirplots, paste0('GRDC', gauge, '.png')))
-  })
+  #Generate plots depending on database
+  if (str_to_upper(dbname) == 'GRDC') {
+    lapply(wintergaugeso61$GRDC_NO, function(gauge) {
+      print(gauge)
+      plotGRDCtimeseries(GRDCgaugestats_record = wintergaugeso61[GRDC_NO == gauge,],
+                         outpath = file.path(resdir_winterirplots, paste0('GRDC', gauge, '.png')))
+    })
+  } else if (str_to_upper(dbname) == 'GSIM') {
+    lapply(wintergaugeso61$gsim_no, function(gauge) {
+      print(gauge)
+      plotGSIMtimeseries(GSIMgaugestats_record = wintergaugeso61[gsim_no == gauge,],
+                         outpath = file.path(resdir_winterirplots, paste0('GSIM', gauge, '.png')))
+    })
+  }
+}
 
+
+analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
+                            in_gaugep, inp_resdir) {
+  ### Analyze GSIM data ####################################
+  GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
+
+  #----- Check changes in discharge data availability and flow regime over time
+  alluv_formatGSIM <- melt(GSIMstatsdt, id.vars = 'gsim_no',
+                       measure.vars = c('intermittent_o1800',
+                                        'intermittent_o1961',
+                                        'intermittent_o1971')) %>%
+    .[, count := .N, by=.(variable, value)]
+
+  #-----  Check flags in winter IR for GSIM
+  plot_winterir(dt = GSIMstatsdt, dbname = 'gsim', inp_resdir = inp_resdir)
+  wintergaugeso61_GSIM <- GSIMstatsdt[winteronlyir_o1961 == 1 &
+                                        totalYears_kept_o1961 >= 10,]
+
+  #Check suspicious canadian ones
+  GSIMwintermeta <- in_gaugep[in_gaugep$gsim_no %in% wintergaugeso61_GSIM$gsim_no,]
+  canadians_toinspect <- in_gaugep[in_gaugep$gsim_no %in%
+                                     paste0('CA_000', c(3469, 3473, 3526, 3544, 6082, 6122)),]$reference_no
+
+  if (!dir.exists(hy_dir())) download_hydat()
+  cancheck <- lapply(canadians_toinspect, function(refno) {
+    merge(hy_daily(station_number = refno),
+          hy_stn_regulation(station_number = refno),
+          by='STATION_NUMBER') %>%
+      setDT
+  }) %>%
+    rbindlist
+  cancheck[REGULATED==T, unique(STATION_NUMBER)] #No regulated station
+  cancheck[Value==0, .N, by=.(STATION_NUMBER, Symbol)]
+
+  #E - Estimate:  no measured data available for the day or missing period,
+  #    and the water level or streamflow value was estimated by an indirect method
+  #A - Partial Day:  daily mean value was estimated despite gaps of more than
+  #    120 minutes in the data string or missing data not significant enough to
+  #    warrant the use of the E symbol.
+  #B - Ice conditions: value was estimated with consideration for the presence
+  #    of ice in the stream. Ice conditions alter the open water relationship
+  #    between water levels and streamflow.
+  #D - Dry: stream or lake is "dry" or that there is no water at the gauge.
+  #    This symbol is used for water level data only.
+  #R - Revised: The symbol R indicates that a revision, correction or addition
+  # `  has been made to the historical discharge database after January 1, 1989.
+
+  ggplot(cancheck[Value > 0, ], aes(x=Date, y=Value, color=Symbol)) +
+    geom_vline(data=cancheck[is.na(Value),], aes(xintercept = Date), color='grey', alpha=1/4) +
+    geom_point(alpha=1/6) +
+    geom_point(data=cancheck[Value==0,]) +
+    facet_wrap(~STATION_NUMBER, scales='free') +
+    theme_classic()
+
+  #Remove 06NB002, 06AF001 — CA_0003544, CA_0003473
+
+  #Check others 'CN_0000047', 'NO_0000018', 'RU_0000089',
+  #'RU_0000391', 'RU_0000393', 'RU_00000395', 'RU_0000470', 'US_0008687')
+  check <- readformatGSIMmon(GSIMstatsdt[gsim_no == 'RU_0000393',path])
+
+  #Remove CN_
+  gaugestoremove_winterIR <- c(CA_0003544, #erroneous patterns (abnormally high values)
+                               CA_0003473, #sudden peak — unsure about estimated discharge under ice conditions
+                               CN_0000047, #Anomalous change from near 0 discharge to 150 m3/s, no explanation)
+                               NO_0000018, #Record for 18 years without a 0, 0s every month for last two years before discontinuation
+                               RU_0000391, #Stopped recording during the winter the last ~10 years. Maybe questionable winter data
+                               RU_0000393  #Didn't record during the winter for the first 20 years. Maybe questionable winter data
+  )
+  #00000395 going forward to check
+  ### Analyze GRDC data ####################################
+  GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
+
+  #----- Check changes in discharge data availability and flow regime over time
+  alluv_formatGRDC <- melt(GRDCstatsdt, id.vars = 'GRDC_NO',
+                       measure.vars = c('intermittent_o1800',
+                                        'intermittent_o1961',
+                                        'intermittent_o1971')) %>%
+    .[, count := .N, by=.(variable, value)]
+
+  #---------- Check flags in winter IR
+  plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir)
 
   #Checked for seemingly anomalous 0s. Sudden decreases.
   #Check for flags, check satellite imagery, station name, check for construction of reservoir
@@ -2088,8 +2217,6 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
                by=GRDC_NO]
   #Nothing obviously suspect
 
-
-
   #Inspect statistics for 4208857, 4213531 as no flow days occurred only one year
   # ID = '6976300'
   # GRDCstatsdt[GRDC_NO == ID,]
@@ -2097,6 +2224,13 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   # unique(check$Flag)
   #
   # plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == ID,], outpath=NULL)
+
+
+  #RETURN
+  grid.arrange(
+    ggalluvium_gaugecount(dtformat = alluv_formatGRDC, alluvvar = 'GRDC_NO'),
+    ggalluvium_gaugecount(dtformat = alluv_formatGSIM, alluvvar = 'gsim_no')
+  )
 }
 
 
