@@ -225,6 +225,94 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath) {
     return(rawplot)
   }
 }
+#------ ggalluvium_gaugecount -------
+ggalluvium_gaugecount <- function(dtformat, alluvvar) {
+  p <- ggplot(dtformat,
+              aes(x = variable, stratum = value, alluvium = get(alluvvar),
+                  y = 1, fill = value, label =count)) +
+    scale_x_discrete(labels=c('Full record', 'post-1961', 'post-1971')) +
+    scale_y_continuous(name='Number of gauges') +
+    scale_fill_discrete(labels=c('Perennial', 'Intermittent', '< 10 years of data')) +
+    geom_flow() +
+    geom_stratum(alpha = .5) +
+    geom_text(stat = "stratum", size = 3) +
+    coord_cartesian(expand=c(0,0), clip='off') +
+    theme_classic() +
+    theme(axis.title.x = element_blank(),
+          legend.title = element_blank())
+  return(p)
+}
+
+#------ plot_winterir -------
+plot_winterir <- function(dt, dbname, inp_resdir) {
+  #Get data subset
+  wintergaugeso61 <- dt[winteronlyir_o1961 == 1 &
+                          totalYears_kept_o1961 >= 10,]
+
+  #Create output directory
+  resdir_winterirplots <- file.path(inp_resdir,
+                                    paste0(dbname, 'winterir_rawplots_',
+                                           format(Sys.Date(), '%Y%m%d')))
+  if (!(dir.exists(resdir_winterirplots))) {
+    print(paste0('Creating ', resdir_winterirplots ))
+    dir.create(resdir_winterirplots )
+  }
+
+  #Generate plots depending on database
+  if (str_to_upper(dbname) == 'GRDC') {
+    lapply(wintergaugeso61$GRDC_NO, function(gauge) {
+      print(gauge)
+      plotGRDCtimeseries(GRDCgaugestats_record = wintergaugeso61[GRDC_NO == gauge,],
+                         outpath = file.path(resdir_winterirplots, paste0('GRDC', gauge, '.png')))
+    })
+  } else if (str_to_upper(dbname) == 'GSIM') {
+    lapply(wintergaugeso61$gsim_no, function(gauge) {
+      print(gauge)
+      plotGSIMtimeseries(GSIMgaugestats_record = wintergaugeso61[gsim_no == gauge,],
+                         outpath = file.path(resdir_winterirplots, paste0('GSIM', gauge, '.png')))
+    })
+  }
+}
+
+#------ plot_coastalir -------
+plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt,
+                           dbname = 'grdc', inp_resdir = inp_resdir) {
+
+  idno <- fifelse(str_to_upper(dbname) == 'GRDC', 'GRDC_NO', 'gsim_no')
+
+  coastalgauges <- in_gaugep[!is.na(in_gaugep$class99_19_rsp9_buf3k1) &
+                               !is.na(as.data.frame(in_gaugep)[,idno]),] %>%setDT
+  coastaliro61 <- dt[totalYears_kept_o1961 >= 10 &
+                       intermittent_o1961 == 1 &
+                       get(idno) %in% coastalgauges[,get(idno)],]
+
+  resdir_coastalirplots <- file.path(inp_resdir,
+                                     paste0(str_to_upper(dbname),
+                                            'coastalir_rawplots_',
+                                            format(Sys.Date(), '%Y%m%d')))
+  if (!(dir.exists(resdir_coastalirplots))) {
+    print(paste0('Creating ', resdir_coastalirplots ))
+    dir.create(resdir_coastalirplots )
+  }
+
+  #Generate plots depending on database
+  if (str_to_upper(dbname) == 'GRDC') {
+    lapply(coastaliro61$GRDC_NO, function(gauge) {
+      print(gauge)
+      plotGRDCtimeseries(GRDCgaugestats_record = coastaliro61[GRDC_NO == gauge,],
+                         outpath = file.path(resdir_coastalirplots, paste0('GRDC', gauge, '.png')))
+    })
+  } else if (str_to_upper(dbname) == 'GSIM') {
+    lapply(coastaliro61$gsim_no, function(gauge) {
+      print(gauge)
+      plotGSIMtimeseries(GSIMgaugestats_record = coastaliro61[gsim_no == gauge,],
+                         outpath = file.path(resdir_coastalirplots, paste0('GSIM', gauge, '.png')))
+    })
+  }
+
+  return(coastaliro61)
+}
+
 #------ comp_ymean -------------
 #' Compute annual mean
 #'
@@ -2054,65 +2142,10 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
 }
 
 #------ analyze_gaugeir ----------------------------
-ggalluvium_gaugecount <- function(dtformat, alluvvar) {
-  p <- ggplot(dtformat,
-              aes(x = variable, stratum = value, alluvium = get(alluvvar),
-                  y = 1, fill = value, label =count)) +
-    scale_x_discrete(labels=c('Full record', 'post-1961', 'post-1971')) +
-    scale_y_continuous(name='Number of gauges') +
-    scale_fill_discrete(labels=c('Perennial', 'Intermittent', '< 10 years of data')) +
-    geom_flow() +
-    geom_stratum(alpha = .5) +
-    geom_text(stat = "stratum", size = 3) +
-    coord_cartesian(expand=c(0,0), clip='off') +
-    theme_classic() +
-    theme(axis.title.x = element_blank(),
-          legend.title = element_blank())
-  return(p)
-}
-
-plot_winterir <- function(dt, dbname, inp_resdir) {
-  #Get data subset
-  wintergaugeso61 <- dt[winteronlyir_o1961 == 1 &
-                          totalYears_kept_o1961 >= 10,]
-
-  #Create output directory
-  resdir_winterirplots <- file.path(inp_resdir,
-                                    paste0(dbname, 'winterir_rawplots_',
-                                           format(Sys.Date(), '%Y%m%d')))
-  if (!(dir.exists(resdir_winterirplots))) {
-    print(paste0('Creating ', resdir_winterirplots ))
-    dir.create(resdir_winterirplots )
-  }
-
-  #Generate plots depending on database
-  if (str_to_upper(dbname) == 'GRDC') {
-    lapply(wintergaugeso61$GRDC_NO, function(gauge) {
-      print(gauge)
-      plotGRDCtimeseries(GRDCgaugestats_record = wintergaugeso61[GRDC_NO == gauge,],
-                         outpath = file.path(resdir_winterirplots, paste0('GRDC', gauge, '.png')))
-    })
-  } else if (str_to_upper(dbname) == 'GSIM') {
-    lapply(wintergaugeso61$gsim_no, function(gauge) {
-      print(gauge)
-      plotGSIMtimeseries(GSIMgaugestats_record = wintergaugeso61[gsim_no == gauge,],
-                         outpath = file.path(resdir_winterirplots, paste0('GSIM', gauge, '.png')))
-    })
-  }
-}
-
-
-analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
+analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
                             in_gaugep, inp_resdir) {
   ### Analyze GSIM data ####################################
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
-
-  #----- Check changes in discharge data availability and flow regime over time
-  alluv_formatGSIM <- melt(GSIMstatsdt, id.vars = 'gsim_no',
-                       measure.vars = c('intermittent_o1800',
-                                        'intermittent_o1961',
-                                        'intermittent_o1971')) %>%
-    .[, count := .N, by=.(variable, value)]
 
   #-----  Check flags in winter IR for GSIM
   plot_winterir(dt = GSIMstatsdt, dbname = 'gsim', inp_resdir = inp_resdir)
@@ -2158,27 +2191,31 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   #Remove 06NB002, 06AF001 — CA_0003544, CA_0003473
 
   #Check others 'CN_0000047', 'NO_0000018', 'RU_0000089',
-  #'RU_0000391', 'RU_0000393', 'RU_00000395', 'RU_0000470', 'US_0008687')
-  check <- readformatGSIMmon(GSIMstatsdt[gsim_no == 'RU_0000393',path])
+  #'RU_0000391', 'RU_0000393', 'RU_00000395', 'RU_0000436',
+  #'RU_0000470', 'US_0008687')
+  check <- readformatGSIMmon(GSIMstatsdt[gsim_no == 'US_0008687',path])
 
   #Remove CN_
-  gaugestoremove_winterIR <- c(CA_0003544, #erroneous patterns (abnormally high values)
-                               CA_0003473, #sudden peak — unsure about estimated discharge under ice conditions
-                               CN_0000047, #Anomalous change from near 0 discharge to 150 m3/s, no explanation)
-                               NO_0000018, #Record for 18 years without a 0, 0s every month for last two years before discontinuation
-                               RU_0000391, #Stopped recording during the winter the last ~10 years. Maybe questionable winter data
-                               RU_0000393  #Didn't record during the winter for the first 20 years. Maybe questionable winter data
+  GSIMtoremove_winterIR <- c('CA_0003544', #erroneous patterns (abnormally high values)
+                             'CA_0003473', #sudden peak — unsure about estimated discharge under ice conditions
+                             'CN_0000047', #Anomalous change from near 0 discharge to 150 m3/s, no explanation)
+                             'NO_0000018', #Record for 18 years without a 0, 0s every month for last two years before discontinuation
+                             'RU_0000391', #Stopped recording during the winter the last ~10 years. Maybe questionable winter data
+                             'RU_0000393', #Didn't record during the winter for the first 20 years. Maybe questionable winter data
+                             'RU_0000436', #Same
+                             'RU_0000470', #Same
+                             'US_0008687' #Just downstream of reservoir which appears to have caused intermittence
   )
-  #00000395 going forward to check
+
+  #-----  Check flags in coastal IR for GSIM
+  GSImcoastaliro61 <- plot_coastalir(in_gaugep = in_gaugep, dt = GSIMstatsdt,
+                                     dbname = 'gsim', inp_resdir = inp_resdir)
+  #Already checked CA_0006122
+  GSIMtoremove_coastalIR <- c('NO_0000044',
+                              'NO_0000090')
+
   ### Analyze GRDC data ####################################
   GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
-
-  #----- Check changes in discharge data availability and flow regime over time
-  alluv_formatGRDC <- melt(GRDCstatsdt, id.vars = 'GRDC_NO',
-                       measure.vars = c('intermittent_o1800',
-                                        'intermittent_o1961',
-                                        'intermittent_o1971')) %>%
-    .[, count := .N, by=.(variable, value)]
 
   #---------- Check flags in winter IR
   plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir)
@@ -2187,35 +2224,18 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   #Check for flags, check satellite imagery, station name, check for construction of reservoir
   #If no way to explain, remove or if caused by reservoir/dam that is not in GranD
   #4220310 and 4243610, just downstream of dams that are in GranD — should be taken in account
-  gaugestoremove_winterIR <- c(2588640, #Sudden shift
-                               2589230,#Sudden shift
-                               4213540,#Sudden shift
-                               4214075,#Sudden shift
-                               6401800 #Just downstream of a reservoir that is in GranD
+  GRDCtoremove_winterIR <- c('2588640', #Sudden shift
+                             '2589230',#Sudden shift
+                             '4213540',#Sudden shift
+                             '4214075',#Sudden shift
+                             '6401800' #Just downstream of a reservoir that is not in GranD
   )
 
   #------ Check time series of stations within 3 km of seawater
-  coastalgauges <- in_gaugep[!is.na(in_gaugep$class99_19_rsp9_buf3k1) &
-                            !is.na(in_gaugep$GRDC_NO),]
-  coastaliro61 <- GRDCstatsdt[totalYears_kept_o1961 >= 10 &
-                                intermittent_o1961 == 1 &
-                                GRDC_NO %in% coastalgauges$GRDC_NO,]
-
-  resdir_coastalirplots <- file.path(inp_resdir,
-                                    paste0('GRDCcoastalir_rawplots_', format(Sys.Date(), '%Y%m%d')))
-  if (!(dir.exists(resdir_coastalirplots))) {
-    print(paste0('Creating ', resdir_coastalirplots ))
-    dir.create(resdir_coastalirplots )
-  }
-
-  lapply(coastaliro61$GRDC_NO, function(gauge) {
-    plotGRDCtimeseries(GRDCgaugestats_record = coastaliro61[GRDC_NO == gauge,],
-                       outpath = file.path(resdir_coastalirplots, paste0('GRDC', gauge, '.png')))
-  })
-
-  coastaliro61[,  unique(readformatGRDC(GRDCstatsdt[GRDC_NO == ID,path])$Flag),
-               by=GRDC_NO]
-  #Nothing obviously suspect
+  GRDCcoastaliro61 <- plot_coastalir(in_gaugep = in_gaugep, dt = GRDCstatsdt,
+                                 dbname = 'grdc', inp_resdir = inp_resdir)
+  GRDCcoastaliro61[, unique(readformatGRDC(path)$Flag), by=GRDC_NO]
+  #Nothing obviously suspect beyond those that ad already been flagged
 
   #Inspect statistics for 4208857, 4213531 as no flow days occurred only one year
   # ID = '6976300'
@@ -2226,15 +2246,72 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   # plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == ID,], outpath=NULL)
 
 
-  #RETURN
-  grid.arrange(
+  #----- Check changes in discharge data availability and flow regime over time
+  GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_coastalIR,
+                                                     GSIMtoremove_winterIR)),]
+  mvars <- c('intermittent_o1800',
+             'intermittent_o1961',
+             'intermittent_o1971')
+  alluv_formatGSIM <- melt(GSIMstatsdt_clean,
+                           id.vars = c('gsim_no',
+                                       paste0('totalYears_kept_o',
+                                              c(1800,1961, 1971))),
+                           measure.vars = mvars) %>%
+    .[totalYears_kept_o1800 < 10 & variable %in% mvars, value := NA] %>%
+    .[totalYears_kept_o1961 < 10 & variable %in% mvars[2:3], value := NA] %>%
+    .[totalYears_kept_o1971 < 10 & variable %in% mvars[3], value := NA] %>%
+    .[, count := .N, by=.(variable, value)]
+
+
+  #----- Check changes in discharge data availability and flow regime over time
+  GRDCstatsdt_clean <- GRDCstatsdt[!(GRDC_NO %in% GRDCtoremove_winterIR),]
+
+  alluv_formatGRDC <- melt(GRDCstatsdt_clean,
+                           id.vars = c('GRDC_NO',
+                                       paste0('totalYears_kept_o',
+                                              c(1800,1961, 1971))),
+                           measure.vars = mvars) %>%
+    .[totalYears_kept_o1800 < 10 & variable %in% mvars, value := NA] %>%
+    .[totalYears_kept_o1961 < 10 & variable %in% mvars[2:3], value := NA] %>%
+    .[totalYears_kept_o1971 < 10 & variable %in% mvars[3], value := NA] %>%
+    .[, count := .N, by=.(variable, value)]
+
+
+  ###Analyze change in number of gauges with different intermittency criterion
+  irsensi_format <- melt(rbind(GRDCstatsdt_clean, GSIMstatsdt_clean,
+                               use.names=TRUE, fill=T)[totalYears_kept_o1961 >= 10,],
+                         id.vars = c('GRDC_NO', 'gsim_no'),
+                         measure.vars = paste0('mDur_o', c(1800, 1961, 1971))) %>%
+    .[!is.na(value) & value >0,] %>%
+    setorder(variable, -value) %>%
+    .[, cumcount := seq(.N), by=.(variable, is.na(GRDC_NO))]
+
+  ggirsensi <- ggplot(irsensi_format, aes(x=value, y=cumcount,
+                                          color=variable, linetype=is.na(GRDC_NO))) +
+    geom_line(size=1.1) +
+    coord_cartesian(expand=0, clip='off') +
+    scale_x_sqrt(breaks=c(1, 5, 10, 30, 90, 180, 365),
+                 labels=c(1, 5, 10, 30, 90, 180, 365)) +
+    geom_vline(xintercept=c(1, 5)) +
+    annotate(geom='text', x=c(1.7,6.5), y=150, angle=90,
+             label=c(sum(irsensi_format[value==1 & variable=='mDur_o1961',
+                                    max(cumcount), by=is.na(GRDC_NO)]$V1),
+                     sum(irsensi_format[value==5 & variable=='mDur_o1961',
+                                        max(cumcount), by=is.na(GRDC_NO)]$V1))) +
+    theme_classic()
+
+  plots <- grid.arrange(
     ggalluvium_gaugecount(dtformat = alluv_formatGRDC, alluvvar = 'GRDC_NO'),
-    ggalluvium_gaugecount(dtformat = alluv_formatGSIM, alluvvar = 'gsim_no')
+    ggalluvium_gaugecount(dtformat = alluv_formatGSIM, alluvvar = 'gsim_no'),
+    ggirsensi
   )
+
+  databound <- rbind(GRDCstatsdt_clean,
+                     GSIMstatsdt_clean,
+                     use.names=TRUE, fill=T)
+
+  return(list(plots=plots, data=databound))
 }
-
-
-
 
 #------ format_gaugestats --------------------------------------------------------
 #' Format gauge statistics
@@ -2254,15 +2331,19 @@ analyze_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 #'
 #' @export
 
-format_gaugestats <- function(in_gaugestats, in_gaugep) {
+format_gaugestats <- function(in_gaugestats, in_gaugep, yeartrhesh) {
   #Join intermittency statistics to predictor variables and subset to only
   #include those gauges with at least 10 years of data
-  gaugestats_join <- do.call(rbind, in_gaugestats) %>%
-    setDT %>%
-    .[as.data.table(in_gaugep), on='GRDC_NO'] %>%
-    .[!is.na(totalYears_kept) & totalYears_kept>=10,] %>% # Only keep stations with at least 10 years of data
-    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
-    .[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
+  gaugestats_join <- in_gaugestats[
+    , GAUGE_NO := fifelse(is.na(gsim_no), GRDC_NO, gsim_no)] %>%
+    .[!is.na(get(paste0('totalYears_kept_o', yearthresh))) &
+        get(paste0('totalYears_kept_o', yearthresh))>=10,] %>%  # Only keep stations with at least 10 years of data pas yearthresh
+    .[as.data.table(in_gaugep), on='GAUGE_NO'] %>%
+    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))]
+
+  print(paste0('Removing ', gaugestats_join[dor_pc_pva >= 5000, .N],
+               ' stations with >=50% flow regulation'))
+  gaugestats_derivedvar <- gaugestats_join[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
 
   return(gaugestats_join)
@@ -3052,21 +3133,21 @@ write_preds <- function(in_gaugep, in_gaugestats,
   gpreds <- in_rftuned$rf_inner$predict(in_rftuned$task)
   gpreds$set_threshold(1-interthresh)
 
-  # ---- Output GRDC predictions as points ----
+  # ---- Output gauge predictions as points ----
   in_gaugestatsformat <- na.omit(in_gaugestats,
                                  c('intermittent',
                                    in_predvars$varcode, 'X', 'Y'))[
     , ':='(IRpredprob = gpreds$prob[,2],
            IRpredcat = gpreds$response)] %>%
-    merge(in_gaugeIPR, by='GRDC_NO')
+    merge(in_gaugeIPR, by='GAUGE_NO')
 
   cols_toditch<- colnames(in_gaugestatsformat)[
-    !(colnames(in_gaugestatsformat) %in% c('GRDC_NO', 'geometry'))]
+    !(colnames(in_gaugestatsformat) %in% c('GAUGE_NO', 'geometry'))]
 
   out_gaugep <- base::merge(
     in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
     in_gaugestatsformat[, -'geometry', with=F],
-    by='GRDC_NO',
+    by='GAUGE_NO',
     all.x=F)
 
   st_write(obj=out_gaugep,
@@ -3421,8 +3502,8 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
 
   #Plot numeric variables
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
-    cbind(predattri[, c('GRDC_NO', 'intermittent'), with=F]) %>%
-    melt(id.vars=c('GRDC_NO', 'intermittent', 'prob.1', 'preduncert'))
+    cbind(predattri[, c('GAUGE_NO', 'intermittent'), with=F]) %>%
+    melt(id.vars=c('GAUGE_NO', 'intermittent', 'prob.1', 'preduncert'))
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
@@ -3488,9 +3569,9 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
 
 
     #Plot categorical variables
-    predmelt_cat <- predattri[, c('GRDC_NO', 'intermittent', 'preduncert',
+    predmelt_cat <- predattri[, c('GAUGE_NO', 'intermittent', 'preduncert',
                                   'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
-      melt(id.vars=c('GRDC_NO', 'intermittent', 'preduncert'))
+      melt(id.vars=c('GAUGE_NO', 'intermittent', 'preduncert'))
     levels(predmelt_cat$variable) <- c('Endorheic',
                                        'Climate Zone (catchment majority)')
 
@@ -3521,7 +3602,7 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
 
     return(list(gaugeIPR_numplot=gaugeIPR_numplot,
               gaugeIPR_catplot=gaugeIPR_catplot,
-              out_gaugeIPR = predattri[, .(GRDC_NO, preduncert)]))
+              out_gaugeIPR = predattri[, .(GAUGE_NO, preduncert)]))
 }
 
 #------ krige_spgaugeIPR----
@@ -3538,9 +3619,9 @@ krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
     .[, IPR_abs := abs(IPR)] %>%
     .[, IRpedcat_spcv := as.character(fifelse(IRpredprob_spcv > 40, 1, 0))] %>%
     setorder(row_id) %>%
-    cbind(in_gaugestats[!is.na(cly_pc_cav), list(GRDC_NO=GRDC_NO)])
+    cbind(in_gaugestats[!is.na(cly_pc_cav), list(GAUGE_NO=GAUGE_NO)])
 
-  predsp_gaugep <- merge(in_gaugep, predsp, by='GRDC_NO') %>%
+  predsp_gaugep <- merge(in_gaugep, predsp, by='GAUGE_NO') %>%
     .[order(.[,'IPR_abs']$IPR_abs),]
 
   bufras_vec <- file.path(inp_bufrasdir,
@@ -4386,15 +4467,15 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
 
 
 #------ qc_pnw ------------
-path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases')
-path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases')
-path_pnwdatdir = file.path(path_insitudatdir, 'pnw')
-path_pnwresdir = file.path(path_insituresdir, 'pnw.gdb')
-
-inp_pnwdatdir = path_pnwdatdir
-inp_pnwresdir = path_pnwresdir
-in_rivpred = readd(rivpred)
-loadd(interthresh)
+# path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases')
+# path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases')
+# path_pnwdatdir = file.path(path_insitudatdir, 'pnw')
+# path_pnwresdir = file.path(path_insituresdir, 'pnw.gdb')
+#
+# inp_pnwdatdir = path_pnwdatdir
+# inp_pnwresdir = path_pnwresdir
+# in_rivpred = readd(rivpred)
+# loadd(interthresh)
 
 qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
