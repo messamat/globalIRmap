@@ -143,7 +143,7 @@ readformatGSIMsea <- function(path) {
   return(gaugetab)
 }
 #------ plotGRDCtimeseries ----------------------
-plotGRDCtimeseries <- function(GRDCgaugestats_record, outpath) {
+plotGRDCtimeseries <- function(GRDCgaugestats_record, outpath=NULL) {
   #Read and format discharge records
   gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
     .[!(Original %in% c(-999, -99, -9999)),] %>%
@@ -187,7 +187,7 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record, outpath) {
 }
 
 #------ plotGSIMtimeseries ----------------------
-plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath) {
+plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL) {
   #Read and format discharge records
   gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
     .[!is.na(MEAN),] %>%
@@ -2338,12 +2338,32 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yeartrhesh) {
     , GAUGE_NO := fifelse(is.na(gsim_no), GRDC_NO, gsim_no)] %>%
     .[!is.na(get(paste0('totalYears_kept_o', yearthresh))) &
         get(paste0('totalYears_kept_o', yearthresh))>=10,] %>%  # Only keep stations with at least 10 years of data pas yearthresh
-    .[as.data.table(in_gaugep), on='GAUGE_NO'] %>%
-    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))]
+    merge(as.data.table(in_gaugep), by='GAUGE_NO', all.x=T, all.y=F) %>%
+    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
+    .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
+    .[, DApercdiffabs := abs(DApercdiff)]
 
-  print(paste0('Removing ', gaugestats_join[dor_pc_pva >= 5000, .N],
+  #Check for multiple stations on same HydroSHEDS segment
+  dupliseg <- gaugestats_join[duplicated(HYRIV_ID) |
+                                duplicated(HYRIV_ID, fromLast = T),] %>%
+    .[, interdiff := length(unique(
+      get(paste0('intermittent_o', yearthresh))))-1, by=HYRIV_ID]
+
+  #Only two stations have differing status. Inspect their record
+  dupliseg[interdiff==1,
+           .(HYRIV_ID, GAUGE_NO, DApercdiff, mDur_o1961, get(paste0('intermittent_o', yearthresh)))]
+  plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197560',])
+  plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197591',]) #Remove because lots of erroneous data
+  plotGRDCtimeseries(dupliseg[GAUGE_NO == '4150605',])
+  plotGSIMtimeseries(dupliseg[GAUGE_NO == 'US_0006104',]) #Remove because identical record but without precise zero flow day count
+
+  gaugestats_joinsel <- gaugestats_join[!GAUGE_NO %in% c('1197591', 'US_0006104')] %>%
+    setorder(HYRIV_ID, DApercdiffabs) %>%
+    .[!duplicated(HYRIV_ID),]
+
+  print(paste0('Removing ', gaugestats_joinsel[dor_pc_pva >= 5000, .N],
                ' stations with >=50% flow regulation'))
-  gaugestats_derivedvar <- gaugestats_join[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
+  gaugestats_derivedvar <- gaugestats_joinsel[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
 
   return(gaugestats_join)
