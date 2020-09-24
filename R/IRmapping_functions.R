@@ -575,7 +575,7 @@ threshold_dat <- function(bmres) {
 
   if (bmres$task_type == 'regr') {
     preds <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
-      preds <- bmres_dt$prediction[[rsmp_i]]$test %>%
+      preds <- bmres_dt$prediction[[rsmp_i]] %>%
         as.data.table %>%
         .[, `:=`(outf = bmres_dt$iteration[[rsmp_i]],
                  task = bmres_dt$task[[rsmp_i]]$id,
@@ -2331,31 +2331,32 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 #'
 #' @export
 
-format_gaugestats <- function(in_gaugestats, in_gaugep, yeartrhesh) {
+format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
   #Join intermittency statistics to predictor variables and subset to only
   #include those gauges with at least 10 years of data
   gaugestats_join <- in_gaugestats[
     , GAUGE_NO := fifelse(is.na(gsim_no), GRDC_NO, gsim_no)] %>%
     .[!is.na(get(paste0('totalYears_kept_o', yearthresh))) &
         get(paste0('totalYears_kept_o', yearthresh))>=10,] %>%  # Only keep stations with at least 10 years of data pas yearthresh
-    merge(as.data.table(in_gaugep), by='GAUGE_NO', all.x=T, all.y=F) %>%
-    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
-    .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
-    .[, DApercdiffabs := abs(DApercdiff)]
+  merge(as.data.table(in_gaugep), by='GAUGE_NO', all.x=T, all.y=F) %>%
+  .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
+  .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
+  .[, DApercdiffabs := abs(DApercdiff)]
 
   #Check for multiple stations on same HydroSHEDS segment
   dupliseg <- gaugestats_join[duplicated(HYRIV_ID) |
                                 duplicated(HYRIV_ID, fromLast = T),] %>%
     .[, interdiff := length(unique(
-      get(paste0('intermittent_o', yearthresh))))-1, by=HYRIV_ID]
+      eval(paste0('intermittent_o', yearthresh))))-1, by=HYRIV_ID]
 
   #Only two stations have differing status. Inspect their record
-  dupliseg[interdiff==1,
-           .(HYRIV_ID, GAUGE_NO, DApercdiff, mDur_o1961, get(paste0('intermittent_o', yearthresh)))]
-  plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197560',])
-  plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197591',]) #Remove because lots of erroneous data
-  plotGRDCtimeseries(dupliseg[GAUGE_NO == '4150605',])
-  plotGSIMtimeseries(dupliseg[GAUGE_NO == 'US_0006104',]) #Remove because identical record but without precise zero flow day count
+  # dupliseg[interdiff==1,
+  #          c('HYRIV_ID', 'GAUGE_NO', 'DApercdiff',
+  #            'mDur_o1961', paste0('intermittent_o', yearthresh)), with=F]
+  # plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197560',])
+  # plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197591',]) #Remove because lots of erroneous data
+  # plotGRDCtimeseries(dupliseg[GAUGE_NO == '4150605',])
+  # plotGSIMtimeseries(dupliseg[GAUGE_NO == 'US_0006104',]) #Remove because identical record but without precise zero flow day count
 
   gaugestats_joinsel <- gaugestats_join[!GAUGE_NO %in% c('1197591', 'US_0006104')] %>%
     setorder(HYRIV_ID, DApercdiffabs) %>%
@@ -2366,7 +2367,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yeartrhesh) {
   gaugestats_derivedvar <- gaugestats_joinsel[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
 
-  return(gaugestats_join)
+  return(gaugestats_derivedvar)
 }
 
 #------ selectformat_predvars -----------------
@@ -2763,7 +2764,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
 #------ create_tasks  -----------------
 create_tasks <- function(in_gaugestats, in_predvars) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
-  datsel <- in_gaugestats[, c('intermittent',in_predvars$varcode, 'X', 'Y'),
+  datsel <- in_gaugestats[, c('intermittent_o1961',in_predvars$varcode, 'X', 'Y'),
                           with=F] %>%
     na.omit
 
@@ -2771,7 +2772,7 @@ create_tasks <- function(in_gaugestats, in_predvars) {
   task_classif <- mlr3spatiotempcv::TaskClassifST$new(
     id="inter_basicsp",
     backend = datsel,
-    target = "intermittent",
+    target = "intermittent_o1961",
     coordinate_names = c("X", "Y"))
 
   #Basic task for regression without oversampling
@@ -2909,7 +2910,7 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
 
   #Define termination rule
-  evalsn = term("evals", n_evals = insamp_neval) #termine tuning after insamp_neval rounds
+  evalsn = mlr3tuning::trm("evals", n_evals = insamp_neval) #termine tuning after insamp_neval rounds
 
   if (in_learner$task_type == 'classif') {
     if (grepl('classif[.]cforest$', in_learner$id)) {
@@ -2917,8 +2918,8 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
     } else if (grepl('classif[.]ranger$', in_learner$id)) {
       learnertune <- AutoTuner$new(learner= in_learner,
                                    resampling = rcv_rf,
-                                   measures = in_measures$classif,
-                                   tune_ps = regex_tuneset(in_learner),
+                                   measure = in_measures$classif,
+                                   search_space = regex_tuneset(in_learner),
                                    terminator = evalsn,
                                    tuner =  tnr("random_search",
                                                 batch_size = insamp_nbatch)) #batch_size determines level of parallelism
@@ -2928,8 +2929,8 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   } else if (in_learner$task_type == 'regr') {
     learnertune <- AutoTuner$new(learner= in_learner,
                                  resampling = rcv_rf,
-                                 measures = in_measures$regr,
-                                 tune_ps = regex_tuneset(in_learner),
+                                 measure = in_measures$regr,
+                                 search_space = regex_tuneset(in_learner),
                                  terminator = evalsn,
                                  tuner =  tnr("random_search",
                                               batch_size = insamp_nbatch))
@@ -3155,7 +3156,7 @@ write_preds <- function(in_gaugep, in_gaugestats,
 
   # ---- Output gauge predictions as points ----
   in_gaugestatsformat <- na.omit(in_gaugestats,
-                                 c('intermittent',
+                                 c('intermittent_o1961',
                                    in_predvars$varcode, 'X', 'Y'))[
     , ':='(IRpredprob = gpreds$prob[,2],
            IRpredcat = gpreds$response)] %>%
@@ -3437,14 +3438,14 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
       by= c(varvec, valvec)] %>%
     .[, variables := var1]
 
-  datdf2 <- as.data.table(datdf)[, intermittent := as.numeric(as.character(intermittent))]
+  datdf2 <- as.data.table(datdf)[, intermittent_o1961 := as.numeric(as.character(intermittent_o1961))]
 
   if (nvariate ==1) {
     tileplots_l <- pdformat[,list(list(ggplotGrob(
       ggplot(.SD, aes(x=value1, y=mean1)) +
         geom_line() +
         geom_rug(data=datdf2,
-                 aes_string(x=eval(var1),y='intermittent'),
+                 aes_string(x=eval(var1),y='intermittent_o1961'),
                  alpha=1/3) +
         scale_y_continuous(name='Partial dependence (probability of intermittency)',
                            limits= c(min(mean1)-0.01, max(mean1)+0.01),  #c(0.25, 0.425),
@@ -3467,7 +3468,7 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
         geom_tile(aes(fill = mean1)) +
         scale_fill_distiller(palette='Grey') +
         geom_jitter(data=datdf,
-                    aes_string(color='intermittent', x=eval(var1),y=eval(var2)),
+                    aes_string(color='intermittent_o1961', x=eval(var1),y=eval(var2)),
                     alpha=1/3) +
         scale_color_manual(values=c('#0F9FD6','#ff9b52')) +
         labs(x=stringr::str_wrap(in_predvars[varcode==eval(var1), varname],
@@ -3515,15 +3516,15 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
     setorder(row_id)
 
   predattri <- cbind(na.omit(in_gaugestats,
-                             c('intermittent',in_predvars$varcode, 'X', 'Y')),
+                             c('intermittent_o1961',in_predvars$varcode, 'X', 'Y')),
                      gaugepred) %>%
-    .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent)),
+    .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
              yearskeptratio = totalYears_kept/totalYears)]
 
   #Plot numeric variables
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
-    cbind(predattri[, c('GAUGE_NO', 'intermittent'), with=F]) %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent', 'prob.1', 'preduncert'))
+    cbind(predattri[, c('GAUGE_NO', 'intermittent_o1961'), with=F]) %>%
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1961', 'prob.1', 'preduncert'))
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%

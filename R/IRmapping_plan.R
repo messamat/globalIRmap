@@ -76,7 +76,8 @@ plan <- drake_plan(
                                              inp_resdir = path_resdir),
 
   gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
-                                        in_gaugep = gaugep),
+                                        in_gaugep = gaugep,
+                                        yearthresh = 1961),
 
   predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
                                    in_gaugestats = gaugestats_format),
