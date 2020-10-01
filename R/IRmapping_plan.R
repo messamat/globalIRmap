@@ -209,6 +209,7 @@ plan <- drake_plan(
                              in_gaugestats = gaugestats_format,
                              in_predvars = predvars,
                              spatial_rsp = FALSE,
+                             yearthresh = 1961,
                              interthresh = interthresh),
 
   rfpreds = write_preds(in_gaugep = gaugep,
@@ -227,7 +228,8 @@ plan <- drake_plan(
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
 
-  pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars, colnums=1:20,
+  pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars,
+                           colnums=1:36,
                            nvariate=1,  nodupli = TRUE, ngrid = 20, parallel = T,
                            spatial_rsp = FALSE),
 
@@ -236,7 +238,7 @@ plan <- drake_plan(
   gauges_plot = gggauges(in_gaugepred = rfpreds[["out_gaugep"]],
                          in_basemaps = basemaps,
                          binarg <- c(30, 60, 100),
-                         binvar <- 'totalYears_kept'),
+                         binvar <- 'totalYears_kept_o1961'),
 
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
                              in_gaugepred =  rfpreds[["out_gaugep"]],

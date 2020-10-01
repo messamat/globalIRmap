@@ -761,9 +761,12 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
 #' Can add an example down the line, add source.
 #' @export
 
-extract_impperf_nestedrf <- function(in_rflearner,
+extract_impperf_nestedrf <- function(in_rflearner, in_task,
                                      imp = TRUE, perf = TRUE,
                                      pvalue = TRUE, pvalue_permutn = 100) {
+
+  in_task <- in_task[[1]]
+  in_rflearner <- in_rflearner[[1]]
 
   if (inherits(in_rflearner, "AutoTuner")) {
     sublrn <- in_rflearner$model$learner
@@ -774,65 +777,67 @@ extract_impperf_nestedrf <- function(in_rflearner,
   print(paste0("Computing variable importance for resampling instance hash #",
                sublrn$hash))
 
-  return(cbind(if (imp) {
-    ####################### IF GraphLearner ####################################
-    if (inherits(sublrn, "GraphLearner")) {
+  outobj <- cbind(
+    if (imp) {
+      ####################### IF GraphLearner ####################################
+      if (inherits(sublrn, "GraphLearner")) {
 
-      if ('classif.ranger' %in% names(sublrn$model)) {
+        if ('classif.ranger' %in% names(sublrn$model)) {
 
-        if (pvalue == TRUE) {
-          in_task <- in_rflearner$model$tuning_instance$task
+          if (pvalue == TRUE) {
+            in_formula <- as.formula(paste0(in_task$target_names, '~.'))
+
+            importance_pvalues(
+              sublrn$model$classif.ranger$model,
+              method = "altmann",
+              num.permutations = pvalue_permutn,
+              data = in_task$data(),
+              formula= in_formula
+            )
+
+          } else {
+            data.table(importance=sublrn$model$classif.ranger$model$variable.importance)
+          }
+        }
+
+        else if ('classif.cforest' %in% names(sublrn$model)) {
+          if (pvalue == TRUE) {
+            warning("p_value calculation is only available for ranger classification rf, ignoring p_value.
+                  In addition, default parameters were used in partykit::varimp, adjust as needed.")
+          }
+          data.table(importance=
+                       partykit::varimp(sublrn$model$classif.cforest$model,
+                                        nperm = 1,
+                                        OOB = TRUE,
+                                        risk = "misclassification",
+                                        conditional = FALSE,
+                                        threshold = .2))
+        }
+      } else { ####################### IF direct model ####################################
+        if (pvalue == TRUE) { #If want pvalue associated with predictor variables
           in_formula <- as.formula(paste0(in_task$target_names, '~.'))
 
           importance_pvalues(
-            sublrn$model$classif.ranger$model,
+            in_rflearner$model,
             method = "altmann",
             num.permutations = pvalue_permutn,
             data = in_task$data(),
             formula= in_formula
           )
-
-        } else {
-          data.table(importance=sublrn$model$classif.ranger$model$variable.importance)
+        } else { #If pvalue == FALSE
+          data.table(importance= in_rflearner$model$learner$importance())
         }
-      }
 
-      else if ('classif.cforest' %in% names(sublrn$model)) {
-        if (pvalue == TRUE) {
-          warning("p_value calculation is only available for ranger classification rf, ignoring p_value.
-                  In addition, default parameters were used in partykit::varimp, adjust as needed.")
-        }
-        data.table(importance=
-                     partykit::varimp(sublrn$model$classif.cforest$model,
-                                      nperm = 1,
-                                      OOB = TRUE,
-                                      risk = "misclassification",
-                                      conditional = FALSE,
-                                      threshold = .2))
       }
-    } else { ####################### IF direct model ####################################
-      if (pvalue == TRUE) { #If want pvalue associated with predictor variables
-        in_task <- in_rflearner$model$task
-        in_formula <- as.formula(paste0(in_task$target_names, '~.'))
-
-        importance_pvalues(
-          in_rflearner$model,
-          method = "altmann",
-          num.permutations = pvalue_permutn,
-          data = in_task$data(),
-          formula= in_formula
-        )
-      } else { #If pvalue == FALSE
-        data.table(importance= in_rflearner$model$learner$importance())
-      }
-
+    },
+    if (perf) {
+      perf_id <- in_rflearner$instance_args$measure$id
+      outperf <- in_rflearner$tuning_result[, get(perf_id)]
+      data.table(outperf) %>% setnames(perf_id)
     }
-  },
-  if (perf) {
-    outperf <- in_rflearner$tuning_result$perf
-    data.table(outperf) %>% setnames(names(outperf))
-  }
-  ))
+  )
+
+  return(outobj)
 }
 #------ weighted_vimportance_nestedrf -----------------
 #' Weighted mean of variable importance for resampled RF learner
@@ -874,11 +879,12 @@ extract_impperf_nestedrf <- function(in_rflearner,
 weighted_vimportance_nestedrf <- function(rfresamp,
                                           pvalue = TRUE, pvalue_permutn = 100) {
   varnames <- rfresamp$task$feature_names
+  rfresampdt <- as.data.table(rfresamp)
 
-  vimportance_all <- lapply(rfresamp$learners, #Extract vimp and perf for each resampling instance
-                            extract_impperf_nestedrf,
-                            imp=T, perf=T, pvalue=pvalue, pvalue_permutn) %>%
-    do.call(rbind, .) %>%
+  vimportance_all <- rfresampdt[, extract_impperf_nestedrf(
+    in_rflearner = learner, #Extract vimp and perf for each resampling instance
+    in_task = task,
+    imp=T, perf=T, pvalue=pvalue, pvalue_permutn), by=iteration] %>%
     cbind(., varnames)
 
   ####!!!!!!!!!!Adapt to allow for other measure than classif.bacc!!!!!!!!######
@@ -947,21 +953,23 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 
 extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
                                 selcols, nvariate, ngrid) {
-  in_mod <- in_rftuned$learners[[learner_id]]
-  #in_mod <- nestedresamp_ranger$learners[[1]]
-
-  if (inherits(in_mod$learner, "GraphLearner")) {
-    in_fit <- in_mod$learner$model$classif.ranger$model
-  } else {
-    in_fit <- in_mod$learner$model
-  }
+  in_mod <- as.data.table(in_rftuned)[eval(learner_id),] #Go through data.table format to have access to both tasks and learners
 
   #Get fold-specific performance measure
-  foldperf <- extract_impperf_nestedrf(in_mod, imp=F, perf=T, pvalue=F)
+  foldperf <- extract_impperf_nestedrf(in_rflearner = in_mod$learner,
+                                       in_task = in_mod$task,
+                                       imp=F, perf=T, pvalue=F)
 
   # selcols <- in_vimp_plot$data %>% #Can use that if extracting from tunredrf is expensive
   #   setorder(-imp_wmean) %>%
   #   .[colnums, variable]
+
+
+  if (inherits(in_mod$learner[[1]]$learner, "GraphLearner")) {
+    in_fit <- in_mod$learner[[1]]$learner$model$classif.ranger$model
+  } else {
+    in_fit <- in_mod$learner[[1]]$learner$model
+  }
 
   ngridvec <- c(ngrid, ngrid)
 
@@ -969,7 +977,7 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
   if (nvariate == 1) {
     pdcomb <- lapply(selcols, function(i) {
       print(i)
-      pdout <- edarf::partial_dependence(in_fit, vars = c(i),
+      pdout <- edarf::partial_dependence(fit = in_fit, vars = c(i),
                                          n = ngridvec, data = datdf) %>% #Warning: does not work with data_table
         setDT %>%
         .[,(names(foldperf)) := foldperf] %>%
@@ -985,7 +993,8 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
 
     #Get marginal distribution of the effect of two columns at a time
     pdcomb <- mapply(function(i, j) {
-      pdout <- edarf::partial_dependence(in_fit, vars = c(i, j), n = ngridvec,
+      pdout <- edarf::partial_dependence(fit = in_fit, vars = c(i, j),
+                                         n = ngridvec,
                                          interaction = TRUE, data = datdf) %>% #Warning: does not work with data_table
         setDT %>%
         .[,(names(foldperf)) := foldperf] %>%
@@ -1210,9 +1219,10 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
 
 #------ bm_paramstime ----------------
 bm_paramstime <- function(bmres) {
-  lrns_dt <- as.data.table(bmres$data)
 
-  ##############################################################################
+  lrns_dt <- as.data.table(bmres) %>%
+    unique(by='uhash')
+
   params_format <- lapply(lrns_dt$learner, function(lrn) {
     print(lrn$id)
     #Get general parameters-----------------------------------------------------
@@ -1285,10 +1295,10 @@ bm_paramstime <- function(bmres) {
     #Get inner sampling parameters----------------------------------------------
     if ('instance_args' %in% names(lrn)) {
       param_ranges <- as.list(
-        paste0(lrn$instance_args$param_set$lower,
+        paste0(lrn$instance_args$search_space$lower,
                '-',
-               lrn$instance_args$param_set$upper))
-      names(param_ranges) <- lrn$instance_args$param_set$ids()
+               lrn$instance_args$search_space$upper))
+      names(param_ranges) <- lrn$instance_args$search_space$ids()
 
 
       inner_smp  <- cbind(
@@ -1351,16 +1361,21 @@ bm_paramstime <- function(bmres) {
 
 #------ bm_msrtab ----------------
 bm_msrtab <- function(bmres) {
+  print('Getting bbrier')
   bbrier_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    print(i)
     rsmp_bbrier(bmres=bmres, rsmp_i=i)
   }) %>%
     unlist
 
+  print('Getting auc')
   auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    print(i)
     rsmp_auc(bmres=bmres, rsmp_i=i)
   }) %>%
     unlist
 
+  print('Getting smp design')
   outer_smp <- lapply(bmres$resamplings$resampling, function(rsmp_design) {
     as.data.table(rsmp_design$param_set$get_values()) %>%
       setnames(names(.), paste0('outer_', names(.))) %>%
@@ -1368,8 +1383,11 @@ bm_msrtab <- function(bmres) {
   }) %>%
     rbindlist(use.names=T)
 
+  print('Getting bacc')
   bacc_vec <- lapply(1:bmres$n_resample_results, function(i) {
-    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
+    print(paste0('For fold #', i))
+    baccthresh <- ldply(seq(0.43,0.55,0.01), function(threshold_class) {
+      print(threshold_class)
       rsmp_bacc(bmres, rsmp_i=i, threshold_class=threshold_class)}) %>%
       setorder(bacc) %>%
       setDT %>%
@@ -1377,10 +1395,7 @@ bm_msrtab <- function(bmres) {
   }) %>%
     rbindlist
 
-  #Get inner sampling params, general params, and time
-  params_time_dt <- bm_paramstime(bmres)
-
-  #Get time and add to bbrier
+  print('Getting inner sampling params, general params, and time &  add to rest')
   moddt <- bm_paramstime(bmres) %>%
     cbind(., outer_smp) %>%
     cbind(., bacc_vec) %>%
@@ -3268,7 +3283,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
   }
 
   print(paste('It took',
-              in_bm$aggregate(msr('time_both'))$time_both,
+              in_bm$aggregate(mlr3::msr('time_both'))$time_both,
               'seconds to train and predict with the',
               in_bm$aggregate(msr('time_both'))$learner_id,
               'model...'))
@@ -3280,7 +3295,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
     boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure$regr)
 
     preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
-      preds <- bmdt$prediction[[rsmp_i]]$test %>%
+      preds <- bmdt$prediction[[rsmp_i]] %>%
         as.data.table %>%
         .[, `:=`(outf = bmdt$iteration[[rsmp_i]],
                  task = bmdt$task[[rsmp_i]]$id,
@@ -3305,7 +3320,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
                           task = bmdt$task[[rsmp_i]]$id,
                           learner = bmdt$learner[[rsmp_i]]$id,
                           task_type = in_bm$task_type,
-                          pred = list(bmdt$prediction[[rsmp_i]]$test))
+                          pred = list(bmdt$prediction[[rsmp_i]]))
       return(preds)
     }) %>%
       do.call(rbind, .)
@@ -3360,6 +3375,26 @@ analyze_benchmark <- function(in_bm, in_measure) {
   ))
 }
 
+#------ tabulate_misclass --------------------------------
+in_rftuned = rftuned
+spatial_rsp = T
+
+tabulate_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
+                               interthresh=0.5, spatial_rsp=FALSE) {
+  #Get predicted probabilities of intermittency for each gauge
+  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
+  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
+  #Get misclassification error, sensitivity, and specificity for different classification thresholds
+  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
+  if (!is.null(in_rftuned)) {
+    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+    in_predictions <- rsmp_res$prediction()
+  }
+
+  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
+    setDT
+}
+
 #------ ggvimp -----------------
 ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
@@ -3390,8 +3425,8 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
-  #Get partial dependence across all folds
-  nlearners <- rsmp_res$resampling$param_set$values$folds
+  #Get partial dependence across all folds and repeats
+  nlearners <-with(rsmp_res$resampling$param_set$values, folds*repeats)
   datdf <- as.data.frame(rsmp_res$task$data()) #This may be shortened
   varimp <- weighted_vimportance_nestedrf(rsmp_res, pvalue=FALSE)
 
@@ -3500,7 +3535,7 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
-                       interthresh = 0.5, in_learnerid = NULL) {
+                       interthresh = 0.5, yearthresh, in_learnerid = NULL) {
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
@@ -3519,7 +3554,8 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
                              c('intermittent_o1961',in_predvars$varcode, 'X', 'Y')),
                      gaugepred) %>%
     .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
-             yearskeptratio = totalYears_kept/totalYears)]
+             yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
+
 
   #Plot numeric variables
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
@@ -3533,17 +3569,17 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
     .[levels(predmelt_num$variable)] %>%
     .[is.na(varname), varname:=varcode] %>%
     .[varcode=='totalYears_kept', varname := 'Years of record kept'] %>%
-    .[varcode=='yearskeptratio', varname :='Years of record kept/All years'] %>%
+    .[varcode=='yearskeptratio', varname := 'Years kept/Years total'] %>%
     .[varcode=='mDur', varname :='Mean annual # of dry days'] %>%
     .[varcode=='mFreq', varname :='Mean annual # of dry periods'] %>%
-    .[varcode=='station_river_distance', varname :='Station distance to network (m)'] %>%
+    .[varcode=='DApercdiff', varname :='Difference in reported drainage area (%)'] %>%
     .[varcode=='ORD_STRA', varname :='Strahler river order'] %>%
     .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)']
 
 
   levels(predmelt_num$variable) <-  varlabels$varname
   varstoplot <- varlabels[varcode %in% c('totalYears_kept', 'yearskeptratio',
-                                     'mDur', 'mFreq', 'station_river_distance',
+                                     'mDur', 'mFreq', 'DApercdiff',
                                      'UPLAND_SKM', 'ORD_STRA',
                                      'dis_m3_pyr', 'dor_pc_pva',
                                      'cmi_ix_uyr','ari_ix_uav'),]
@@ -3567,10 +3603,10 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
       scale_fill_manual(values=colorpal,
                         name='Predicted regime',
                         labels = c('Perennial', 'Intermittent')) +
-      geom_point(aes(x=value, y=preduncert, color=intermittent), alpha = 1/4) +
+      geom_point(aes(x=value, y=preduncert, color=intermittent_o1961), alpha = 1/8) +
       geom_hline(yintercept=0, alpha=1/2) +
       new_scale_fill() +
-      geom_smooth(aes(x=value, y=preduncert, color=intermittent),
+      geom_smooth(aes(x=value, y=preduncert, color=intermittent_o1961),
                   method='gam', formula = y ~ s(x, k=3)) +
       # annotate("text", x = Inf-5, y = 0.5, angle = 90,
       #          label = "Pred:Int, Obs:Per",
@@ -3590,9 +3626,9 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
 
 
     #Plot categorical variables
-    predmelt_cat <- predattri[, c('GAUGE_NO', 'intermittent', 'preduncert',
+    predmelt_cat <- predattri[, c('GAUGE_NO', 'intermittent_o1961', 'preduncert',
                                   'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
-      melt(id.vars=c('GAUGE_NO', 'intermittent', 'preduncert'))
+      melt(id.vars=c('GAUGE_NO', 'intermittent_o1961', 'preduncert'))
     levels(predmelt_cat$variable) <- c('Endorheic',
                                        'Climate Zone (catchment majority)')
 
@@ -3607,7 +3643,7 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
       #geom_boxplot(alpha = 0.75) +
       new_scale_fill() +
       geom_violin(aes(x=as.factor(value), y=preduncert,
-                      fill=intermittent, color=intermittent),
+                      fill=intermittent_o1961, color=intermittent_o1961),
                   alpha=0.75, color=NA) +
       geom_hline(yintercept=0, alpha=1/2) +
       labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
@@ -3820,8 +3856,8 @@ gggauges <- function(in_gaugepred, in_basemaps,
 
 
   #Subset data into perennial and intermittent rivers
-  perennial_gauges <- gaugepred[gaugepred$intermittent=='0',]
-  ir_gauges <-  gaugepred[gaugepred$intermittent=='1',]
+  perennial_gauges <- gaugepred[gaugepred$intermittent_o1961=='0',]
+  ir_gauges <-  gaugepred[gaugepred$intermittent_o1961=='1',]
 
 
   #Make histograms
@@ -3965,7 +4001,7 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
                       scalesenvhist, intermittent=TRUE) {
   print(vartoplot)
   if (intermittent) {
-    vartoplot2 <- c(vartoplot, 'intermittent')
+    vartoplot2 <- c(vartoplot, 'intermittent_o1961')
   }
 
   varname <- in_predvars[varcode==vartoplot, paste0(Attribute, ' ',
@@ -4049,6 +4085,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid) {
     rbind(tbbm, use.names=TRUE, fill=TRUE)
 
   #Continue formatting table
+  print('Format table...')
   metrics_dat[is.na(ntree), ntree := numtrees]
   metrics_dat[is.na(fraction), fraction := samplefraction]
   metrics_dat[, `minor_weight|ratio` := fifelse(is.na(minor_weight),
