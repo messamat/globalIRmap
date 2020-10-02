@@ -1,5 +1,3 @@
-#Functions for intermittent river analysis
-
 ##### -------------------- Utility functions ---------------------------------
 
 #------ diny -----------------
@@ -71,7 +69,7 @@ readformatGRDC<- function(path) {
     .[Original != 0, prevflowdate:=NA]
 
   #Compute number of missing days per year
-  gaugetab[!(Original %in% c(-999, -99, -9999, 9999,99999) | is.na(Original)),
+  gaugetab[!(Original %in% c(-999, -99, -9999, 99, 999, 9999) | is.na(Original)),
            `:=`(missingdays = diny(year)-.N,
                 datadays = .N),
            by= 'year']
@@ -142,33 +140,61 @@ readformatGSIMsea <- function(path) {
   )]
   return(gaugetab)
 }
+#------ flagGRDCoutliers ------
+flagGRDCoutliers <- function(in_gaugetab) {
+  in_gaugetab %>%
+    .[Original %in% c(-999, -99, -9999, 999, 9999), Original := NA] %>%
+    .[Calculated %in% c(-999, -99, -9999, 999, 9999), Calculated := NA] %>%
+    .[, `:=`(jday = format(as.Date(dates), '%j'),#Julian day
+             q_rleid = rleid(Original),#Identify each group of consecutive values
+             flag_mathis = 0)] #Create flag field)
+
+  #Flag negative values
+  in_gaugetab[Original < 0, flag_mathis := flag_mathis + 1]
+
+  #Flag when more than 10 identical values in a row or when a single zero-flow
+  in_gaugetab[, flag_mathis := flag_mathis +
+                ((Original > 0) & (.N > 10)) +
+                ((Original == 0) & (.N == 1)),
+              by=q_rleid]
+
+  #Flag |log(Q + 0.01) - mean| > 6SD for julian day mean and SD of 5d mean of log(Q + 0.01)
+  in_gaugetab[, logmean5d := frollapply(log(Original + 0.01), n = 5, align='center',
+                                        FUN=mean, na.rm = T)] %>% #Compute 5-day mean of log(Q+0.01)
+    .[, `:=`(jdaymean = mean(logmean5d, na.rm = T),
+             jdaysd = sd(logmean5d, na.rm = T)),
+      by = jday] %>% #Compute mean and SD of 5-day mean of log(Q + 0.01) by Julian day
+    .[abs(log(Original + 0.01) - jdaymean) > (6 * jdaysd),
+      flag_mathis := flag_mathis + 1]
+
+  #Flag values where Original != Calculated discharge
+  in_gaugetab[Original != Calculated, flag_mathis := flag_mathis + 1]
+
+  return(in_gaugetab)
+}
+
 #------ plotGRDCtimeseries ----------------------
-plotGRDCtimeseries <- function(GRDCgaugestats_record, outpath=NULL) {
+plotGRDCtimeseries <- function(GRDCgaugestats_record,
+                               outpath=NULL, maxgap=366) {
   #Read and format discharge records
   gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
-    .[!(Original %in% c(-999, -99, -9999)),] %>%
-    .[, dates := as.Date(dates)]
-
-  #Compute statistics on daily changes, including MEAN+SD
-  gaugetab[, abslag := abs(Original - data.table::shift(Original, n=1, type='lag'))] %>%
-    .[abslag > 0, logabslag := log(abslag)] %>%
-    .[abslag == 0, logabslag := .[abslag>0, min(logabslag, na.rm=T)-0.1]]
-  change_threshold <- gaugetab[, mean(logabslag, na.rm=T) +
-                                 sd(logabslag, na.rm=T)]
+    flagGRDCoutliers %>%
+    .[, dates := as.Date(dates)] %>%
+    .[!is.na(Original), missingdays := diny(year)-.N, by= 'year'] %>%
+    .[missingdays < maxgap,]
 
   #Plot time series
-  qtiles <- union(gaugetab[, min(Original)],
-                  gaugetab[, quantile(Original, probs=seq(0, 1, 0.1))])
+  qtiles <- union(gaugetab[, min(Original, na.rm=T)],
+                  gaugetab[, quantile(Original, probs=seq(0, 1, 0.1), na.rm=T)])
 
   rawplot <- ggplot(gaugetab, aes(x=dates, y=Original)) +
-    geom_line(color='#045a8d', size=1, alpha=1/3) +
-    geom_point(color='#045a8d', size=1, alpha=1/2) +
-    geom_point(data=gaugetab[Original==0,], color='red', size=1.5) +
-    geom_point(data=gaugetab[Original==0 & logabslag > change_threshold,],
-               color='black', size=2) +
+    geom_line(color='#045a8d', size=1, alpha=1/5) +
+    geom_point(data = gaugetab[flag_mathis == 0 & Original > 0,], color='#045a8d', size=1, alpha=1/3) +
+    geom_point(data = gaugetab[flag_mathis > 0 & Original > 0,], color='green') +
+    geom_point(data = gaugetab[flag_mathis == 0 & Original == 0,], color='red') +
+    geom_point(data = gaugetab[flag_mathis > 0 & Original == 0,], color='black') +
     scale_y_sqrt(breaks=qtiles, labels=qtiles) +
     scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
-    scale_color_distiller(palette='Spectral') +
     labs(y='Discharge (m3/s)',
          title=paste0('GRDC: ', GRDCgaugestats_record$GRDC_NO)) +
     coord_cartesian(expand=0, clip='off')+
@@ -561,7 +587,8 @@ threshold_misclass <- function(i=0.5, in_preds) {
     i,
     misclas = confu[truth != response, sum(N)] / confu[, sum(N)],
     sens = confu[truth == '1' & response == '1', N] / confu[truth=='1', sum(N)],
-    spec  = confu[truth=='0' & response==0, N]/confu[truth=='0', sum(N)])
+    spec  = confu[truth=='0' & response==0, N]/confu[truth=='0', sum(N)]
+    )
   return(outvec)
 }
 
@@ -2156,9 +2183,61 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
   return(statsout)
 }
 
+#------ plot_GRDCflags ------
+plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
+                           inp_resdir, maxgap) {
+  GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
+
+  #Create output directory
+  resdir_GRDCirplots <- file.path(inp_resdir,
+                                    paste0('GRDCir_rawplots_',
+                                           format(Sys.Date(), '%Y%m%d')))
+  if (!(dir.exists(resdir_GRDCirplots))) {
+    print(paste0('Creating ', resdir_GRDCirplots ))
+    dir.create(resdir_GRDCirplots )
+  }
+
+  #Plot
+  GRDCstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
+                (get(paste0('intermittent_o', yearthresh)) == 1),
+              plotGRDCtimeseries(.SD,
+                                 outpath = file.path(resdir_GRDCirplots,
+                                                     paste0(GRDC_NO, '.png')),
+                                 maxgap=maxgap
+              ), by=GRDC_NO]
+}
+
 #------ analyze_gaugeir ----------------------------
+#Check winter and coastal gauges in particular
+#Check availability of data
 analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
                             in_gaugep, inp_resdir) {
+  #Possible outliers from examining plots
+  c(1104800,
+    1134500,
+    1159302, #Anomalous zero values
+    1159303, #weird patterns, sudden jumps and capped at 77
+    1159320, #0 values for the first 14 years
+    1159325, #0 values for most record. maybe episodic
+    1159510, #0 values for most record, seems capped when there is flow. turns to no data later
+    1159512, #0 values for first 4 years, some missing data
+    1159520, #values seem capped after 1968
+    1160101, #sudden ups and downs
+
+
+    1234050, #
+    1234190,
+    1234200,
+    1289230, #changed regime
+    1286690, #Good at the beginning, suspect decrease then increase in late 1976-early 1977
+    1309200,
+    1310600,
+    1428400,
+    1591110, #sudden shift 2000
+    1591720, #Only one part of the record, seems buggy
+    1591730 #sudden decreases
+    )
+
   ### Analyze GSIM data ####################################
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
 
@@ -2321,6 +2400,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
     ggirsensi
   )
 
+  ### Bind GRDC and GSIM records ####################################
   databound <- rbind(GRDCstatsdt_clean,
                      GSIMstatsdt_clean,
                      use.names=TRUE, fill=T)
@@ -2353,10 +2433,11 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
     , GAUGE_NO := fifelse(is.na(gsim_no), GRDC_NO, gsim_no)] %>%
     .[!is.na(get(paste0('totalYears_kept_o', yearthresh))) &
         get(paste0('totalYears_kept_o', yearthresh))>=10,] %>%  # Only keep stations with at least 10 years of data pas yearthresh
-  merge(as.data.table(in_gaugep), by='GAUGE_NO', all.x=T, all.y=F) %>%
-  .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
-  .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
-  .[, DApercdiffabs := abs(DApercdiff)]
+    merge(as.data.table(in_gaugep)[, -c('GRDC_NO', 'gsim_no'), with=F],
+          by='GAUGE_NO', all.x=T, all.y=F) %>%
+    .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
+    .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
+    .[, DApercdiffabs := abs(DApercdiff)]
 
   #Check for multiple stations on same HydroSHEDS segment
   dupliseg <- gaugestats_join[duplicated(HYRIV_ID) |
@@ -3375,24 +3456,67 @@ analyze_benchmark <- function(in_bm, in_measure) {
   ))
 }
 
-#------ tabulate_misclass --------------------------------
-in_rftuned = rftuned
-spatial_rsp = T
-
-tabulate_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
+#------ bin_misclass --------------------------------
+bin_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
+                               in_gaugestats, binvar, binfunc, binarg,
                                interthresh=0.5, spatial_rsp=FALSE) {
-  #Get predicted probabilities of intermittency for each gauge
-  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
-  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
   #Get misclassification error, sensitivity, and specificity for different classification thresholds
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
   if (!is.null(in_rftuned)) {
-    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-    in_predictions <- rsmp_res$prediction()
+    if (inherits(in_rftuned, 'list')) {
+      rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+    } else if (inherits(in_rftuned, 'ResampleResult')) {
+      rsmp_res <- in_rftuned
+    }
+    in_predictions <- rsmp_res$prediction() %>%
+      as.data.table
   }
 
-  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
-    setDT
+  #Get average predicted probability and response across CV repeats
+  predsformat <- in_predictions[, list(prob.1 = mean(prob.1)),
+                                by=.(row_id, truth)] %>%
+    .[, response := fifelse(prob.1 >= interthresh, 1, 0)]
+
+  #Get bins
+  bin_gauges <- bin_dt(in_dt = in_gaugestats, binvar = 'dis_m3_pyr',
+                       binfunc = 'manual', binarg=c(0.1, 1, 10, 100, 100, 10000, 100000),
+                       bintrans=NULL, na.rm=FALSE) %>%
+    .[, row_id := .I]
+
+  #Merge bins with predictions
+  gselpreds <- merge(bin_gauges, predsformat, by='row_id', all.y=F)
+
+  #Function to get statistics for each bin
+  binconfustats <- function(in_gselpreds) {
+    confu <- in_gselpreds[, .N, by=.(truth, response)]
+
+    outvec <- data.table(
+      inter_confu =  paste0(confu[truth==1 & response==1, max(0L, N)], '|',
+                            confu[truth==1 & response==0, max(0L, N)]),
+      pere_confu = paste0(confu[truth==0 & response==1, max(0L, N)], '|',
+                          confu[truth==0 & response==0, max(0L, N)]),
+      misclas = round(confu[truth != response, sum(N)] / confu[, sum(N)], 2),
+      sens = round(
+        confu[truth == '1' & response == '1', max(0L, N)]/confu[truth=='1', sum(N)],
+        2),
+      spec  = round(
+        confu[truth=='0' & response==0, max(0L, N)]/confu[truth=='0', sum(N)],
+        2),
+      N = sum(confu$N),
+      predtrue_inter = paste0(round(confu[response==1, 100*sum(N)/sum(confu$N)]),
+                              '|',
+                              round(confu[truth==1, 100*sum(N)/sum(confu$N)]))
+    )
+    return(outvec)
+  }
+
+  #Run function for each bin
+  performtable <- gselpreds[, binconfustats(.SD),
+                            by=.(bin, paste0(round(bin_lmin, 2), '-',
+                                             round(bin_lmax, 2)))] %>%
+    setorder(bin)
+
+  return(performtable)
 }
 
 #------ ggvimp -----------------

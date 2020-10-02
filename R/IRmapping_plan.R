@@ -173,8 +173,8 @@ plan <- drake_plan(
                        type = 'classif'),
     transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
                      in_resampling = c(featsel_cv, featsel_spcv),
-                     .names = c('res_all_cv', 'res_all_spcv',
-                                'res_featsel_cv', 'res_featsel_spcv'))
+                     .names = c('res_all_cv', 'res_featsel_cv',
+                                'res_all_spcv', 'res_featsel_spcv'))
   ),
 
   rfeval_featall = target(c(res_all_cv, res_all_spcv)),
@@ -253,6 +253,15 @@ plan <- drake_plan(
         c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
       .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
+  ),
+
+  bin_rftunedmisclass = bin_misclass(in_rftuned = in_rftuned,
+                                     in_gaugestats = gaugestats_format,
+                                     binvar = 'dis_m3_pyr',
+                                     binfunc = 'manual',
+                                     binarg = c(0.1, 1, 10, 100, 10000, 100000),
+                                     interthresh=interthresh,
+                                     spatial_rsp=FALSE
   ),
 
   misclass_format = target(
