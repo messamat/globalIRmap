@@ -66,7 +66,7 @@ readformatGRDC<- function(path) {
 
   gaugetab[, year:=as.numeric(substr(dates, 1, 4))] %>% #Create year column and total number of years on record
     .[, prevflowdate := gaugetab[zero_lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
-    .[Original != 0, prevflowdate:=NA]
+    .[Original != 0, prevflowdate:=NA] #If non-zero flow, set prevlowfate to NA
 
   #Compute number of missing days per year
   gaugetab[!(Original %in% c(-999, -99, -9999, 99, 999, 9999) | is.na(Original)),
@@ -74,7 +74,9 @@ readformatGRDC<- function(path) {
                 datadays = .N),
            by= 'year']
 
-  gaugetab[,month:=as.numeric(substr(dates, 6, 7))] #create a month column
+  gaugetab[,`:=`(month = as.numeric(substr(dates, 6, 7)), #create a month column
+                 integervalue = fifelse(Original == round(Original), 1, 0) #Flag integer discharge values
+  )]
 
   return(gaugetab)
 }
@@ -177,11 +179,16 @@ flagGRDCoutliers <- function(in_gaugetab) {
 plotGRDCtimeseries <- function(GRDCgaugestats_record,
                                outpath=NULL, maxgap=366) {
   #Read and format discharge records
-  gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
-    flagGRDCoutliers %>%
-    .[, dates := as.Date(dates)] %>%
-    .[!is.na(Original), missingdays := diny(year)-.N, by= 'year'] %>%
-    .[missingdays < maxgap,]
+  if (GRDCgaugestats_record[,.N>1] &
+      ('Original' %in% names(GRDCgaugestats_record))) {
+    gaugetab <- GRDCgaugestats_record
+  } else {
+    gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
+      flagGRDCoutliers %>%
+      .[, dates := as.Date(dates)] %>%
+      .[!is.na(Original), missingdays := diny(year)-.N, by= 'year'] %>%
+      .[missingdays < maxgap,]
+  }
 
   #Plot time series
   qtiles <- union(gaugetab[, min(Original, na.rm=T)],
@@ -251,6 +258,30 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL) {
     return(rawplot)
   }
 }
+#------ checkGRDCzeroes --------
+#Function to plot and subset two weeks on each side of every zero-flow period in record
+checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
+                            maxgap, in_scales='free_x') {
+  check <- readformatGRDC(GRDCstatsdt[GRDC_NO ==  in_GRDC_NO, path]) %>%
+    flagGRDCoutliers %>%
+    .[, dates := as.Date(dates)] %>%
+    .[!is.na(Original), missingdays := diny(year)-.N, by= 'year'] %>%
+    .[missingdays < maxgap,]
+  zeroes <- check[unique(unlist(
+    lapply(which(Original==0), function(i) seq(max(0, i-period), i+period)))),]
+  zeroes[, zerogrp := rleid(round(difftime(dates, lag(dates))))] %>%
+    .[, grpN := .N, by=zerogrp]
+  print(
+    plotGRDCtimeseries(zeroes[grpN > 1 & year > yearthresh,], outpath=NULL, maxgap=maxgap) +
+      scale_x_date(breaks='1 month') +
+      geom_text(data=zeroes[grpN > 1 & Original >0,],
+                aes(label=Original),
+                vjust=1, alpha=1/2) +
+      facet_wrap(~zerogrp, scales=in_scales)
+  )
+  return(zeroes)
+}
+
 #------ ggalluvium_gaugecount -------
 ggalluvium_gaugecount <- function(dtformat, alluvvar) {
   p <- ggplot(dtformat,
@@ -1914,7 +1945,7 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
 
 comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
                              monthsel = NULL) {
-
+  print(path)
   #Read and format discharge records
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
   gaugetab <- readformatGRDC(path)
@@ -1989,9 +2020,15 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
     gaugetab <- gaugetab[month %in% monthsel, ]
   }
 
+
+
+
+
   #Compute number of days of zero flow for years with number of gap days under threshold
   gaugetab_yearly <- merge(gaugetab[, .(missingdays=max(missingdays, na.rm=T),
-                                        datadays=max(datadays, na.rm=T)), by='year'],
+                                        datadays=max(datadays, na.rm=T),
+                                        integerperc=sum(integervalue,na.rm=T)
+                                        ), by='year'],
                            gaugetab[Original == 0, .(dur=.N,
                                                      freq=length(unique(prevflowdate))), by='year'],
                            by = 'year', all.x = T) %>%
@@ -2014,12 +2051,14 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
                                 lastYear_kept=max(year),
                                 totalYears_kept=length(unique(year)),
                                 totaldays = sum(datadays),
+                                integerperc = sum(integerperc)/(sum(datadays)+sum(missingdays)),
                                 sumDur = sum(dur),
                                 mDur = mean(dur),
                                 mFreq = mean(freq),
                                 intermittent =
                                   factor(fifelse(mean(dur)>=mdurthresh, 1, 0),
-                                         levels=c('0','1')))]
+                                         levels=c('0','1'))
+                                )]
     setnames(irstats, new = paste0(names(irstats), '_o', yearthresh))
     return(irstats)
   }
@@ -2212,32 +2251,6 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 #Check availability of data
 analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
                             in_gaugep, inp_resdir) {
-  #Possible outliers from examining plots
-  c(1104800,
-    1134500,
-    1159302, #Anomalous zero values
-    1159303, #weird patterns, sudden jumps and capped at 77
-    1159320, #0 values for the first 14 years
-    1159325, #0 values for most record. maybe episodic
-    1159510, #0 values for most record, seems capped when there is flow. turns to no data later
-    1159512, #0 values for first 4 years, some missing data
-    1159520, #values seem capped after 1968
-    1160101, #sudden ups and downs
-
-
-    1234050, #
-    1234190,
-    1234200,
-    1289230, #changed regime
-    1286690, #Good at the beginning, suspect decrease then increase in late 1976-early 1977
-    1309200,
-    1310600,
-    1428400,
-    1591110, #sudden shift 2000
-    1591720, #Only one part of the record, seems buggy
-    1591730 #sudden decreases
-    )
-
   ### Analyze GSIM data ####################################
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
 
@@ -2310,6 +2323,124 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 
   ### Analyze GRDC data ####################################
   GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
+
+
+  check <- checkGRDCzeroes(
+    GRDCstatsdt, in_GRDC_NO=1159325, period=15, yearthresh=1961,
+    maxgap=20, in_scales='free_x')
+  1134500 %in% GRDCtoremove_allinteger
+
+  #Possible outliers from examining plots of
+  c(#1104800, #Keep
+    1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
+    1159302, #Anomalous zero values
+    1159303, #weird patterns, isolated 0s, sudden jumps and capped at 77
+    #1159320, #0 values for the first 14 years but doesn't affect post-1961
+    #1159325, #0 values for most record. maybe episodic
+    1159510, #0 values for most record, seems capped when there is flow. turns to no data later
+    1159512, #0 values for first 4 years, some missing data
+    1159520, #values seem capped after 1968
+    1160101, #sudden ups and downs
+    1160310, #Only at the beginning of record
+    1160340, #pretty definitely erroneous. Missing data must have been labeled as 0.
+    1160378, #Strange patterns, maybe downstream of dam?
+    1160420, #decreases to 0 appear a bit sudden
+    1160427, #0s at beginning of record, must be missing
+    1160435, #discard. 0s are mostly missing data. unreliable
+    1160440, #only 0 values
+    1160470, #Maybe discard. change of rating curve in 1947, mostly missing data until 1980 but seemingly truly intermittent
+    1160510, #sudden shift in regime 1974. maybe change in bed morphology or dam building
+    1160511, #unreliable, remove
+    1160540, #only 0 - nodata for first 15 years. seemingly good data post 1979. Keep.
+    1160580, #change of regime post-1971 from intermittent to perennial. not sure why
+    1160635, #0 values post-1985 seem abrupt
+    1160650, #0 values seem like outliers
+    1160670, #many 0 values look like outliers
+    1160675, #many 0 values look like outliers
+    1160701, #0 values look like outliers
+    1160756, #0 values look like outliers
+    1160770, #only happened once. maybe outlier zeros
+    1160780, #unreliable record. remove
+    1160785, #0 values look like outliers
+    1160795, #0 values look like outliers
+    1160825, #first 2 years of data are 0s — just missing data
+    1160880, #weird patterns
+    1160900, #some 0 values look like outliers
+    1160911, #Remove. only one zero-flow vlaues appears right
+    1160971, #check record. several zero-flow values look outliers
+    1160975, #Remove. unreliable
+    1196102, #Remove, unreliable
+    1197500, #Remove, unreliable
+    1197540, #Check, abrupt 0 values. probably remove
+    1197591, #Check, abrupt 0 values. probably remove
+    1197700, #Check, abrupt 0 values. probably remove
+    1199100, #Check, abrupt 0 values. probably remove
+    1199200, #Remove
+    1259800, #Check
+    1494100, #Check, abrupt 0 values. probably remove
+    1837410, #Check, abrupt 0 values. probably remove
+    1897550, #Check, abrupt 0 values. probably remove
+    1992600, #Check, abrupt 0 values. probably remove
+    2549230, #Remove
+    2588551, #Remove
+    2588630, #Remove
+    2588640, #Check, abrupt 0 values. probably remove
+    2588708, ##Check, abrupt 0 values. probably remove
+    2588820, #Check, abrupt 0 values. probably remove
+    2589230, #Remove
+    2589370, #Check, abrupt 0 values. probably remove
+    2591801, #Check, abrupt 0 values. probably remove
+    2684450, #Check, abrupt 0 values. probably remove
+    2917100, #Check, change in regime
+    2969081, #Check, abrupt 0 values. probably remove
+    3627900, #Remove
+    3650610, #Check, abrupt 0 values. probably remove
+    3650640, #Check, abrupt 0 values. probably remove
+    3650649, #change of flow regime
+    3650690, #Check, abrupt 0 values. probably regulated by dam?
+    36509278, #Check, probably remove
+    3844460, #Remove
+    4149411, #Remove
+    4151513, #Looks regulated
+    4213905, #Looks regulated
+    4213911, #Is regulated, remove
+    4214075, ##Check, abrupt 0 values. probably remove
+    4234300, #Check, abrupt 0 values. probably remove. maybe regulated
+    4243610, #Check, abrupt 0 values. probably remove, maybe regulated
+    4351710, #Check, abrupt 0 values. probably remove
+    4355500, #Check, abrupt 0 values. probably remove
+    4357510, #Remove
+    5101020, #Remove
+    5101101, #Remove
+    5101130, #Remove
+    5101201, #Remove
+    5101380, #Check, abrupt 0 values.
+    5101381, #Check, abrupt 0 values.
+    5109110, #Remove
+    5109200, #Remove, interpolations used, not reliable
+    5109230, #Remove
+    5109251, #Remove
+    5202140, #Check, abrupt 0 values.
+    5202228, #Check, abrupt 0 values. Looks regulated -- Remove
+    5302229, #Remove
+    5302251, #Remove
+    5302261, #Remove
+    5405046, #looks regulated
+    5405095, #looks regulated
+    5606130, #Remove
+    5608100, #Check, abrupt 0 values
+    5803160, #Remove
+    6128220, #Check abrupt 0 value
+    6140700, #Remove, perfect example of what an integer-based record involves
+    6401800, #Remove, Looks like it became regulated
+    6442300, ##Remove, perfect example of what an integer-based record involves
+    6444250, #Remove
+    6444350, #Remove
+    6444400, #Check, abrupt 0 values
+  )
+
+  #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
+  GRDCtoremove_allinteger <- GRDCstatsdt[integerperc_o1961 >= 0.99 & intermittent_o1961 == 1, GRDC_NO]
 
   #---------- Check flags in winter IR
   plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir)
