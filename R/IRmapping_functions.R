@@ -220,7 +220,7 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
 }
 
 #------ plotGSIMtimeseries ----------------------
-plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL) {
+plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366) {
   #Read and format discharge records
   gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
     .[!is.na(MEAN),] %>%
@@ -234,12 +234,21 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL) {
   #Plot time series
   qtiles <- gaugetab[, quantile(union(MIN, MAX), probs=seq(0, 1, 0.1))]
 
-  rawplot <- ggplot(gaugetab, aes(x=date, y=MEAN)) +
+  rawplot <- ggplot(gaugetab[missingdays < maxgap,], aes(x=date, y=MEAN)) +
     geom_line(color='#045a8d', size=1, alpha=1/3) +
-    geom_point(color='#045a8d', size=1, alpha=1/2) +
+    geom_point(data=gaugetab[(missingdays < maxgap) & (MEAN>0),],
+               color='#045a8d', size=1, alpha=1/2) +
+    geom_point(data=gaugetab[(missingdays < maxgap) & (MEAN==0),],
+               color='red', size=1, alpha=1/2) +
     geom_ribbon(aes(ymin = ribbonlow, ymax = ribbonhigh), color='grey', alpha=1/3) +
-    geom_point(aes(y = MIN), color='black', alpha=1/2) +
-    geom_point(aes(y = MAX), color='black', alpha=1/2) +
+    geom_point(data=gaugetab[(missingdays < maxgap) & (MIN>0),],
+               aes(y = MIN), color='black', alpha=1/2) +
+    geom_point(data=gaugetab[(missingdays < maxgap) & (MIN==0),],
+               aes(y = MIN), color='darkred', alpha=1/2) +
+    geom_point(data=gaugetab[(missingdays < maxgap) & (MAX>0),],
+               aes(y = MAX), color='black', alpha=1/2) +
+    geom_point(data=gaugetab[(missingdays < maxgap) & (MAX==0),],
+               aes(y = MAX), color='purple', alpha=1/2) +
     scale_y_sqrt(breaks=qtiles, labels=qtiles) +
     scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
     labs(y='Discharge (m3/s)',
@@ -2239,7 +2248,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
                            inp_resdir, maxgap) {
   GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
 
-  #Create output directory
+  #Create output directory for IRs
   resdir_GRDCirplots <- file.path(inp_resdir,
                                     paste0('GRDCir_rawplots_',
                                            format(Sys.Date(), '%Y%m%d')))
@@ -2256,6 +2265,49 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
                                                      paste0(GRDC_NO, '.png')),
                                  maxgap=maxgap
               ), by=GRDC_NO]
+
+  #Create output directory for non IRs
+  resdir_GRDCperplots <- file.path(inp_resdir,
+                                  paste0('GRDCper_rawplots_',
+                                         format(Sys.Date(), '%Y%m%d')))
+  if (!(dir.exists(resdir_GRDCperplots))) {
+    print(paste0('Creating ', resdir_GRDCperplots ))
+    dir.create(resdir_GRDCperplots )
+  }
+
+  GRDCstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
+                (get(paste0('intermittent_o', yearthresh)) == 0),
+              plotGRDCtimeseries(.SD,
+                                 outpath = file.path(resdir_GRDCperplots,
+                                                     paste0(GRDC_NO, '.png')),
+                                 maxgap=maxgap
+              ), by=GRDC_NO]
+
+
+}
+
+#------ plot_GSIMirs -------------
+plot_GSIMirs <- function(in_GSIMgaugestats, yearthresh,
+                           inp_resdir, maxgap) {
+  GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
+
+  #Create output directory for IRs
+  resdir_GSIMirplots <- file.path(inp_resdir,
+                                  paste0('GSIMir_rawplots_',
+                                         format(Sys.Date(), '%Y%m%d')))
+  if (!(dir.exists(resdir_GSIMirplots))) {
+    print(paste0('Creating ', resdir_GSIMirplots ))
+    dir.create(resdir_GSIMirplots )
+  }
+
+  #Plot
+  GSIMstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
+                (get(paste0('intermittent_o', yearthresh)) == 1),
+              plotGSIMtimeseries(.SD,
+                                 outpath = file.path(resdir_GSIMirplots,
+                                                     paste0(gsim_no, '.png')),
+                                 maxgap=maxgap
+              ), by=gsim_no]
 }
 
 #------ analyze_gaugeir ----------------------------
@@ -2339,8 +2391,8 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
   GRDCtoremove_allinteger <- GRDCstatsdt[integerperc_o1961 >= 0.99 & intermittent_o1961 == 1, GRDC_NO]
 
-  #Possible outliers from examining plots of
-  GRDCtoremove_artifacts <- c(#1104800, #Keep
+  #Outliers from examining plots of ir time series (those that were commented out were initially considered)
+  GRDCtoremove_irartifacts <- c(#1104800, #Keep
     1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
     1159302, #Anomalous zero values
     1159303, #weird patterns, isolated 0s, sudden jumps and capped at 77
@@ -2503,6 +2555,12 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   # checkno %in% GRDCtoremove_allinteger #Check whether all integers
   # in_gaugep[in_gaugep$GRDC_NO==checkno & !is.na(in_gaugep$GRDC_NO), "dor_pc_pva"] #check DOR
   # GRDCstatsdt[GRDC_NO == checkno, integerperc_o1961] #Check % integers
+
+  #Outliers from examining plots of perennial time series (those that were commented out were initially considered)
+  #Try to find those whose low flow plateaus could be 0s and those whose perennial character is dam-driven
+  GRDCtoremove_pereartifacts <- c(
+
+  )
 
   #---------- Check flags in winter IR
   plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir)

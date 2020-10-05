@@ -68,7 +68,17 @@ plan <- drake_plan(
                                in_gaugep = gaugep,
                                monthsel = NULL, #Other arguments in function
                                mdurthresh = 1,
-                               .progress = TRUE)
+                               .progress = TRUE),
+
+  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+                             yearthresh = 1961,
+                             inp_resdir = path_resdir,
+                             maxgap = 20),
+
+  GSIMplots = plot_GSIMirs(in_GSIMgaugestats = GSIMgaugestats,
+                           yearthresh = 1961,
+                           inp_resdir = path_resdir,
+                           maxgap = 20)
 
   # gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
   #                                            in_GSIMgaugestats = GSIMgaugestats,
