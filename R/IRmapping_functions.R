@@ -261,24 +261,36 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL) {
 #------ checkGRDCzeroes --------
 #Function to plot and subset two weeks on each side of every zero-flow period in record
 checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
-                            maxgap, in_scales='free_x') {
+                            maxgap, in_scales='free_x', labelvals) {
   check <- readformatGRDC(GRDCstatsdt[GRDC_NO ==  in_GRDC_NO, path]) %>%
     flagGRDCoutliers %>%
     .[, dates := as.Date(dates)] %>%
     .[!is.na(Original), missingdays := diny(year)-.N, by= 'year'] %>%
-    .[missingdays < maxgap,]
-  zeroes <- check[unique(unlist(
-    lapply(which(Original==0), function(i) seq(max(0, i-period), i+period)))),]
+    .[missingdays < maxgap,] %>%
+    merge(check[, list(dates=seq(min(dates), max(dates), by='day'))],
+          by='dates', all.x=T, all.y=T)
+
+  checkdates <- unique(do.call("c",
+                               lapply(
+                                 as.Date(check[Original==0, dates]),
+                                 function(i) seq.Date(i-period, i+period, by='day'))))
+
+  zeroes <- check[dates %in% checkdates,]
   zeroes[, zerogrp := rleid(round(difftime(dates, lag(dates))))] %>%
     .[, grpN := .N, by=zerogrp]
-  print(
-    plotGRDCtimeseries(zeroes[grpN > 1 & year > yearthresh,], outpath=NULL, maxgap=maxgap) +
-      scale_x_date(breaks='1 month') +
-      geom_text(data=zeroes[grpN > 1 & Original >0,],
-                aes(label=Original),
-                vjust=1, alpha=1/2) +
-      facet_wrap(~zerogrp, scales=in_scales)
-  )
+
+  p <- plotGRDCtimeseries(zeroes[grpN > 1 & year > yearthresh,],
+                     outpath=NULL, maxgap=maxgap) +
+    scale_y_sqrt() +
+    scale_x_date(breaks='1 month') +
+    facet_wrap(~zerogrp, scales=in_scales)
+
+  if (labelvals == T) {
+    p <- p + geom_text(data=zeroes[grpN > 1 & Original >0,],
+                       aes(label=Original), vjust=1, alpha=1/2)
+  }
+
+  print(p)
   return(zeroes)
 }
 
@@ -2324,123 +2336,173 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   ### Analyze GRDC data ####################################
   GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
 
-
-  check <- checkGRDCzeroes(
-    GRDCstatsdt, in_GRDC_NO=1159325, period=15, yearthresh=1961,
-    maxgap=20, in_scales='free_x')
-  1134500 %in% GRDCtoremove_allinteger
+  #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
+  GRDCtoremove_allinteger <- GRDCstatsdt[integerperc_o1961 >= 0.99 & intermittent_o1961 == 1, GRDC_NO]
 
   #Possible outliers from examining plots of
-  c(#1104800, #Keep
+  GRDCtoremove_artifacts <- c(#1104800, #Keep
     1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
     1159302, #Anomalous zero values
     1159303, #weird patterns, isolated 0s, sudden jumps and capped at 77
     #1159320, #0 values for the first 14 years but doesn't affect post-1961
-    #1159325, #0 values for most record. maybe episodic
-    1159510, #0 values for most record, seems capped when there is flow. turns to no data later
-    1159512, #0 values for first 4 years, some missing data
-    1159520, #values seem capped after 1968
-    1160101, #sudden ups and downs
-    1160310, #Only at the beginning of record
+    #1159325, #0 values for most record. probably episodic and due to series of agricultural ponds
+    1159510, #0 values for most record, on same segment as 1159511 but weird record, remove.
+    #1159512, #0 values for first 4 years. Otherwise no real reason to doubt.
+    #1159520, #values seem capped after 1968, otherwise seem fine. Could just be rating curve
+    1160101, #0 values are erroneous (goes from 1-10 m3/s to 0 then right back up )
+    1160310, #Only at the beginning of record. Now regulated. Probably dried because of dam building or natural regime
     1160340, #pretty definitely erroneous. Missing data must have been labeled as 0.
-    1160378, #Strange patterns, maybe downstream of dam?
-    1160420, #decreases to 0 appear a bit sudden
-    1160427, #0s at beginning of record, must be missing
+    #1160378, #just downstream of dam. reservoir fully dry on satellite imagery, so keep as intermittent even when not regulated
+    #1160420, #decreases to 0 appear a bit sudden but ok
+    1160427, #0s at beginning of record, must be missing. Wouldn't be considered intermittent without that.
     1160435, #discard. 0s are mostly missing data. unreliable
     1160440, #only 0 values
-    1160470, #Maybe discard. change of rating curve in 1947, mostly missing data until 1980 but seemingly truly intermittent
-    1160510, #sudden shift in regime 1974. maybe change in bed morphology or dam building
+    1160470, #Maybe discard. change of rating curve in 1947, mostly missing data until 1980 but truly intermittent based on imagery
+    #1160510, #sudden shift in regime 1974. maybe change in bed morphology or dam building
     1160511, #unreliable, remove
-    1160540, #only 0 - nodata for first 15 years. seemingly good data post 1979. Keep.
-    1160580, #change of regime post-1971 from intermittent to perennial. not sure why
-    1160635, #0 values post-1985 seem abrupt
-    1160650, #0 values seem like outliers
-    1160670, #many 0 values look like outliers
-    1160675, #many 0 values look like outliers
+    #1160540, #only 0 - nodata for first 15 years. seemingly good data post 1979. Keep.
+    #1160580, #change of regime post-1974 from intermittent to perennial. not sure why. on same river as 1160510
+    #1160635, #0 values post-1985 seem abrupt but enough values otherwise to make it intermittent
+    1160650, #0 values are outliers
+    1160670, #0 values are outliers due to dam just upstream
+    #1160675, #Some outliers but otherwise most 0 values seem believable
     1160701, #0 values look like outliers
-    1160756, #0 values look like outliers
+    1160756, #most 0 values look like outliers
     1160770, #only happened once. maybe outlier zeros
     1160780, #unreliable record. remove
-    1160785, #0 values look like outliers
-    1160795, #0 values look like outliers
-    1160825, #first 2 years of data are 0s — just missing data
-    1160880, #weird patterns
-    1160900, #some 0 values look like outliers
+    #1160785, #some 0 values look like outliers but most seem believable
+    #1160790, #weird record pre 1963 but does not affect much. rating curve must have changed
+    1160795, #most 0 values look like outliers
+    #1160825, #first 2 years of data are 0s, some other outlying 0s but enough believable ones to be intermittent
+    1160840, #only 2 zero values are believable, others are outliers
+    #1160850, #unsure
+    1160880, #outlying 0 values. Tugela river. Perennial
+    1160900, #most 0 values look like outliers
     1160911, #Remove. only one zero-flow vlaues appears right
-    1160971, #check record. several zero-flow values look outliers
+    1160971, #check record. most zero-flow values look outliers.
     1160975, #Remove. unreliable
+    1196100, #Half of the zero-flow values are outliers
     1196102, #Remove, unreliable
+    #1196160, #Some outlying 0 values but most are good
     1197500, #Remove, unreliable
     1197540, #Check, abrupt 0 values. probably remove
     1197591, #Check, abrupt 0 values. probably remove
     1197700, #Check, abrupt 0 values. probably remove
-    1199100, #Check, abrupt 0 values. probably remove
+    #1197740, #several outlying 0 flow values, but most are believable
+    1199100, #Most 0s are outliers
     1199200, #Remove
-    1259800, #Check
-    1494100, #Check, abrupt 0 values. probably remove
+    #1199410, #a few outliers pre-1990 but otherwise good
+    1259800, #Remove, 0 values come from integer-based record #### good example
+    1286690, #Remove, it seems that values were rounded to second decimal
+    1289230, #Change in regime past 1963, only one outlier zero flow value after, remove
+    1428400, #0 values come from integer-based record
+    1434810, #0 values come from integer-based record
+    #1491870, #some outliers but most 0s are believable
+    1494100, #outlier 0s
+    #1496351, #regulated but naturally intermittent
+    1591720, #buggy, some values also look interpolated
+    1591730, #anomalous drops
+    1733600, #0 values come from integer-based record and outlier
     1837410, #Check, abrupt 0 values. probably remove
-    1897550, #Check, abrupt 0 values. probably remove
-    1992600, #Check, abrupt 0 values. probably remove
+    #1837430, #Essentially the same as 1837410. Naturally intermittent before dam
+    #1896501, #Faulty values but intermittent
+    1897550, #outlier 0s
+    1898501, #outlier 0s
+    1992400, #nearly half of 0s are seemingly outliers
+    1992600, #Outlier 0 values
     2549230, #Remove
+    2588500, #Remove
     2588551, #Remove
     2588630, #Remove
-    2588640, #Check, abrupt 0 values. probably remove
-    2588708, ##Check, abrupt 0 values. probably remove
-    2588820, #Check, abrupt 0 values. probably remove
+    2588640, #Remove
+    2588708, #Remove
+    2588820, #Remove
     2589230, #Remove
-    2589370, #Check, abrupt 0 values. probably remove
-    2591801, #Check, abrupt 0 values. probably remove
-    2684450, #Check, abrupt 0 values. probably remove
-    2917100, #Check, change in regime
-    2969081, #Check, abrupt 0 values. probably remove
+    2589370, #Remove
+    2591801, #Remove
+    2694450, #Remove
+    2917100, #Remove
+    2969081, #Remove
+    2999920, #0s come from integer-vased values
     3627900, #Remove
-    3650610, #Check, abrupt 0 values. probably remove
-    3650640, #Check, abrupt 0 values. probably remove
-    3650649, #change of flow regime
-    3650690, #Check, abrupt 0 values. probably regulated by dam?
-    36509278, #Check, probably remove
+    #3650460, #some issues but enough believable intermittent ones
+    3650470, #0s come from integer-based values
+    #3650475, #earlier values pre-1973 are erroneous but post-2002 are valid 0s
+    #3650610, #integers pre-1960s but still intermittent after
+    3650640, #lots of outliers. remove
+    3650649, #change of flow regime due to dam building but intermittent before
+    3650690, #weird values but intermittent
+    3650928, #weird. remove
+    3652135, #some outliers, but enough 0s otherwise
     3844460, #Remove
+    #4101451, #station downstream also has 0s
+    4103700, #zero values are outliers
+    #4113304, #Not super representative of current regime
+    4122150, #just downstream of dam.
+    4148955, #just downstream of dam which made it intermittent. May even be tidally influenced
     4149411, #Remove
-    4151513, #Looks regulated
-    4213905, #Looks regulated
+    #4150605, #just downstream of lwesville dam in Dallas. previously intermittent as well but will be removed anyways as >50% dor
+    #4151513, #Looks regulated but will be removed as > 50% regulated #################### good example for showing effect of regulation
+    4152120, #regulated. intermittency occured right at the building of Alamo Lake on the Bill William
+    4208195, #0s stem from interpolation
+    #4213540, #one outlier, rest is good although occurred only once in 1965..
+    #4213675, #looks funny but just downstream of natural lake
+    4213905, #Regulated. hence the intermittency
     4213911, #Is regulated, remove
-    4214075, ##Check, abrupt 0 values. probably remove
-    4234300, #Check, abrupt 0 values. probably remove. maybe regulated
-    4243610, #Check, abrupt 0 values. probably remove, maybe regulated
-    4351710, #Check, abrupt 0 values. probably remove
-    4355500, #Check, abrupt 0 values. probably remove
+    4214075, ##Remove
+    4234300, #remove. regulated
+    4243610, #remove, regulated ############################ Good example of regulation
+    4351710, #Remove. 0s due to outlier and integer-based values
+    4355500, #Remove. outlier values. regulated
     4357510, #Remove
+    4773050, #look erroneous (going from 140L/s to 0 in one day. must be a rating curve issue)
     5101020, #Remove
     5101101, #Remove
     5101130, #Remove
     5101201, #Remove
-    5101380, #Check, abrupt 0 values.
-    5101381, #Check, abrupt 0 values.
+    #5101290, #valkues before 2000 aren't great. But 0 values post 2000 are believable
+    5101305, #most 0 values are wrong
+    5101380, #Remove
+    5101381, #Remove
     5109110, #Remove
-    5109200, #Remove, interpolations used, not reliable
+    5109200, #Remove, 0 values at beginning, interpolations used, not reliable
     5109230, #Remove
     5109251, #Remove
-    5202140, #Check, abrupt 0 values.
-    5202228, #Check, abrupt 0 values. Looks regulated -- Remove
+    5202140, #Remove
+    5202145, #Most 0s look erroneous
+    5202228, #Regulated? Remove
     5302229, #Remove
     5302251, #Remove
     5302261, #Remove
-    5405046, #looks regulated
-    5405095, #looks regulated
+
+    #5405046, #canal through adelaide - sturt river
+    #5405095, #looks wierd but intermittent it is
     5606130, #Remove
-    5608100, #Check, abrupt 0 values
+    5608100, #Remove
     5803160, #Remove
-    6128220, #Check abrupt 0 value
+    5864500, #Remove. rounded to 10L/s
+    5870100, #remove, rounded to 100L/S
+    6119100, #Remove, rounded to 10L/s
+    #6128220, #Weird. occurred only once but seems believable
     6140700, #Remove, perfect example of what an integer-based record involves
-    6401800, #Remove, Looks like it became regulated
+    6401800, #Remove, became regulated
     6442300, ##Remove, perfect example of what an integer-based record involves
     6444250, #Remove
     6444350, #Remove
     6444400, #Check, abrupt 0 values
+    6935570 #Remove, rounded to 10L/s
   )
 
-  #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
-  GRDCtoremove_allinteger <- GRDCstatsdt[integerperc_o1961 >= 0.99 & intermittent_o1961 == 1, GRDC_NO]
+  #plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == 4101450,])
+
+  #### Check intermittent record
+  # checkno <- 6444400 #GRDC_NO
+  # check <- checkGRDCzeroes( #Check area around 0 values
+  #   GRDCstatsdt, in_GRDC_NO=checkno, period=15, yearthresh=1961,
+  #   maxgap=20, in_scales='free', labelvals = F)
+  # checkno %in% GRDCtoremove_allinteger #Check whether all integers
+  # in_gaugep[in_gaugep$GRDC_NO==checkno & !is.na(in_gaugep$GRDC_NO), "dor_pc_pva"] #check DOR
+  # GRDCstatsdt[GRDC_NO == checkno, integerperc_o1961] #Check % integers
 
   #---------- Check flags in winter IR
   plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir)
@@ -2470,6 +2532,13 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   #
   # plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == ID,], outpath=NULL)
 
+
+  #Before cleaning
+  GRDCtoremove_all <- unique(c(GRDCtoremove_allinteger, GRDCtoremove_artifacts, GRDCtoremove_winterIR))
+
+  GRDCstatsdt[intermittent_o1961 == 1 & totalYears_kept_o1961 >= 10, .N]
+  GRDCstatsdt[intermittent_o1961 == 1 & totalYears_kept_o1961 >= 10 &
+                !(GRDC_NO %in% GRDCtoremove_all), .N]
 
   #----- Check changes in discharge data availability and flow regime over time
   GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_coastalIR,
