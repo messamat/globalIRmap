@@ -177,7 +177,7 @@ flagGRDCoutliers <- function(in_gaugetab) {
 
 #------ plotGRDCtimeseries ----------------------
 plotGRDCtimeseries <- function(GRDCgaugestats_record,
-                               outpath=NULL, maxgap=366) {
+                               outpath=NULL, maxgap = 366,  showmissing = FALSE) {
   #Read and format discharge records
   if (GRDCgaugestats_record[,.N>1] &
       ('Original' %in% names(GRDCgaugestats_record))) {
@@ -186,20 +186,26 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
     gaugetab <- readformatGRDC(GRDCgaugestats_record$path) %>%
       flagGRDCoutliers %>%
       .[, dates := as.Date(dates)] %>%
-      .[!is.na(Original), missingdays := diny(year)-.N, by= 'year'] %>%
-      .[missingdays < maxgap,]
+      .[!is.na(Original), missingdays := diny(year)-.N, by= 'year']
   }
 
   #Plot time series
   qtiles <- union(gaugetab[, min(Original, na.rm=T)],
                   gaugetab[, quantile(Original, probs=seq(0, 1, 0.1), na.rm=T)])
 
-  rawplot <- ggplot(gaugetab, aes(x=dates, y=Original)) +
+  subgaugetab <- gaugetab[missingdays < maxgap,]
+
+  rawplot <- ggplot(subgaugetab[missingdays < maxgap,],
+                    aes(x=dates, y=Original)) +
     geom_line(color='#045a8d', size=1, alpha=1/5) +
-    geom_point(data = gaugetab[flag_mathis == 0 & Original > 0,], color='#045a8d', size=1, alpha=1/3) +
-    geom_point(data = gaugetab[flag_mathis > 0 & Original > 0,], color='green') +
-    geom_point(data = gaugetab[flag_mathis == 0 & Original == 0,], color='red') +
-    geom_point(data = gaugetab[flag_mathis > 0 & Original == 0,], color='black') +
+    geom_point(data = subgaugetab[flag_mathis == 0 & Original > 0,],
+               color='#045a8d', size=1, alpha=1/3) +
+    geom_point(data = subgaugetab[flag_mathis > 0 & Original > 0,],
+               color='green') +
+    geom_point(data = subgaugetab[flag_mathis == 0 & Original == 0,],
+               color='red') +
+    geom_point(data = subgaugetab[flag_mathis > 0 & Original == 0,],
+               color='black') +
     scale_y_sqrt(breaks=qtiles, labels=qtiles) +
     scale_x_date(date_breaks = "2 years", date_labels = "%Y") +
     labs(y='Discharge (m3/s)',
@@ -208,6 +214,11 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust=1),
           axis.text.y = element_text())
+
+  if (showmissing) {
+    rawplot <- rawplot +
+      geom_point(data=gaugetab[missingdays >= maxgap,], color='black', alpha=1/6)
+  }
 
   if (!is.null(outpath)) {
     if (!(file.exists(outpath))) {
@@ -289,7 +300,7 @@ checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
     .[, grpN := .N, by=zerogrp]
 
   p <- plotGRDCtimeseries(zeroes[grpN > 1 & year > yearthresh,],
-                     outpath=NULL, maxgap=maxgap) +
+                     outpath=NULL, maxgap=maxgap, showmissing=T) +
     scale_y_sqrt() +
     scale_x_date(breaks='1 month') +
     facet_wrap(~zerogrp, scales=in_scales)
@@ -2280,7 +2291,8 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
               plotGRDCtimeseries(.SD,
                                  outpath = file.path(resdir_GRDCperplots,
                                                      paste0(GRDC_NO, '.png')),
-                                 maxgap=maxgap
+                                 maxgap=maxgap,
+                                 showmissing = TRUE
               ), by=GRDC_NO]
 
 
@@ -2317,6 +2329,110 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
                             in_gaugep, inp_resdir) {
   ### Analyze GSIM data ####################################
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
+
+  #Outliers from examining plots of ir time series (those that were commented out were initially considered)
+  GSIMtoremove_irartifacts <- c(
+    #'AR_0000014', #maybe regulated --- checked
+    'AT_0000021', #remove
+    'AT_0000026', #remove
+    'AT_0000038', #remove
+    'AT_0000059', #remove
+    'BR_0000557', #inspected - confirmed dry channel visually
+    'BR_0000662', #is regulated -- remove
+    #'BR_0000664', #change of regime, maybe regulated --- but was intermittent before
+    'BR_0000706', #remove
+    'BR_0000717', #remove --regulated intermittency
+    'BR_0000778', #remove, too much missing data
+    'BR_0001104', #remove
+     #'CA_0003473', downstream of natural lake, all good
+     #'CA_0003526', #downstream of lakes, maybe low lake levels
+    'CA_0003544', #already in GRDC and a bit buggy looking
+    'CN_0000004', #remove
+    'CN_0000009', #remove
+    'CN_0000010', #remove
+    'CN_0000012', #remove
+    'CN_0000013', #remove
+    'CN_0000021', #remove
+    'CN_0000022', #remove
+    'CN_0000026', #remove
+    'CN_0000029', #remove
+    'CN_0000038', #remove - got dewatered by dam
+    'CN_0000043', #remove
+    'CN_0000062', #remove
+    #'ES_0000525', #maybe regulated --- check
+    'ES_0000581', #remove
+    'ES_0000660', #remove -- regulated
+    #'ES_0000676', #looks regulated --- but probably intermittent before
+    'ES_0000794', #remove - same as 0000832
+    'ES_0000784', #remove -- same as 'ES_0000785'
+    'ES_0000818', #remove - same as ES_0000785 and ES_0000784 which are not intermittent
+    'ES_0000841', #remove -- regulated
+    'ES_0000958', #remove -- 0s seem erroneous
+    'FI_0000107', #remove -- lake inlet, maybe just become standing water when high water level
+    #'IE_0000014', #downstream of lake -- must be drop in lake levels
+    'IN_0000105', #remove -- downstream of major dams -- no records pre-1968 time of building
+    'IN_0000159', #remove -- regulated, no records before dam
+    'IN_0000280', #remove -- regulated, no records before dam. intermittency started after building of Parambikulam dam
+    #'IN_0000309', #intermittent before building of reservoir in 1988
+    'NA_0000050', #remove, unreliable, 0s and interpolations
+    #'NO_0000018', #checked -- downstream of natural lake. probably water level decrease
+    'NO_0000044', #remove
+    'NO_0000090', #remove
+    'SE_0000058', #remove -- downstream of dam, didn't use to be intermittent. and experiences ice
+    #'US_0001855', #maybe rounded values --- check
+    #'US_0001861', #maybe rounded values --- check
+    #'US_0001868', #maybe rounded avlues --- check
+    'US_0002247', #remove -- regulated -- GRDC 4149415 upstream not intermittent
+    'US_0002248', #remove -- regulated just downstream of 2247
+    'US_0002791', #on usgs website: close proximity to the Ohio River. During periods of high water on the Ohio River, the computed discharge at this site may be incorrectly displayed due to the backwater effect created.
+    #'US_0003591', #maybe rounded values --- check
+    # 'US_0003774', #maybe rounded values --- check
+    # 'US_0003836', #maybe rounded values --- check
+    # 'US_0004023', #maybe rounded values --- check
+    # 'US_0004216', #maybe rounded values --- check
+    # 'US_0004232', #maybe rounded values --- check
+    # 'US_0004658', #maybe rounded values --- check
+    'US_0004773', #remove - regulated. no records prior to lake buiding
+    #US_005099, #confirmed dried bed on imagery
+    # 'US_0005161', #maybe rounded values --- check
+    # 'US_0005177', #maybe rounded values --- check
+    #'US_0005303', #looks fine on usgs website and imagery. just small
+    #'US_0005596', #looks fine, small
+    #'US_0005597', #looks fine, small
+    # 'US_0005622', #maybe rounded values --- check
+    # 'US_0005623', #maybe rounded values --- check
+    # 'US_0005684', #maybe rounded values --- check
+    # 'US_0005687', #maybe rounded values --- check
+    'US_0005732', #remove -- regime shift because of Lake Arcadia
+    #'US_0005859', #maybe rounded values --- check
+    #'US_0005879', #maybe rounded values --- check
+    # 'US_0006073', #maybe rounded values --- check
+    # 'US_0006109', #maybe rounded values --- check
+    # 'US_0006154', #maybe rounded values --- check
+    'US_0006155', #currently regulated but used to be intermittent but same as 6156 so remove
+    #'US_0006156', #currently regulated but used to be intermittent so keep
+    #'US_0006301', #maybe rounded values --- check
+    #'US_0006327', #maybe rounded values --- check
+    #'US_0006387', #maybe rounded values --- check
+    #'US_0006206', #all good, confirmed dry with imagery
+    #'US_0006574', #maybe regulated? ---checked all good
+    #'US_0006975', #maybe rounded values --- check
+    #'US_0006984', #maybe rounded values --- check
+    #'US_0006985', #maybe rounded values --- check
+    #'US_0006986', #maybe rounded values --- check
+    'US_0008607', #regulated. 1978 intermittency started after building reservoir
+    'US_0008687', #regulated. intermittency started after bui;lding reserovir 1935
+    # 'US_0008726', #maybe rounded values --- check
+    # 'US_0008779', #maybe rounded values --- check
+    'ZA_0000008', #remove
+    'ZA_0000084', #remove
+  )
+
+  readformatGSIMmon(
+    GSIMstatsdt[gsim_no == 'US_0000546', path]) %>%
+    .[MIN != 0, min(MIN)]
+
+  plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == 4123300,])
 
   #-----  Check flags in winter IR for GSIM
   plot_winterir(dt = GSIMstatsdt, dbname = 'gsim', inp_resdir = inp_resdir)
@@ -2559,8 +2675,36 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   #Outliers from examining plots of perennial time series (those that were commented out were initially considered)
   #Try to find those whose low flow plateaus could be 0s and those whose perennial character is dam-driven
   GRDCtoremove_pereartifacts <- c(
-
-  )
+    1160331, #remove- Lower plateaus are likely overestimated 0 values
+    #1593100 #checked - clearly not intermittent but really bad quality
+    1593751, #remove - missing values seem to contain intermittency
+    1599111, #remove - maybe going down to 0 in missing data
+    1160788, #remove - looks like plateauing at 0 but rating curve is off
+    1899100, #remove-maybe intermittent now. intermittent last year of record (missing gap)
+    3628200, #remove- lower values may be 0s but rating curve is off
+    3652030, #remove- 0s in missing years and low flows in other years may also be 0s
+    4115225, #remove -looks like it became regulated and may have otherwised become intermittent
+    4146610, #remove- low flows may be 0s but rating curve is off
+    4151801, #remove - regulated and may otherwise go dry Rio Grande
+    4152651, #remove - regulated by blue mesa reservoir, may have been intermittent otherwise ######### good example
+    4208610, #remove - too much missing data but if not would be intermittent ###################good example of that
+    4213055, #remove- too much missing data but if not would be intermittent
+    4213802, #remove - identical to 4213801
+    4214320, #remove - lower values may be 0s and in missing years
+    #4231620, #check -- maybe regulated but would probably otherwise be perennial
+    4362100, #remove = lower values may be 0s and in missing years
+    5606090, #remove - lower values may be 0s
+    56064140, #remove - lower values may be 0s
+    6123630, #remove- lower values may be 0s
+    6233410, #remove -  looks erroneous
+    6335020, #remove - looks identical to 633060
+    6335050, #remove - looks identical to 6335060
+    6337503, #remove -looks heavily regulated. cannot tell whether may have been intermittent before
+    6442100, #remove - identical to 6442600
+    6935146, #remove - looks identical to 6935145
+    6972350, #remove
+    6935600, #remove - identical to 6935145
+    )
 
   #---------- Check flags in winter IR
   plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir)
