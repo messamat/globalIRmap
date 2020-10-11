@@ -1838,7 +1838,7 @@ read_monthlydis <- function(in_path) {
 #' @export
 
 read_gaugep <- function(inp_GRDCgaugep, inp_GSIMgaugep,
-                        inp_riveratlas2, in_monthlydischarge) {
+                        inp_riveratlas2, in_monthlydischarge=NULL) {
   #Import gauge stations
   GRDCgaugep <- st_read(dsn = dirname(inp_GRDCgaugep),
                     layer = basename(inp_GRDCgaugep))
@@ -1877,9 +1877,14 @@ read_gaugep <- function(inp_GRDCgaugep, inp_GSIMgaugep,
                                    all.x=TRUE, all.y=FALSE)
 
   #Merge with WaterGAP downscaled monthly naturalized discharge
-  gaugep_monthlydischarge <- merge(gaugep_attriall, in_monthlydischarge,
-                                   by.x = 'HYRIV_ID', by.y = 'REACH_ID',
-                                   all.x=TRUE, all.y=FALSE)
+  if (!is.null(in_monthlydischarge)) {
+    gaugep_monthlydischarge <- merge(gaugep_attriall, in_monthlydischarge,
+                                     by.x = 'HYRIV_ID', by.y = 'REACH_ID',
+                                     all.x=TRUE, all.y=FALSE)
+  } else {
+    gaugep_monthlydischarge <- gaugep_attriall
+  }
+
 
   return(gaugep_monthlydischarge)
 }
@@ -2425,14 +2430,13 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
     # 'US_0008726', #maybe rounded values --- check
     # 'US_0008779', #maybe rounded values --- check
     'ZA_0000008', #remove
-    'ZA_0000084', #remove
+    'ZA_0000084' #remove
   )
 
-  readformatGSIMmon(
-    GSIMstatsdt[gsim_no == 'US_0000546', path]) %>%
-    .[MIN != 0, min(MIN)]
+  # readformatGSIMmon(
+  #   GSIMstatsdt[gsim_no == 'US_0000546', path]) %>%
+  #   .[MIN != 0, min(MIN)]
 
-  plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == 4123300,])
 
   #-----  Check flags in winter IR for GSIM
   plot_winterir(dt = GSIMstatsdt, dbname = 'gsim', inp_resdir = inp_resdir)
@@ -2703,7 +2707,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
     6442100, #remove - identical to 6442600
     6935146, #remove - looks identical to 6935145
     6972350, #remove
-    6935600, #remove - identical to 6935145
+    6935600  #remove - identical to 6935145
     )
 
   #---------- Check flags in winter IR
@@ -2736,14 +2740,18 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 
 
   #Before cleaning
-  GRDCtoremove_all <- unique(c(GRDCtoremove_allinteger, GRDCtoremove_artifacts, GRDCtoremove_winterIR))
+  GRDCtoremove_all <- unique(c(GRDCtoremove_allinteger,
+                               GRDCtoremove_irartifacts,
+                               GRDCtoremove_pereartifacts,
+                               GRDCtoremove_winterIR))
 
   GRDCstatsdt[intermittent_o1961 == 1 & totalYears_kept_o1961 >= 10, .N]
   GRDCstatsdt[intermittent_o1961 == 1 & totalYears_kept_o1961 >= 10 &
                 !(GRDC_NO %in% GRDCtoremove_all), .N]
 
   #----- Check changes in discharge data availability and flow regime over time
-  GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_coastalIR,
+  GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_irartifacts,
+                                                     GSIMtoremove_coastalIR,
                                                      GSIMtoremove_winterIR)),]
   mvars <- c('intermittent_o1800',
              'intermittent_o1961',
@@ -2760,7 +2768,10 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 
 
   #----- Check changes in discharge data availability and flow regime over time
-  GRDCstatsdt_clean <- GRDCstatsdt[!(GRDC_NO %in% GRDCtoremove_winterIR),]
+  GRDCstatsdt_clean <- GRDCstatsdt[!(GRDC_NO %in% c(GRDCtoremove_allinteger,
+                                                    GRDCtoremove_irartifacts,
+                                                    GRDCtoremove_pereartifacts,
+                                                    GRDCtoremove_winterIR)),]
 
   alluv_formatGRDC <- melt(GRDCstatsdt_clean,
                            id.vars = c('GRDC_NO',
@@ -2876,7 +2887,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                                    '_CMS')
 
   predcols<- c(
-    monthlydischarge_preds,
+    #monthlydischarge_preds,
     'UPLAND_SKM',
     'dis_m3_pyr',
     'dis_m3_pmn',
@@ -2886,6 +2897,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'run_mm_cyr',
     'runc_ix_cyr', #runoff coefficient (runoff/precipitation)
     'sdis_ms_uyr', #specific discharge
+    'sdis_ms_umn',
     'inu_pc_umn',
     'inu_pc_umx',
     'inu_pc_cmn',
@@ -2944,62 +2956,62 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'slt_pc_uav',
     'snd_pc_cav',
     'snd_pc_uav',
-    'pre_mm_c01',
-    'pre_mm_c02',
-    'pre_mm_c03',
-    'pre_mm_c04',
-    'pre_mm_c05',
-    'pre_mm_c06',
-    'pre_mm_c07',
-    'pre_mm_c08',
-    'pre_mm_c09',
-    'pre_mm_c10',
-    'pre_mm_c11',
-    'pre_mm_c12',
-    'pre_mm_u01',
-    'pre_mm_u02',
-    'pre_mm_u03',
-    'pre_mm_u04',
-    'pre_mm_u05',
-    'pre_mm_u06',
-    'pre_mm_u07',
-    'pre_mm_u08',
-    'pre_mm_u09',
-    'pre_mm_u10',
-    'pre_mm_u11',
-    'pre_mm_u12',
+    # 'pre_mm_c01',
+    # 'pre_mm_c02',
+    # 'pre_mm_c03',
+    # 'pre_mm_c04',
+    # 'pre_mm_c05',
+    # 'pre_mm_c06',
+    # 'pre_mm_c07',
+    # 'pre_mm_c08',
+    # 'pre_mm_c09',
+    # 'pre_mm_c10',
+    # 'pre_mm_c11',
+    # 'pre_mm_c12',
+    # 'pre_mm_u01',
+    # 'pre_mm_u02',
+    # 'pre_mm_u03',
+    # 'pre_mm_u04',
+    # 'pre_mm_u05',
+    # 'pre_mm_u06',
+    # 'pre_mm_u07',
+    # 'pre_mm_u08',
+    # 'pre_mm_u09',
+    # 'pre_mm_u10',
+    # 'pre_mm_u11',
+    # 'pre_mm_u12',
     'pet_mm_cyr',
     'pet_mm_uyr',
-    'cmi_ix_cyr',
-    'cmi_ix_uyr',
-    'cmi_ix_cmn',
-    'cmi_ix_umn',
-    'cmi_ix_cvar',
-    'cmi_ix_uvar',
-    'cmi_ix_c01',
-    'cmi_ix_c02',
-    'cmi_ix_c03',
-    'cmi_ix_c04',
-    'cmi_ix_c05',
-    'cmi_ix_c06',
-    'cmi_ix_c07',
-    'cmi_ix_c08',
-    'cmi_ix_c09',
-    'cmi_ix_c10',
-    'cmi_ix_c11',
-    'cmi_ix_c12',
-    'cmi_ix_u01',
-    'cmi_ix_u02',
-    'cmi_ix_u03',
-    'cmi_ix_u04',
-    'cmi_ix_u05',
-    'cmi_ix_u06',
-    'cmi_ix_u07',
-    'cmi_ix_u08',
-    'cmi_ix_u09',
-    'cmi_ix_u10',
-    'cmi_ix_u11',
-    'cmi_ix_u12',
+    # 'cmi_ix_cyr',
+    # 'cmi_ix_uyr',
+    # 'cmi_ix_cmn',
+    # 'cmi_ix_umn',
+    # 'cmi_ix_cvar',
+    # 'cmi_ix_uvar',
+    # 'cmi_ix_c01',
+    # 'cmi_ix_c02',
+    # 'cmi_ix_c03',
+    # 'cmi_ix_c04',
+    # 'cmi_ix_c05',
+    # 'cmi_ix_c06',
+    # 'cmi_ix_c07',
+    # 'cmi_ix_c08',
+    # 'cmi_ix_c09',
+    # 'cmi_ix_c10',
+    # 'cmi_ix_c11',
+    # 'cmi_ix_c12',
+    # 'cmi_ix_u01',
+    # 'cmi_ix_u02',
+    # 'cmi_ix_u03',
+    # 'cmi_ix_u04',
+    # 'cmi_ix_u05',
+    # 'cmi_ix_u06',
+    # 'cmi_ix_u07',
+    # 'cmi_ix_u08',
+    # 'cmi_ix_u09',
+    # 'cmi_ix_u10',
+    # 'cmi_ix_u11',
+    # 'cmi_ix_u12',
     'ari_ix_cav',
     'ari_ix_uav',
     'wloss_pc_cav',
@@ -3016,44 +3028,45 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'wseas_pc_uav',
     'wperm_pc_uav',
     'wfresh_pc_uav',
-    'bio1_dc_cav',
-    'bio2_dc_cav',
-    'bio3_dc_cav',
-    'bio4_dc_cav',
-    'bio5_dc_cav',
-    'bio6_dc_cav',
-    'bio7_dc_cav',
-    'bio8_dc_cav',
-    'bio9_dc_cav',
-    'bio10_dc_cav',
-    'bio11_dc_cav',
-    'bio12_mm_cav',
-    'bio13_mm_cav',
-    'bio14_mm_cav',
-    'bio15_mm_cav',
-    'bio16_mm_cav',
-    'bio17_mm_cav',
-    'bio18_mm_cav',
-    'bio19_mm_cav',
+    # 'bio1_dc_cav',
+    # 'bio2_dc_cav',
+    # 'bio3_dc_cav',
+    # 'bio4_dc_cav',
+    # 'bio5_dc_cav',
+    # 'bio6_dc_cav',
+    # 'bio7_dc_cav',
+    # 'bio8_dc_cav',
+    # 'bio9_dc_cav',
+    # 'bio10_dc_cav',
+    # 'bio11_dc_cav',
+    # 'bio12_mm_cav',
+    # 'bio13_mm_cav',
+    # 'bio14_mm_cav',
+    # 'bio15_mm_cav',
+    # 'bio16_mm_cav',
+    # 'bio17_mm_cav',
+    # 'bio18_mm_cav',
+    # 'bio19_mm_cav',
     'bio1_dc_uav',
     'bio2_dc_uav',
-    'bio3_dc_uav',
+    #'bio3_dc_uav',
     'bio4_dc_uav',
-    'bio5_dc_uav',
-    'bio6_dc_uav',
+    #'bio5_dc_uav',
+    #'bio6_dc_uav',
     'bio7_dc_uav',
     'bio8_dc_uav',
     'bio9_dc_uav',
     'bio10_dc_uav',
     'bio11_dc_uav',
     'bio12_mm_uav',
-    'bio13_mm_uav',
+    #'bio13_mm_uav',
     'bio14_mm_uav',
     'bio15_mm_uav',
-    'bio16_mm_uav',
-    'bio17_mm_uav',
-    'bio18_mm_uav',
-    'bio19_mm_uav')
+    #'bio16_mm_uav',
+    'bio17_mm_uav'
+    #'bio18_mm_uav',
+    #'bio19_mm_uav'
+  )
 
   #Check that all columns are in dt
   message(paste(length(predcols[!(predcols %in% names(in_gaugestats))]),
@@ -3105,7 +3118,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                                     'Runoff coefficient catchment Annual average',
                                     'Specific discharge watershed Annual average',
                                     'Specific discharge watershed Annual min',
-                                    paste0('Discharge watershed ', month.name),
+                                    #paste0('Discharge watershed ', month.name),
                                     'Drainage area',
                                     'Groundwater table depth catchment average'),
                           varcode=c('pre_mm_cvar',
@@ -3113,7 +3126,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                                     'ele_pc_rel',
                                     'runc_ix_cyr',
                                     'sdis_ms_uyr', 'sdis_ms_umn',
-                                    monthlydischarge_preds,
+                                    #monthlydischarge_preds,
                                     'UPLAND_SKM',
                                     'gwt_m_cav'
                           )
@@ -3188,14 +3201,14 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Citation = 'Döll et al. 2003'
   )]
 
-  predcols_dt[grepl('DIS_[0-9]{2}.*', varcode), `:=`(
-    Category = 'Hydrology',
-    Attribute= 'Natural Discharge',
-    `Spatial representation`='p',
-    `Temporal/Statistical aggreg.`= gsub('[A-Z_]', '', varcode),
-    Source = 'WaterGAP v2.2',
-    Citation = 'Döll et al. 2003'
-  )]
+  # predcols_dt[grepl('DIS_[0-9]{2}.*', varcode), `:=`(
+  #   Category = 'Hydrology',
+  #   Attribute= 'Natural Discharge',
+  #   `Spatial representation`='p',
+  #   `Temporal/Statistical aggreg.`= gsub('[A-Z_]', '', varcode),
+  #   Source = 'WaterGAP v2.2',
+  #   Citation = 'Döll et al. 2003'
+  # )]
 
   predcols_dt[varcode=='ele_pc_rel', `:=`(
     Category = 'Physiography',
@@ -3212,7 +3225,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     `Spatial representation`='c',
     `Temporal/Statistical aggreg.`='mn/mx',
     Source = 'WorldClim v2 & Global-PET v2',
-    Citation = 'Fick et al. 2017'
+    Citation = 'Fick et al. 2017',
+    varname = 'Climate moisture index catchment monthly mn/mx'
   )]
 
   predcols_dt[varcode=='cmi_ix_uvar', `:=`(
@@ -3221,7 +3235,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     `Spatial representation`='u',
     `Temporal/Statistical aggreg.`='mn/mx',
     Source = 'WorldClim v2 & Global-PET v2',
-    Citation = 'Fick et al. 2017'
+    Citation = 'Fick et al. 2017',
+    varname = 'Climate moisture index watershed monthly mn/mx'
   )]
 
   predcols_dt[varcode=='gwt_m_cav', `:=`(
@@ -3312,13 +3327,13 @@ create_baselearners <- function(in_task) {
 
     #Create a conditional inference forest learner with default parameters
     #mtry = sqrt(nvar), fraction = 0.632
-    lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
-                                       ntree = 800,
-                                       fraction = 0.632,
-                                       replace = FALSE,
-                                       alpha = 0.05,
-                                       mtry = round(sqrt(length(in_task$feature_names))),
-                                       predict_type = "prob")
+    # lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
+    #                                    ntree = 800,
+    #                                    fraction = 0.632,
+    #                                    replace = FALSE,
+    #                                    alpha = 0.05,
+    #                                    mtry = round(sqrt(length(in_task$feature_names))),
+    #                                    predict_type = "prob")
 
     #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
     #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
@@ -3335,14 +3350,14 @@ create_baselearners <- function(in_task) {
     #Create graph learners so that oversampling happens systematically upstream of all training
     lrns[['lrn_ranger_overp']] <- mlr3pipelines::GraphLearner$new(
       po_over %>>% lrns[['lrn_ranger']])
-    lrns[['lrn_cforest_overp']] <- mlr3pipelines::GraphLearner$new(
-      po_over %>>% lrns[['lrn_cforest']])
+    # lrns[['lrn_cforest_overp']] <- mlr3pipelines::GraphLearner$new(
+    #   po_over %>>% lrns[['lrn_cforest']])
 
     #Create graph learners so that class weighin happens systematically upstream of all training
-    lrns[['lrn_ranger_weight']] <- mlr3pipelines::GraphLearner$new(
-      po_classweights %>>% lrns[['lrn_ranger']])
-    lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
-      po_classweights  %>>% lrns[['lrn_cforest']])
+    # lrns[['lrn_ranger_weight']] <- mlr3pipelines::GraphLearner$new(
+    #   po_classweights %>>% lrns[['lrn_ranger']])
+    # lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
+    #   po_classweights  %>>% lrns[['lrn_cforest']])
   }
 
 
@@ -3612,7 +3627,7 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
 
 
 #------ rformat_network ------------------
-rformat_network <- function(in_predvars, in_monthlydischarge,
+rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
   cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "LENGTH_KM",
                     in_predvars[, varcode],
@@ -3623,10 +3638,14 @@ rformat_network <- function(in_predvars, in_monthlydischarge,
                     paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
 
   riveratlas <- fread_cols(file_name=inp_riveratlas,
-                           cols_tokeep = cols_toread) %>%
-    merge(as.data.table(in_monthlydischarge),
-          by.x='HYRIV_ID', by.y='REACH_ID') %>%
-    setorder(HYRIV_ID)
+                           cols_tokeep = cols_toread)
+
+  if (!is.null(in_monthlydischarge)) {
+    riveratlas <- merge(riveratlas, as.data.table(in_monthlydischarge),
+                        by.x='HYRIV_ID', by.y='REACH_ID')
+  }
+
+  setorder(riveratlas, HYRIV_ID)
 
   cols_v11 <-  names(fread(inp_riveratlas2, nrows=1)) %>%
     gsub('_11$', '', .)
