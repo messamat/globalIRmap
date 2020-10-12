@@ -1521,8 +1521,8 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
     bmres[, `:=`(selection = 'Predictors',
                  type = 'Classif.')] %>%
       .[, learner_format := dplyr::case_when(
-        task_id == 'inter_basicsp' ~ 'default RF-oversampled-all variables',
-        task_id == 'inter_basicsp_featsel' ~ 'default RF-oversampled-selected variables'
+        task_id == 'inter_class' ~ 'default RF-oversampled-all variables',
+        task_id == 'inter_class_featsel' ~ 'default RF-oversampled-selected variables'
       )]
   } else {
     stop('typecomp is not recognized')
@@ -2325,6 +2325,24 @@ plot_GSIMirs <- function(in_GSIMgaugestats, yearthresh,
                                                      paste0(gsim_no, '.png')),
                                  maxgap=maxgap
               ), by=gsim_no]
+
+
+  #Create output directory for non IRs
+  resdir_GSIMperplots <- file.path(inp_resdir,
+                                   paste0('GSIMper_rawplots_',
+                                          format(Sys.Date(), '%Y%m%d')))
+  if (!(dir.exists(resdir_GSIMperplots))) {
+    print(paste0('Creating ', resdir_GSIMperplots ))
+    dir.create(resdir_GSIMperplots )
+  }
+
+  GSIMstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
+                (get(paste0('intermittent_o', yearthresh)) == 0),
+              plotGSIMtimeseries(.SD,
+                                 outpath = file.path(resdir_GSIMperplots,
+                                                     paste0(gsim_no, '.png')),
+                                 maxgap=maxgap
+              ), by=gsim_no]
 }
 
 #------ analyze_gaugeir ----------------------------
@@ -2984,8 +3002,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'pet_mm_uyr',
     # 'cmi_ix_cyr',
     # 'cmi_ix_uyr',
-    # 'cmi_ix_cmn',
-    # 'cmi_ix_umn',
+    'cmi_ix_cmn',
+    'cmi_ix_umn',
     # 'cmi_ix_cvar',
     # 'cmi_ix_uvar',
     # 'cmi_ix_c01',
@@ -3118,7 +3136,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                                     'Runoff coefficient catchment Annual average',
                                     'Specific discharge watershed Annual average',
                                     'Specific discharge watershed Annual min',
-                                    #paste0('Discharge watershed ', month.name),
+                                    paste0('Discharge watershed ', month.name),
                                     'Drainage area',
                                     'Groundwater table depth catchment average'),
                           varcode=c('pre_mm_cvar',
@@ -3126,7 +3144,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                                     'ele_pc_rel',
                                     'runc_ix_cyr',
                                     'sdis_ms_uyr', 'sdis_ms_umn',
-                                    #monthlydischarge_preds,
+                                    monthlydischarge_preds,
                                     'UPLAND_SKM',
                                     'gwt_m_cav'
                           )
@@ -3274,34 +3292,56 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
   return(predcols_dtnodupli)
 }
 
-#------ create_tasks  -----------------
-create_tasks <- function(in_gaugestats, in_predvars) {
+#------ create_classiftasks  -----------------
+#discharge_interval is inclusive on lower side and exclusive on upper side
+create_taskclassif <- function(in_gaugestats, in_predvars,
+                               id_suffix=NULL, include_discharge = TRUE) {
+
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[, c('intermittent_o1961',in_predvars$varcode, 'X', 'Y'),
                           with=F] %>%
     na.omit
 
+
+
+  if (!include_discharge) {
+    watergapcols <- c('dis_m3_pyr',
+                      'dis_m3_pmn',
+                      'dis_m3_pmx',
+                      'dis_m3_pvar',
+                      'dis_m3_pvaryr',
+                      'run_mm_cyr',
+                      'runc_ix_cyr', #runoff coefficient (runoff/precipitation)
+                      'sdis_ms_uyr', #specific discharge
+                      'sdis_ms_umn')
+    datsel <- datsel[, (watergapcols) := NULL]
+  }
+
   #Basic task for classification
   task_classif <- mlr3spatiotempcv::TaskClassifST$new(
-    id="inter_basicsp",
+    id = paste0("inter_class", id_suffix),
     backend = datsel,
     target = "intermittent_o1961",
     coordinate_names = c("X", "Y"))
 
-  #Basic task for regression without oversampling
-  task_regr <- convert_clastoregrtask(in_task = task_classif,
-                                      in_id = 'inter_regr',
-                                      oversample=FALSE)
-
-  #Basic task for regression with oversampling to have the same number of minority and majority class
-  task_regrover <- convert_clastoregrtask(in_task = task_classif,
-                                          in_id = 'inter_regrover',
-                                          oversample=TRUE)
-  return(list(classif=task_classif, regr=task_regr, regover=task_regrover))
+  return(task_classif)
 }
 
-#------ create_baselearners -----------------
-create_baselearners <- function(in_task) {
+
+#------ create_refrtasks -----
+create_taskregr <- function(in_task_classif, oversample=FALSE) {
+
+  #Get suffix
+  id_suffix <- tail(str_split(in_task_classif$id, '_')[[1]], n=1)
+
+  task_regr <- convert_clastoregrtask(in_task = in_task_classif,
+                                      in_id = paste0('inter_regr', id_suffix),
+                                      oversample=oversample)
+  return(task_regr)
+}
+
+#------ create_classifearners -----------------
+create_classiflearners <- function(in_task) {
   #---------- Create learners --------------------------------------------------
   lrns <- list()
 
@@ -3359,21 +3399,23 @@ create_baselearners <- function(in_task) {
     # lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
     #   po_classweights  %>>% lrns[['lrn_cforest']])
   }
+  return(lrns['lrn_ranger_overp'])
+}
 
 
-  if (inherits(in_task, 'TaskRegr')) {
-    #Create regression learner with maxstat
-    lrns[['lrn_ranger_maxstat']] <- mlr3::lrn('regr.ranger',
-                                              num.trees=800,
-                                              sample.fraction = 0.632,
-                                              min.node.size = 10,
-                                              replace=FALSE,
-                                              splitrule = 'maxstat',
-                                              importance = 'impurity_corrected',
-                                              respect.unordered.factors = 'order')
-  }
+#------ create_regrlearner -------
+create_regrlearners <- function() {
+  #Create regression learner with maxstat
+  outlearner <- mlr3::lrn('regr.ranger',
+                       num.trees=800,
+                       sample.fraction = 0.632,
+                       min.node.size = 10,
+                       replace=FALSE,
+                       splitrule = 'maxstat',
+                       importance = 'impurity_corrected',
+                       respect.unordered.factors = 'order')
 
-  return(lrns)
+  return(outlearner)
 }
 
 #------ set_tuning -----------------
@@ -3454,7 +3496,9 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   return(learnertune)
 }
 
-#------ instantiate resampling ---------------
+(861+121+92+31+4)/(1664+503+54)
+
+#------ set_cvresampling ---------------
 set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
   #repeated_cv or repeated-spcv-coords
   outer_resampling = rsmp(rsmp_id,
@@ -3512,8 +3556,8 @@ dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
   )
 }
 
-#------ combined resample results into benchmark results -------------
-combine_bm <- function(in_resampleresults, out_qs) {
+#------ combined_bm: resample results into benchmark results -------------
+combine_bm <- function(in_resampleresults, out_qs, id_suffix = NULL) {
   #When tried as_benchmark_result.ResampleResult, got "Error in setcolorder(data, slots) :
   # x has some duplicated column name(s): uhash. Please remove or rename the
   # duplicate(s) and try again.". SO use this instead
@@ -3544,9 +3588,13 @@ combine_bm <- function(in_resampleresults, out_qs) {
   } else {
     warning('You provided only one resample result to combine_bm,
             simply returning output from as_benchmark_result...')
-    bmrbase = BenchmarkResult$new(in_resampleresults[[1]])
+    bmrbase = as_benchmark_result(in_resampleresults[[1]])
   }
   print('Done combining, now writing to qs...')
+  if (!is.null(id_suffix)) {
+    out_qs <- paste0(gsub('[.]qs', '', out_qs), id_suffix, '.qs')
+  }
+
   qs::qsave(bmrbase, out_qs)
 
   return(out_qs)
@@ -3577,7 +3625,7 @@ select_features <- function(in_bm, in_lrnid, in_task, pcutoff) {
 }
 
 #------ selecttrain_rf -----------------
-selecttrain_rf <- function(in_rf, in_learnerid, in_taskid,
+selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   #Prepare autotuner for full training
   if (inherits(in_rf, 'ResampleResult')) {

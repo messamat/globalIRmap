@@ -3,6 +3,8 @@ library(drake)
 r_make()
 
 drake::vis_drake_graph(plan, targets_only = T)
+predict_runtime(plan, from_scratch = TRUE) #Predict how long it would take to re-run plan
+
 
 cached()
 drake::drake_cache("C:/globalIRmap/src/globalIRmap/.drake")$unlock()
@@ -21,7 +23,6 @@ bmcheck_classif <- cache$get_value(history_last[target=='bm_checked_rfbm_classif
 bmcheck_regr<- cache$get_value(history_last[target=='bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr', hash])
 rfeval_featsel <- cache$get_value(history_last[target=='rfeval_featsel',hash])
 rftuned <- cache$get_value(history_last[target=='rftuned',hash])
-
 
 library(vctrs)
 
