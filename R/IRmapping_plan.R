@@ -386,7 +386,7 @@ plan <- drake_plan(
       rftuned = c(rftuned_u10, rftuned_o10),
       in_gauges = c(gauges_u10, gauges_o10),
       interthresh = c(interthresh_u10, interthresh_o10),
-      binarg = list(c(0.1, 1, 10), c(100, 10000, 100000)),
+      binarg = list(c(0.1, 1, 10), c(100, 10000, 1000000)),
       .names = c('bin_u10', 'bin_o10')
     )
   )

@@ -36,7 +36,7 @@ preprocess_plan <- drake_plan(
       in_gauges = c(gauges_u10, gauges_o10),
       in_id = '_u10', '_o10',
       map_includedis = c(FALSE, TRUE),
-      .names = c('task_classifu10', 'task_classifo10'),
+      .names = c('tasks_u10', 'tasks_o10'),
       tag_in = task,
       tag_out = size
     )
@@ -52,7 +52,7 @@ preprocess_plan <- drake_plan(
 
 runmodel_plan_basic <- drake_plan(
   baselearners = target(
-    create_baselearners(tasks),
+    create_classiflearners(tasks),
     dynamic = map(tasks)),
 
   #Subdivide the baselearners dynamic targets from 3 to 8
@@ -163,14 +163,6 @@ runmodel_plan_basic <- drake_plan(
 )
 ################################## AMEND PLANS #########################
 library(rlang)
-runmodel_plan_u10 <- runmodel_plan_basic
-runmodel_plan_u10$target <- paste0(runmodel_plan_u10$target, '_u10')
-
-
-target_suffix <- '_u10'
-target_regex <- paste(paste0('(', runmodel_plan_basic$target, '(?=([$].+)*))'),
-                      collapse='|')
-
 rename_arg <- function(arg, in_regex, in_suffix) {
   if (inherits(arg, 'name')) {
     argc <- as.character(arg)
@@ -181,65 +173,85 @@ rename_arg <- function(arg, in_regex, in_suffix) {
       return(as.name(argrep))
     }
   } else if (inherits(arg, 'call')) {
-    rename_call_args(call=arg,
-                     in_regex = target_regex,
-                     in_suffix = target_suffix)
+    argrep <- rename_call_args(call=arg,
+                               in_regex = in_regex,
+                               in_suffix = in_suffix)
+    return(argrep)
   }
 }
 
-########## To continue troubleshot
 rename_call_args <- function(call, in_regex, in_suffix) {
-  args <- rlang::call_args(call)
+  if (inherits(call, 'call')) {
+    args <- rlang::call_args(call)
 
-  args_renamed <- lapply(args, rename_arg,
-                         in_regex=in_regex, in_suffix=in_suffix) %>%
-    plyr::compact()
+    args_renamed <- lapply(args, rename_arg,
+                           in_regex=in_regex, in_suffix=in_suffix)
+    arg_names <- call_args_names(call)
 
-  arg_names <- call_args_names(call)
-  if (any(duplicated(arg_names)) & length(arg_names) == 2) { #If there are duplicate argument names (as in a primitive function like foo$bar)
-    call_modified <- call2(call_fn(call),
-                           args_renamed[[1]],
-                           args_renamed[[2]])
+    if (any(arg_names=="") | any(duplicated(arg_names))) { #If there are duplicate argument names (as in a primitive function like foo$bar)
+      #Keep the original argument if not renamed
+      same_i <- which(unlist(lapply(args_renamed, is.null)))
+      if (length(same_i) > 0) {
+        for (i in same_i) {
+          args_renamed[[i]] <- args[[i]]
+        }
+      }
 
-  } else { #if all argument names are unique
-    call_modified <- rlang::call_modify(call, !!!arg_renamed)
+      #Recreate call
+      call_modified <- call2(call_name(call), !!!args_renamed)
+
+    } else { #if all arguments are named and unique
+      call_modified <- rlang::call_modify(call, !!!plyr::compact(args_renamed))
+    }
+
+    return(call_modified)
+  } else {
+    return(call)
   }
-
-  return(call_modified)
 }
 
-###TRY TO NEST THEM
-bla <- runmodel_plan_u10$command[[3]]
-rename_call_args(call=bla,
-                 in_regex = target_regex,
-                 in_suffix = target_suffix)
+branch_plan <- function(plan, branch_suffix, external_arguments_to_modify=NULL) {
+  plan_modif <- plan
+  target_regex <- paste(paste0('(',
+                               c(plan$target,
+                                 external_arguments_to_modify),
+                               '(?=([$].+)*))$'),
+                        collapse='|')
 
+  plan_modif$target <- paste0(plan_modif$target, branch_suffix)
+  plan_modif$command <- lapply(
+    plan_modif$command, function(command) {
+      print(command)
+      rename_call_args(call=command,
+                       in_regex = target_regex,
+                       in_suffix = branch_suffix)
+    }
+  )
+  plan_modif$dynamic <- lapply(
+    plan_modif$dynamic, function(command) {
+      print(command)
+      rename_call_args(call=command,
+                       in_regex = target_regex,
+                       in_suffix = branch_suffix)
+    }
+  )
 
-#Deal with primitives
-hash <-
-do.call(call_fn(call), list(quote(runmodel_plan_u10), quote(command)))
+  return(plan_modif)
+}
 
+runmodel_plan_u10 <- branch_plan(plan = runmodel_plan_basic,
+                                 branch_suffix = '_u10',
+                                 external_arguments_to_modif = 'tasks')
 
-meh <- list(cha=1)
-call2(call_fn(call)(as.name('meh'), as.name('cha')))
+runmodel_plan_o10 <- branch_plan(plan = runmodel_plan_basic,
+                                 branch_suffix = '_o10',
+                                 external_arguments_to_modif = 'tasks')
 
-call_fn(call)(as.name('meh'), as.name('cha'))
-
-gsub(paste0('seplearners', '(?=([)"$,]|\\[|\\s)))'),
-     '1',
-     runmodel_plan_u10$command[[1]],
-     perl = T
+plan_final <- bind_plans(preprocess_plan,
+                         runmodel_plan_u10,
+                         runmodel_plan_o10
 )
-
-
-#list
-
-# Modify an existing argument
-call_modify(call, na.rm = FALSE)
-#> mean(x, na.rm = FALSE)
-call_modify(call, x = quote(y))
-#> mean(x, na.rm = TRUE, x = y)
-
+drake::vis_drake_graph(plan_final, targets_only = T)
 
 
 runmodel_plan_o10 <- runmodel_plan_basic
@@ -247,5 +259,4 @@ runmodel_plan_o10$target <- paste0(runmodel_plan_u10$target, '_o10')
 
 final_plan <- bind_plans(preprocess_plan, runmodel_plan_u10, runmodel_plan_o10)
 
-drake::vis_drake_graph(final_plan, targets_only = T)
 
