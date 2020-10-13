@@ -3292,18 +3292,15 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
   return(predcols_dtnodupli)
 }
 
-#------ create_classiftasks  -----------------
-#discharge_interval is inclusive on lower side and exclusive on upper side
-create_taskclassif <- function(in_gaugestats, in_predvars,
-                               id_suffix=NULL, include_discharge = TRUE) {
-
+#------ create_tasks  -----------------
+create_tasks <- function(in_gaugestats, in_predvars,
+                         id_suffix=NULL, include_discharge = TRUE) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
   datsel <- in_gaugestats[, c('intermittent_o1961',in_predvars$varcode, 'X', 'Y'),
                           with=F] %>%
     na.omit
 
-
-
+  #Remove WaterGAP variables if include_discharge == TRUE
   if (!include_discharge) {
     watergapcols <- c('dis_m3_pyr',
                       'dis_m3_pmn',
@@ -3319,29 +3316,26 @@ create_taskclassif <- function(in_gaugestats, in_predvars,
 
   #Basic task for classification
   task_classif <- mlr3spatiotempcv::TaskClassifST$new(
-    id = paste0("inter_class", id_suffix),
+    id=  paste0("inter_class", id_suffix),
     backend = datsel,
     target = "intermittent_o1961",
     coordinate_names = c("X", "Y"))
 
-  return(task_classif)
-}
-
-
-#------ create_refrtasks -----
-create_taskregr <- function(in_task_classif, oversample=FALSE) {
-
-  #Get suffix
-  id_suffix <- tail(str_split(in_task_classif$id, '_')[[1]], n=1)
-
-  task_regr <- convert_clastoregrtask(in_task = in_task_classif,
+  #Basic task for regression without oversampling
+  task_regr <- convert_clastoregrtask(in_task = task_classif,
                                       in_id = paste0('inter_regr', id_suffix),
-                                      oversample=oversample)
-  return(task_regr)
+                                      oversample=FALSE)
+
+  #Basic task for regression with oversampling to have the same number of minority and majority class
+  task_regrover <- convert_clastoregrtask(in_task = task_classif,
+                                          in_id = paste0('inter_regrover',
+                                                         id_suffix),
+                                          oversample=TRUE)
+  return(list(classif=task_classif, regr=task_regr, regover=task_regrover))
 }
 
-#------ create_classifearners -----------------
-create_classiflearners <- function(in_task) {
+#------ create_baselearners -----------------
+create_baselearners <- function(in_task) {
   #---------- Create learners --------------------------------------------------
   lrns <- list()
 
@@ -3367,13 +3361,13 @@ create_classiflearners <- function(in_task) {
 
     #Create a conditional inference forest learner with default parameters
     #mtry = sqrt(nvar), fraction = 0.632
-    # lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
-    #                                    ntree = 800,
-    #                                    fraction = 0.632,
-    #                                    replace = FALSE,
-    #                                    alpha = 0.05,
-    #                                    mtry = round(sqrt(length(in_task$feature_names))),
-    #                                    predict_type = "prob")
+    lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
+                                       ntree = 800,
+                                       fraction = 0.632,
+                                       replace = FALSE,
+                                       alpha = 0.05,
+                                       mtry = round(sqrt(length(in_task$feature_names))),
+                                       predict_type = "prob")
 
     #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
     #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
@@ -3390,32 +3384,30 @@ create_classiflearners <- function(in_task) {
     #Create graph learners so that oversampling happens systematically upstream of all training
     lrns[['lrn_ranger_overp']] <- mlr3pipelines::GraphLearner$new(
       po_over %>>% lrns[['lrn_ranger']])
-    # lrns[['lrn_cforest_overp']] <- mlr3pipelines::GraphLearner$new(
-    #   po_over %>>% lrns[['lrn_cforest']])
+    lrns[['lrn_cforest_overp']] <- mlr3pipelines::GraphLearner$new(
+      po_over %>>% lrns[['lrn_cforest']])
 
     #Create graph learners so that class weighin happens systematically upstream of all training
-    # lrns[['lrn_ranger_weight']] <- mlr3pipelines::GraphLearner$new(
-    #   po_classweights %>>% lrns[['lrn_ranger']])
-    # lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
-    #   po_classweights  %>>% lrns[['lrn_cforest']])
+    lrns[['lrn_ranger_weight']] <- mlr3pipelines::GraphLearner$new(
+      po_classweights %>>% lrns[['lrn_ranger']])
+    lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
+      po_classweights  %>>% lrns[['lrn_cforest']])
   }
-  return(lrns['lrn_ranger_overp'])
-}
 
 
-#------ create_regrlearner -------
-create_regrlearners <- function() {
-  #Create regression learner with maxstat
-  outlearner <- mlr3::lrn('regr.ranger',
-                       num.trees=800,
-                       sample.fraction = 0.632,
-                       min.node.size = 10,
-                       replace=FALSE,
-                       splitrule = 'maxstat',
-                       importance = 'impurity_corrected',
-                       respect.unordered.factors = 'order')
+  if (inherits(in_task, 'TaskRegr')) {
+    #Create regression learner with maxstat
+    lrns[['lrn_ranger_maxstat']] <- mlr3::lrn('regr.ranger',
+                                              num.trees=800,
+                                              sample.fraction = 0.632,
+                                              min.node.size = 10,
+                                              replace=FALSE,
+                                              splitrule = 'maxstat',
+                                              importance = 'impurity_corrected',
+                                              respect.unordered.factors = 'order')
+  }
 
-  return(outlearner)
+  return(lrns)
 }
 
 #------ set_tuning -----------------
@@ -3557,7 +3549,7 @@ dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
 }
 
 #------ combined_bm: resample results into benchmark results -------------
-combine_bm <- function(in_resampleresults, out_qs, id_suffix = NULL) {
+combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
   #When tried as_benchmark_result.ResampleResult, got "Error in setcolorder(data, slots) :
   # x has some duplicated column name(s): uhash. Please remove or rename the
   # duplicate(s) and try again.". SO use this instead
@@ -3591,8 +3583,10 @@ combine_bm <- function(in_resampleresults, out_qs, id_suffix = NULL) {
     bmrbase = as_benchmark_result(in_resampleresults[[1]])
   }
   print('Done combining, now writing to qs...')
-  if (!is.null(id_suffix)) {
-    out_qs <- paste0(gsub('[.]qs', '', out_qs), id_suffix, '.qs')
+  if (!is.null(write_qs)) {
+    out_qs <- file.path(inp_resdir,
+                        paste0('combine_bm', format(Sys.Date(), '%Y%m%d%H%M%s'))
+    )
   }
 
   qs::qsave(bmrbase, out_qs)
@@ -3709,6 +3703,57 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
   return(riveratlas_format)
 }
 
+#------ make_gaugepreds -------------
+make_gaugepreds <- function(in_rftuned, in_gaugestats, in_predvars,
+                            CVpreds = FALSE) {
+
+  #Get binary classification threshold
+  if (inherits(interthresh, 'data.table')) {
+    interthresh <- interthresh[learner == in_learnerid, thresh]
+  }
+
+  #Get fully trained predictions
+  gpreds <- in_rftuned$rf_inner$predict(in_rftuned$task)
+  gpreds$set_threshold(1-interthresh)
+
+  #Get average predictions for oversampled rows and across repetitions
+  gpreds <-  rsmp_res$prediction()$set_threshold(1-interthresh) %>%
+    as.data.table %>%
+    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+    setorder(row_id)
+
+
+
+    # ---- Output gauge predictions as points ----
+    in_gaugestatsformat <- na.omit(in_gaugestats,
+                                   c('intermittent_o1961',
+                                     in_predvars$varcode, 'X', 'Y'))[
+                                       , ':='(IRpredprob = gpreds$prob[,2],
+                                              IRpredcat = gpreds$response)] %>%
+      merge(in_gaugeIPR, by='GAUGE_NO')
+
+    cols_toditch<- colnames(in_gaugestatsformat)[
+      !(colnames(in_gaugestatsformat) %in% c('GAUGE_NO', 'geometry'))]
+
+  }
+
+  #Get outer resampling of interest
+  rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+
+
+
+
+
+  predattri <- cbind(na.omit(in_gaugestats,
+                             c('intermittent_o1961',in_predvars$varcode, 'X', 'Y')),
+                     gaugepred) %>%
+    .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
+             yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
+
+
+}
+
+
 #------ write_preds -----------------
 write_preds <- function(in_gaugep, in_gaugestats,
                         in_network, in_rftuned, in_predvars, in_gaugeIPR,
@@ -3729,6 +3774,7 @@ write_preds <- function(in_gaugep, in_gaugestats,
 
   cols_toditch<- colnames(in_gaugestatsformat)[
     !(colnames(in_gaugestatsformat) %in% c('GAUGE_NO', 'geometry'))]
+  ########################################################################
 
   out_gaugep <- base::merge(
     in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
@@ -4129,6 +4175,7 @@ ggpd_bivariate <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
                        interthresh = 0.5, yearthresh, in_learnerid = NULL) {
+  ##############################################################################
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
 
@@ -4137,7 +4184,7 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
     interthresh <- interthresh[learner == in_learnerid, thresh]
   }
 
-  #Get average predictions for oversampled rows
+  #Get average predictions for oversampled rows and across repetitions
   gaugepred <-  rsmp_res$prediction()$set_threshold(1-interthresh) %>%
     as.data.table %>%
     .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
@@ -4148,7 +4195,7 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
                      gaugepred) %>%
     .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
              yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
-
+  ##############################################################################
 
   #Plot numeric variables
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
