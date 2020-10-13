@@ -1495,6 +1495,26 @@ bm_msrtab <- function(bmres) {
   return(moddt)
 }
 
+#------ reset_tuning ----------------------
+reset_tuning <- function(in_autotuner, in_task, in_lrnid = NULL) {
+  if (inherits(in_autotuner, 'list') & !is.null(in_lrnid)) {
+    in_autotuner <- in_autotuner[[
+      which(unlist(lapply(in_autotuner, function(lrn) {lrn$id == in_lrnid})))
+    ]]
+  }
+
+  tuneargs_ini <- in_autotuner$instance_args
+
+  autotuner_new <- set_tuning(in_learner = tuneargs_ini$learner,
+                              in_measure = tuneargs_ini$measure,
+                              nfeatures = length(in_task$feature_names),
+                              insamp_nfolds= tuneargs_ini$resampling$param_set$values$folds,
+                              insamp_neval= tuneargs_ini$terminator$param_set$values$n_evals,
+                              insamp_nbatch= in_autotuner$tuner$param_set$values$batch_size
+  )
+
+  return(autotuner_new)
+}
 #------ format_modelcompdat --------------
 format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2')) {
   if (typecomp == 'classif1') {
@@ -3411,7 +3431,7 @@ create_baselearners <- function(in_task) {
 }
 
 #------ set_tuning -----------------
-set_tuning <- function(in_learner, in_measures, nfeatures,
+set_tuning <- function(in_learner, in_measure, nfeatures,
                        insamp_nfolds, insamp_neval, insamp_nbatch) {
 
   if (is.list(in_learner)) {
@@ -3421,11 +3441,10 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
     prmset <- names(in_lrn$param_set$tags)
-
     tune_rf <- ParamSet$new(list(
       ParamInt$new(grep(".*mtry", prmset, value=T),
-                   lower = floor(nfeatures/5),
-                   upper = floor(nfeatures/2)), #Half number of features
+                   lower = floor(0.1*nfeatures),
+                   upper = floor(0.5*nfeatures)), #Half number of features
       ParamDbl$new(grep(".*fraction", prmset, value=T),
                    lower = 0.2,
                    upper = 0.8)
@@ -3460,12 +3479,16 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   evalsn = mlr3tuning::trm("evals", n_evals = insamp_neval) #termine tuning after insamp_neval rounds
 
   if (in_learner$task_type == 'classif') {
+    if (inherits(in_measure, 'list')) {
+      in_measure <- in_measure$classif
+    }
+
     if (grepl('classif[.]cforest$', in_learner$id)) {
       learnertune <- in_learner
     } else if (grepl('classif[.]ranger$', in_learner$id)) {
       learnertune <- AutoTuner$new(learner= in_learner,
                                    resampling = rcv_rf,
-                                   measure = in_measures$classif,
+                                   measure = in_measure,
                                    search_space = regex_tuneset(in_learner),
                                    terminator = evalsn,
                                    tuner =  tnr("random_search",
@@ -3474,9 +3497,13 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
       stop('The classification learner provided is not configurable with this workflow yet...')
     }
   } else if (in_learner$task_type == 'regr') {
+    if (inherits(in_measure, 'list')) {
+      in_measure <- in_measure$regr
+    }
+
     learnertune <- AutoTuner$new(learner= in_learner,
                                  resampling = rcv_rf,
-                                 measure = in_measures$regr,
+                                 measure = in_measure,
                                  search_space = regex_tuneset(in_learner),
                                  terminator = evalsn,
                                  tuner =  tnr("random_search",
@@ -3488,8 +3515,6 @@ set_tuning <- function(in_learner, in_measures, nfeatures,
   return(learnertune)
 }
 
-(861+121+92+31+4)/(1664+503+54)
-
 #------ set_cvresampling ---------------
 set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
   #repeated_cv or repeated-spcv-coords
@@ -3500,6 +3525,7 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
 
   return(outer_resampling)
 }
+
 
 #------ dynamic_resample ------------------
 #Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
@@ -3516,6 +3542,12 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
   if (inherits(in_learner, 'BenchmarkResult')) {
     print(('BenchmarkResults was provided, getting the learner...'))
     in_learner <- in_learner$learners$learner[[1]]
+  }
+
+  #Make sure autotuner matches task (adjust mtry)
+  if (inherits(in_learner, 'AutoTuner')) {
+    in_learner <- reset_tuning(in_autotuner = in_learner,
+                               in_task = in_task)
   }
 
   if ((in_learner$task_type == 'classif' & type=='classif') |
@@ -3539,13 +3571,13 @@ dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
   #get desired resampled_results/learner
   in_rf <- in_bm$filter(learner_ids = in_lrnid)
 
-  return(
-    dynamic_resample(in_task = in_task,
-                     in_learner = in_rf,
-                     in_resampling = in_resampling,
-                     type = type,
-                     store_models = store_models)
-  )
+  rsmp_out <- dynamic_resample(in_task = in_task,
+                               in_learner = in_rf,
+                               in_resampling = in_resampling,
+                               type = type,
+                               store_models = store_models)
+
+  return(rsmp_out)
 }
 
 #------ combined_bm: resample results into benchmark results -------------
@@ -3585,7 +3617,9 @@ combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
   print('Done combining, now writing to qs...')
   if (!is.null(write_qs)) {
     out_qs <- file.path(inp_resdir,
-                        paste0('combine_bm', format(Sys.Date(), '%Y%m%d%H%M%s'))
+                        paste0('combine_bm',
+                               format(Sys.Date(), '%Y%m%d%H%M%s'),
+                               '.qs')
     )
   }
 
@@ -3646,7 +3680,6 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
     }
   }
 
-
   if (!is.null(insamp_nfolds)) {
     lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
   }
@@ -3704,8 +3737,7 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
 }
 
 #------ make_gaugepreds -------------
-make_gaugepreds <- function(in_rftuned, in_gaugestats, in_predvars,
-                            CVpreds = FALSE) {
+make_gaugepreds <- function(in_rftuned, in_gaugestats, in_predvars) {
 
   #Get binary classification threshold
   if (inherits(interthresh, 'data.table')) {
@@ -3713,72 +3745,50 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_predvars,
   }
 
   #Get fully trained predictions
-  gpreds <- in_rftuned$rf_inner$predict(in_rftuned$task)
-  gpreds$set_threshold(1-interthresh)
+  gpreds_full <- in_rftuned$rf_inner$predict(in_rftuned$task) %>%
+    setorder(row_id)
+  gpreds_full$set_threshold(1-interthresh)
 
-  #Get average predictions for oversampled rows and across repetitions
-  gpreds <-  rsmp_res$prediction()$set_threshold(1-interthresh) %>%
+  #Get average predictions for oversampled rows and across repetitions - simple CV
+  rsmp_res_nosp <- get_outerrsmp(in_rftuned, spatial_rsp=FALSE)
+  gpreds_CV_nosp <-  rsmp_res_nosp$prediction()$set_threshold(1-interthresh) %>%
     as.data.table %>%
     .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
     setorder(row_id)
 
+  #Get average predictions for oversampled rows and across repetitions - spatial CV
+  rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
+  gpreds_CV_sp <-  rsmp_res_nosp$prediction()$set_threshold(1-interthresh) %>%
+    as.data.table %>%
+    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+    setorder(row_id)
 
+  #Format gauge data.table prior to merging
+  datsel <- na.omit(in_gaugestats, c('intermittent_o1961',
+                                     in_predvars$varcode, 'X', 'Y'))
 
-    # ---- Output gauge predictions as points ----
-    in_gaugestatsformat <- na.omit(in_gaugestats,
-                                   c('intermittent_o1961',
-                                     in_predvars$varcode, 'X', 'Y'))[
-                                       , ':='(IRpredprob = gpreds$prob[,2],
-                                              IRpredcat = gpreds$response)] %>%
-      merge(in_gaugeIPR, by='GAUGE_NO')
+  #Merge all predictions
+  datsel[, `:=`(
+    IRpredprob_full = gpreds_full$prob[,2],
+    IRpredcat_full = gpreds_full$response,
+    IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
+    IRpredcat_CVnosp = gpreds_CV_nosp$response,
+    IRpredprob_CVsp = gpreds_CV_sp$prob.1,
+    IRpredcat_CVsp = gpreds_CV_sp$response
+  )]
 
-    cols_toditch<- colnames(in_gaugestatsformat)[
-      !(colnames(in_gaugestatsformat) %in% c('GAUGE_NO', 'geometry'))]
-
-  }
-
-  #Get outer resampling of interest
-  rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-
-
-
-
-
-  predattri <- cbind(na.omit(in_gaugestats,
-                             c('intermittent_o1961',in_predvars$varcode, 'X', 'Y')),
-                     gaugepred) %>%
-    .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
-             yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
-
-
+  return(datsel)
 }
 
 
-#------ write_preds -----------------
-write_preds <- function(in_gaugep, in_gaugestats,
-                        in_network, in_rftuned, in_predvars, in_gaugeIPR,
-                        interthresh = 0.5,
-                        outp_gaugep, outp_riveratlaspred) {
-
-  #####################################################################
-  gpreds <- in_rftuned$rf_inner$predict(in_rftuned$task)
-  gpreds$set_threshold(1-interthresh)
-
-  # ---- Output gauge predictions as points ----
-  in_gaugestatsformat <- na.omit(in_gaugestats,
-                                 c('intermittent_o1961',
-                                   in_predvars$varcode, 'X', 'Y'))[
-    , ':='(IRpredprob = gpreds$prob[,2],
-           IRpredcat = gpreds$response)] %>%
-    merge(in_gaugeIPR, by='GAUGE_NO')
-
-  cols_toditch<- colnames(in_gaugestatsformat)[
-    !(colnames(in_gaugestatsformat) %in% c('GAUGE_NO', 'geometry'))]
-  ########################################################################
+#------ write_gaugepreds -----------------
+write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
+  cols_toditch<- colnames(in_gpredsdt)[
+    !(colnames(in_gpredsdt) %in% c('GAUGE_NO', 'geometry'))]
 
   out_gaugep <- base::merge(
     in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
-    in_gaugestatsformat[, -'geometry', with=F],
+    in_gpredsdt[, -'geometry', with=F],
     by='GAUGE_NO',
     all.x=F)
 
@@ -3787,34 +3797,62 @@ write_preds <- function(in_gaugep, in_gaugestats,
            driver = 'gpkg',
            delete_dsn=T)
 
-  # ----- Make predictions across river network -----
-  #Get rows for which a predictor variable is NA (seecomp_derivedvar for formatting/determining variables)
-  netnoNArows <- in_network[, c(!(.I %in% unique(unlist(
-    lapply(.SD, function(x) which(is.na(x))))))),
-    .SDcols = in_predvars$varcode]
+  return(out_gaugep)
+}
 
-  #Predict model — chunk it up by climate zone to avoid memory errors
-  for (clz in unique(in_network$clz_cl_cmj)) {
-    print(clz)
-    tic()
-    in_network[netnoNArows & clz_cl_cmj == clz,
-               predbasic800 := in_rftuned$rf_inner$predict_newdata(
-                 as.data.frame(.SD))$prob[,2],]
-    toc()
+#------ write_netpreds -------------------
+write_netpreds <- function(in_network, in_rftuned, in_predvars,
+                           discharge_interval = c(-Inf, Inf),
+                           interthresh = 0.5, outp_riveratlaspred) {
+
+  write_netpred_util <- function(in_network, in_rftuned, in_predvars,
+                                 discharge_interval, interthresh) {
+    # ----- Make predictions across river network -----
+    #Get subset of river network
+    in_network <- in_network[(dis_m3_pyr >= discharge_interval[1]) &
+                               (dis_m3_pyr < discharge_interval[2]),]
+
+    #Get rows for which a predictor variable is NA (seecomp_derivedvar for formatting/determining variables)
+    netnoNArows <- in_network[, c(!(.I %in% unique(unlist(
+      lapply(.SD, function(x) which(is.na(x))))))),
+      .SDcols = in_predvars$varcode]
+
+    #Predict model — chunk it up by climate zone to avoid memory errors
+    for (clz in unique(in_network$clz_cl_cmj)) {
+      print(clz)
+      tic()
+      in_network[netnoNArows & clz_cl_cmj == clz,
+                 predbasic800 := in_rftuned$rf_inner$predict_newdata(
+                   as.data.frame(.SD))$prob[,2],]
+      toc()
+    }
+
+    #Label each reach categorically based on threshold
+    in_network[, predbasic800cat := fifelse(predbasic800>=interthresh, 1, 0)]
+
+    return(in_network)
   }
 
-  #Label each reach categorically based on threshold
-  in_network[, predbasic800cat := fifelse(predbasic800>=interthresh, 1, 0)]
+
+  in_network <- mapply(FUN = write_netpreds_util,
+                       in_rftuned = in_rftuned,
+                       discharge_interval = discharge_interval,
+                       interthresh = interthresh,
+                       MoreArgs = list(
+                         in_predvars = in_predvars
+                       )
+  ) %>%
+    rbindlist
 
   fwrite(in_network[, c('HYRIV_ID', 'HYBAS_L12', 'predbasic800', 'predbasic800cat'), with=F],
          outp_riveratlaspred)
 
   # --------- Return data for plotting ------------------------
-  return(list(out_gaugep = out_gaugep,
-              rivpredpath = outp_riveratlaspred))
+  return(outp_riveratlaspred)
 }
 
-
+list(out_gaugep = out_gaugep,
+     rivpredpath =
 
 
 ##### -------------------- Diagnostics functions -------------------------------
@@ -4195,6 +4233,9 @@ gggaugeIPR <- function(in_rftuned, in_gaugestats, in_predvars, spatial_rsp,
                      gaugepred) %>%
     .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
              yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
+
+  .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
+           yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
   ##############################################################################
 
   #Plot numeric variables

@@ -139,7 +139,7 @@ plan_runmodels <- drake_plan(
 
   autotuningset = target(
     set_tuning(in_learner = seplearners,
-               in_measures = measures,
+               in_measure = measures,
                nfeatures = length(tasks$classif$feature_names),
                insamp_nfolds = 2, insamp_neval = 1,
                insamp_nbatch = parallel::detectCores(logical=FALSE)-1
@@ -235,7 +235,7 @@ plan_runmodels <- drake_plan(
 
   # Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
   rftuned = target(
-    selecttrain_rf(in_rf = res_featsel_spcv,
+    selecttrain_rf(in_rf = res_featsel_cv,
                    in_learnerid = selected_learner,
                    in_taskid = "inter_class_featsel",
                    insamp_nfolds = 2,
@@ -282,7 +282,11 @@ plan_runmodels <- drake_plan(
 
   misclass_plot = ggmisclass_bm(list(misclass_classif1,
                                      misclass_regr1,
-                                     misclass_classif2))
+                                     misclass_classif2)),
+
+  gpredsdt = make_gaugepreds(in_rftuned = rftuned,
+                              in_gaugestats = gaugestats_format,
+                              in_predvars = predvars)
 )
 
 ########################### PLAN_GETOUTPUTS ####################################
@@ -294,35 +298,44 @@ plan_getoutputs <- drake_plan(
                                  inp_riveratlas = path_riveratlas,
                                  inp_riveratlas2 = path_riveratlas2),
 
+  ############################## TO DEBUG ####################################
+  gpredsdt = data.table::rbind(gpredsdt_u10, gpredsdt_o10,
+                               use.names = TRUE, idcol = "modelgroup"),
+
+  rfpreds_gauges = write_gaugepreds(in_gaugep = gaugep,
+                                    in_gpredsdt = gpredsdt,
+                                    outp_gaugep = outpath_gaugep),
+
+  rfpreds_network = write_netpreds(
+    in_network = rivernetwork,
+    in_rftuned = list(rftuned_u10, rftuned_o10),
+    discharge_interval = list(c(0, 10), c(10, Inf)),
+    interthresh = list(interthresh_u10, interthresh_o10),
+    outp_riveratlaspred = outpath_riveratlaspred
+  ),
+
+
+  ##### TO REPROGRAM ###########
   gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
                              in_gaugestats = gaugestats_format,
                              in_predvars = predvars,
                              spatial_rsp = FALSE,
                              yearthresh = 1961,
                              interthresh = interthresh),
-
-  rfpreds = write_preds(in_gaugep = gaugep,
-                        in_gaugestats = gaugestats_format,
-                        in_network = rivernetwork,
-                        in_rftuned = rftuned,
-                        in_predvars = predvars,
-                        in_gaugeIPR = gaugeIPR_plot[['out_gaugeIPR']],
-                        interthresh = interthresh,
-                        outp_gaugep = outpath_gaugep,
-                        outp_riveratlaspred = outpath_riveratlaspred),
+  #######################
 
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
-                          outp_riveratlaspred = rfpreds[["rivpredpath"]]),
+                          outp_riveratlaspred = rfpreds_network),
 
   basemaps = get_basemapswintri(),
 
-  gauges_plot = gggauges(in_gaugepred = rfpreds[["out_gaugep"]],
+  gauges_plot = gggauges(in_gaugepred =rfpreds_gauges,
                          in_basemaps = basemaps,
                          binarg <- c(30, 60, 100),
                          binvar <- 'totalYears_kept_o1961'),
 
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
-                             in_gaugepred =  rfpreds[["out_gaugep"]],
+                             in_gaugepred = rfpreds_gauges,
                              in_predvars = predvars),
 
   # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
@@ -337,7 +350,7 @@ plan_getoutputs <- drake_plan(
   #                                    overwrite = TRUE),
 
   globaltables = target(
-    tabulate_globalsummary(outp_riveratlaspred = rfpreds[["rivpredpath"]],
+    tabulate_globalsummary(outp_riveratlaspred = rfpreds_network,
                            inp_riveratlas = path_riveratlas,
                            inp_riveratlas_legends = path_riveratlas_legends,
                            idvars = in_idvars,
