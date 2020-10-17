@@ -60,8 +60,10 @@ plan_preprocess <- drake_plan(
                               comp_GRDCdurfreq, #Function to run on each file name
                               maxgap = 20,
                               in_gaugep = gaugep,
+                              windowsize = 20,
                               monthsel = NULL, #Other arguments in function
                               mdurthresh = 1,
+                              verbose = FALSE,
                               .progress = TRUE),
 
   GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
@@ -230,8 +232,7 @@ plan_runmodels <- drake_plan(
   rfbm_featsel = analyze_benchmark(in_bm = rfeval_featsel,
                                    in_measure = measures$classif),
 
-  interthresh = target(rfbm_featsel$interthresh_dt[learner == selected_learner,
-                                                   max(thresh)]),
+  interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
 
   # Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
   rftuned = target(
@@ -244,10 +245,11 @@ plan_runmodels <- drake_plan(
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
 
-  pd_plot = ggpd_bivariate(in_rftuned=rftuned, in_predvars=predvars,
-                           colnums=1:36,
-                           nvariate=1,  nodupli = TRUE, ngrid = 20, parallel = T,
-                           spatial_rsp = FALSE),
+  pd_plot = ggpartialdep(in_rftuned=rftuned,
+                         in_predvars=predvars,
+                         colnums=1:30,
+                         nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = T,
+                         spatial_rsp = FALSE),
 
   table_allbm = target(
     tabulate_benchmarks(in_bm, in_bmid),
@@ -285,8 +287,9 @@ plan_runmodels <- drake_plan(
                                      misclass_classif2)),
 
   gpredsdt = make_gaugepreds(in_rftuned = rftuned,
-                              in_gaugestats = gaugestats_format,
-                              in_predvars = predvars)
+                             in_gaugestats = gaugestats_format,
+                             in_predvars = predvars,
+                             interthresh = interthresh)
 )
 
 ########################### PLAN_GETOUTPUTS ####################################
@@ -298,9 +301,8 @@ plan_getoutputs <- drake_plan(
                                  inp_riveratlas = path_riveratlas,
                                  inp_riveratlas2 = path_riveratlas2),
 
-  ############################## TO DEBUG ####################################
-  gpredsdt = data.table::rbind(gpredsdt_u10, gpredsdt_o10,
-                               use.names = TRUE, idcol = "modelgroup"),
+  gpredsdt = rbind(gpredsdt_u10, gpredsdt_o10,
+                   use.names = TRUE, idcol = "modelgroup"),
 
   rfpreds_gauges = write_gaugepreds(in_gaugep = gaugep,
                                     in_gpredsdt = gpredsdt,
@@ -311,17 +313,18 @@ plan_getoutputs <- drake_plan(
     in_rftuned = list(rftuned_u10, rftuned_o10),
     discharge_interval = list(c(0, 10), c(10, Inf)),
     interthresh = list(interthresh_u10, interthresh_o10),
+    in_predvars = predvars,
     outp_riveratlaspred = outpath_riveratlaspred
   ),
 
 
   ##### TO REPROGRAM ###########
-  gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
-                             in_gaugestats = gaugestats_format,
-                             in_predvars = predvars,
-                             spatial_rsp = FALSE,
-                             yearthresh = 1961,
-                             interthresh = interthresh),
+  # gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
+  #                            in_gaugestats = gaugestats_format,
+  #                            in_predvars = predvars,
+  #                            spatial_rsp = FALSE,
+  #                            yearthresh = 1961,
+  #                            interthresh = interthresh),
   #######################
 
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
@@ -380,9 +383,9 @@ plan_getoutputs <- drake_plan(
                                   2000,5000,10000,50000,100000,2000000, 3200000))
   ,
 
-  pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,
-                    in_rivpred = rivpred,
-                    interthresh = interthresh)
+  # pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,
+  #                   in_rivpred = rivpred,
+  #                   interthresh = interthresh)
 )
 
 
@@ -403,6 +406,7 @@ plan_runmodels_o10 <- branch_plan(
 
 plan <- bind_plans(plan_preprocess,
                    plan_runmodels_u10,
-                   plan_runmodels_o10
+                   plan_runmodels_o10,
+                   plan_getoutputs
 )
 
