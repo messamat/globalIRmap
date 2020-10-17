@@ -18,10 +18,21 @@ library(flextable)
 source(file.path(srcdir, 'R/IRmapping_packages.R'))
 source(file.path(srcdir, 'R/IRmapping_functions.R'))
 source(file.path(srcdir, 'R/IRmapping_plan.R'))
+
+loadd(gpredsdt)
 ```
 
 
 #Geographical distribution of reference streamgauging stations
+##Statistics for paper
+- Number of gauges in total: `gpredsdt[, .N]`  
+- Number of perennial gauges taking in account only post-1961 (average number of years of data): 
+`gpredsdt[intermittent_o1961==0, .N]`(`gpredsdt[intermittent_o1961==0, mean(totalYears_kept_o1961)]`)
+- Number of intermittent gauges taking in account only post-1961 (average number of years of data): 
+`gpredsdt[intermittent_o1961==1, .N]`(`gpredsdt[intermittent_o1961==1, mean(totalYears_kept_o1961)]`)
+gpredsdt[dis_m3_pyr < 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]]
+gpredsdt[dis_m3_pyr >= 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]]
+
 ```{r basic-map, echo = FALSE, fig.width = 6,  dpi=300}
 loadd(gauges_plot)
 print(gauges_plot)
@@ -45,46 +56,74 @@ plot(envhist)
 
 #Methods - Table 2. Specification and benchmark comparison of models
 ```{r models-benchmarking-table, echo=FALSE}
-loadd(tablebm_classif1)
-loadd(tablebm_regr1)
-loadd(tablebm_classif2)
-setup_table <- rbindlist(list(tablebm_classif1$setup,
-                              tablebm_regr1$setup,
-                              tablebm_classif2$setup),
+loadd(tablebm_classif1_u10)
+loadd(tablebm_regr1_u10)
+loadd(tablebm_classif2_u10)
+setup_table_u10 <- rbindlist(list(tablebm_classif1_u10$setup,
+                              tablebm_regr1_u10$setup,
+                              tablebm_classif2_u10$setup),
                          fill=T, use.names=T)
 
-flextable(setup_table)
+flextable(setup_table_u10)
 
-results_table <- rbindlist(list(tablebm_classif1$results,
-                              tablebm_regr1$results,
-                              tablebm_classif2$results),
+results_table_u10 <- rbindlist(list(tablebm_classif1_u10$results,
+                                tablebm_regr1_u10$results,
+                                tablebm_classif2_u10$results),
+                           fill=T, use.names=T)
+flextable(results_table_u10)
+
+loadd(tablebm_classif1_o10)
+loadd(tablebm_regr1_o10)
+loadd(tablebm_classif2_o10)
+setup_table_o10 <- rbindlist(list(tablebm_classif1_o10$setup,
+                              tablebm_regr1_o10$setup,
+                              tablebm_classif2_o10$setup),
                          fill=T, use.names=T)
-flextable(results_table)
+
+flextable(setup_table_o10)
+
+results_table_o10 <- rbindlist(list(tablebm_classif1_o10$results,
+                              tablebm_regr1_o10$results,
+                              tablebm_classif2_o10$results),
+                         fill=T, use.names=T)
+flextable(results_table_o10)
 ```
 
 #Methods - Figure 2. Benchmark comparison of models through curves
 ```{r models-benchmarking-curves, fig.width=8, echo=FALSE}
-loadd(misclass_plot)
-print(misclass_plot)
+loadd(misclass_plot_u10)
+print(misclass_plot_u10)
+
+loadd(misclass_plot_o10)
+print(misclass_plot_o10)
 
 ```
 
 #Main text - Figure 2. Variable importance for top 15 variables
 ```{r variable-importance, fig.width=12, fig.height=6, echo=FALSE}
-loadd(vimp_plot)
-print(vimp_plot)
+loadd(vimp_plot_u10)
+print(vimp_plot_u10)
+
+loadd(vimp_plot_o10)
+print(vimp_plot_o10)
 ```
 
 #Main text - Figure 3. Partial dependence plots
 ```{r partial-dependence, fig.width=12, fig.height=12, echo=FALSE}
-loadd(pd_plot)
-lapply(pd_plot, function(p) plot(p))
+loadd(pd_plot_u10)
+lapply(pd_plot_u10, function(p) plot(p))
+
+loadd(pd_plot_o10)
+lapply(pd_plot_o10, function(p) plot(p))
 ```
 
 #Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
 ```{r prediction-uncertainty-by-variable, fig.width=12, fig.height=10, echo=FALSE}
-loadd(gaugeIPR_plot)
-print(gaugeIPR_plot["gaugeIPR_numplot"])
+# loadd(gaugeIPR_plot)
+# print(gaugeIPR_plot_u10["gaugeIPR_numplot"])
+# 
+# loadd(gaugeIPR_plot_o10)
+# print(gaugeIPR_plot_o10["gaugeIPR_numplot"])
 ```
 
 
@@ -129,6 +168,6 @@ print(us_plot)
 
 #Comparison of results with on-the-ground observations
 ```{r QC, echo = FALSE, fig.width = 8,  dpi=300}
-loadd(pnw_plot)
-print(pnw_plot)
+# loadd(pnw_plot)
+# print(pnw_plot)
 ```
