@@ -61,6 +61,7 @@ plan_preprocess <- drake_plan(
                               maxgap = 20,
                               in_gaugep = gaugep,
                               windowsize = 20,
+                              fullwindow = FALSE,
                               monthsel = NULL, #Other arguments in function
                               mdurthresh = 1,
                               verbose = FALSE,
@@ -71,6 +72,8 @@ plan_preprocess <- drake_plan(
                                comp_GSIMdurfreq, #Function to run on each file name
                                maxgap = 20,
                                in_gaugep = gaugep,
+                               windowsize = 20,
+                               fullwindow = FALSE,
                                monthsel = NULL, #Other arguments in function
                                mdurthresh = 1,
                                .progress = TRUE),
@@ -88,7 +91,18 @@ plan_preprocess <- drake_plan(
   gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
                                              in_GSIMgaugestats = GSIMgaugestats,
                                              in_gaugep = gaugep,
-                                             inp_resdir = path_resdir),
+                                             inp_resdir = path_resdir,
+                                             plotseries = FALSE),
+
+  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+                             yearthresh = 1800,
+                             inp_resdir = path_resdir,
+                             maxgap = 20),
+
+  GSIMplots = plot_GSIMirs(in_GSIMgaugestats = GSIMgaugestats,
+                           yearthresh = 1800,
+                           inp_resdir = path_resdir,
+                           maxgap = 20),
 
   gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
                                         in_gaugep = gaugep,
@@ -119,7 +133,7 @@ plan_preprocess <- drake_plan(
                 include_discharge = map_includedis),
     transform = map(
       in_gauges = c(gaugestats_format_u10, gaugestats_format_o10),
-      in_id = '_u10', '_o10',
+      in_id = c('_u10', '_o10'),
       map_includedis = c(FALSE, TRUE),
       .names = c('tasks_u10', 'tasks_o10'),
       tag_in = task,
@@ -143,16 +157,16 @@ plan_runmodels <- drake_plan(
     set_tuning(in_learner = seplearners,
                in_measure = measures,
                nfeatures = length(tasks$classif$feature_names),
-               insamp_nfolds = 2, insamp_neval = 1,
-               insamp_nbatch = parallel::detectCores(logical=FALSE)-1
+               insamp_nfolds = 4, insamp_neval = 10,
+               insamp_nbatch = parallel::detectCores(logical=FALSE)-2
     ),
     dynamic = map(seplearners)
   ),
 
   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
                                    in_task = tasks$classif,
-                                   outsamp_nrep = 1,
-                                   outsamp_nfolds = 2),
+                                   outsamp_nrep = 2,
+                                   outsamp_nfolds = 3),
 
   rfresampled_classif = target(
     dynamic_resample(in_task = tasks$classif,
@@ -196,8 +210,8 @@ plan_runmodels <- drake_plan(
                      outsamp_nrep = in_outrep,
                      outsamp_nfolds = in_outfolds),
     transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
-                    in_outrep = c(1, 1),
-                    in_outfolds = c(2, 2),
+                    in_outrep = c(2, 2),
+                    in_outfolds = c(3, 3),
                     .names = c('featsel_cv', 'featsel_spcv'))
   ),
 
@@ -239,8 +253,8 @@ plan_runmodels <- drake_plan(
     selecttrain_rf(in_rf = res_featsel_cv,
                    in_learnerid = selected_learner,
                    in_taskid = "inter_class_featsel",
-                   insamp_nfolds = 2,
-                   insamp_nevals = 1)),
+                   insamp_nfolds = 4,
+                   insamp_nevals = 10)),
 
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
@@ -363,7 +377,7 @@ plan_getoutputs <- drake_plan(
                            valuevar = 'predbasic800cat',
                            valuevarsub = 1,
                            binfunc = 'manual',
-                           binarg = c(0.1, 1, 10, 100, 100, 10000, 100000),
+                           binarg = c(0.1, 1, 10, 100, 1000, 10000),
                            na.rm=T,
                            tidy = FALSE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
@@ -380,7 +394,7 @@ plan_getoutputs <- drake_plan(
                        inp_usdatdir = path_usdatdir,
                        in_rivpred = rivpred,
                        binarg = c(10,20,50,100,200,500,1000,
-                                  2000,5000,10000,50000,100000,2000000, 3200000))
+                                  2000,5000,10000,100000,2000000, 3200000))
   ,
 
   # pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,

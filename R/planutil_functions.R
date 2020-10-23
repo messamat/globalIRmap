@@ -84,7 +84,7 @@ branch_plan <- function(plan, branch_suffix, external_arguments_to_modify=NULL, 
   #Add suffix to all target names within commands/calls
   plan_modif$command <- lapply(
     plan_modif$command, function(command) {
-      print(command)
+      #print(command)
       modify_call_args(call=command,
                        in_regex = target_regex,
                        in_suffix = branch_suffix,
@@ -95,7 +95,7 @@ branch_plan <- function(plan, branch_suffix, external_arguments_to_modify=NULL, 
   #Add suffix to all target names within dynamic grouping variables
   plan_modif$dynamic <- lapply(
     plan_modif$dynamic, function(command) {
-      print(command)
+      #print(command)
       modify_call_args(call=command,
                        in_regex = target_regex,
                        in_suffix = branch_suffix,

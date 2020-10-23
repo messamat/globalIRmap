@@ -19,8 +19,10 @@ history_last <- drake_history(analyze = FALSE) %>%
 cache <- drake_cache()
 rfbm_regr<- cache$get_value(history_last[target=='rfbm_regr',hash])
 rfbm_classif<- cache$get_value(history_last[target=='rfbm_classif',hash])
-bmcheck_classif <- cache$get_value(history_last[target=='bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif', hash])
-bmcheck_regr<- cache$get_value(history_last[target=='bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr', hash])
+bmcheck_classif <- cache$get_value(
+  history_last[target=='bm_checked_rfbm_classif.bm_classif_rfbm_classif.measure_classif', hash])
+bmcheck_regr<- cache$get_value(
+  history_last[target=='bm_checked_rfbm_regr.bm_regr_rfbm_regr.meassure_regr', hash])
 rfeval_featsel <- cache$get_value(history_last[target=='rfeval_featsel',hash])
 rftuned <- cache$get_value(history_last[target=='rftuned',hash])
 
