@@ -415,7 +415,7 @@ plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
   }
 
 
-  return(coastaliro61)
+  return(coastalir)
 }
 
 #------ comp_ymean -------------
@@ -2366,7 +2366,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 
   #Create output directory for IRs
   resdir_GRDCirplots <- file.path(inp_resdir,
-                                  paste0('GRDCir_rawplots_',
+                                  paste0('GRDCir_rawplots_', yearthresh, '_',
                                          format(Sys.Date(), '%Y%m%d')))
   if (!(dir.exists(resdir_GRDCirplots))) {
     print(paste0('Creating ', resdir_GRDCirplots ))
@@ -2384,7 +2384,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 
   #Create output directory for non IRs
   resdir_GRDCperplots <- file.path(inp_resdir,
-                                   paste0('GRDCper_rawplots_',
+                                   paste0('GRDCper_rawplots_',yearthresh, '_',
                                           format(Sys.Date(), '%Y%m%d')))
   if (!(dir.exists(resdir_GRDCperplots))) {
     print(paste0('Creating ', resdir_GRDCperplots ))
@@ -2403,14 +2403,14 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 
 }
 
-#------ plot_GSIMirs -------------
-plot_GSIMirs <- function(in_GSIMgaugestats, yearthresh,
+#------ plot_GSIM -------------
+plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
                          inp_resdir, maxgap) {
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
 
   #Create output directory for IRs
   resdir_GSIMirplots <- file.path(inp_resdir,
-                                  paste0('GSIMir_rawplots_',
+                                  paste0('GSIMir_rawplots_',yearthresh, '_',
                                          format(Sys.Date(), '%Y%m%d')))
   if (!(dir.exists(resdir_GSIMirplots))) {
     print(paste0('Creating ', resdir_GSIMirplots ))
@@ -2429,7 +2429,7 @@ plot_GSIMirs <- function(in_GSIMgaugestats, yearthresh,
 
   #Create output directory for non IRs
   resdir_GSIMperplots <- file.path(inp_resdir,
-                                   paste0('GSIMper_rawplots_',
+                                   paste0('GSIMper_rawplots_',yearthresh, '_',
                                           format(Sys.Date(), '%Y%m%d')))
   if (!(dir.exists(resdir_GSIMperplots))) {
     print(paste0('Creating ', resdir_GSIMperplots ))
@@ -2448,7 +2448,7 @@ plot_GSIMirs <- function(in_GSIMgaugestats, yearthresh,
 #------ analyze_gaugeir ----------------------------
 #Check winter and coastal gauges in particular
 #Check availability of data
-analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
+analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthresh,
                                  in_gaugep, inp_resdir, plotseries = FALSE) {
   ### Analyze GSIM data ####################################
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
@@ -2557,12 +2557,12 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 
 
   #-----  Check flags in winter IR for GSIM
-  wintergaugeso61_GSIM <- plot_winterir(
+  wintergaugesall_GSIM <- plot_winterir(
     dt = GSIMstatsdt, dbname = 'gsim', inp_resdir = inp_resdir,
-    plotseries = plotseries)
+    yearthresh = 1800, plotseries = plotseries)
 
   #Check suspicious canadian ones
-  GSIMwintermeta <- in_gaugep[in_gaugep$gsim_no %in% wintergaugeso61_GSIM$gsim_no,]
+  GSIMwintermeta <- in_gaugep[in_gaugep$gsim_no %in% wintergaugesall_GSIM$gsim_no,]
   canadians_toinspect <- in_gaugep[in_gaugep$gsim_no %in%
                                      paste0('CA_000', c(3469, 3473, 3526, 3544, 6082, 6122)),]$reference_no
 
@@ -2617,9 +2617,9 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   )
 
   #-----  Check flags in coastal IR for GSIM
-  GSImcoastaliro61 <- plot_coastalir(in_gaugep = in_gaugep, dt = GSIMstatsdt,
+  GSImcoastalirall <- plot_coastalir(in_gaugep = in_gaugep, dt = GSIMstatsdt,
                                      dbname = 'gsim', inp_resdir = inp_resdir,
-                                     plotseries = plotseries)
+                                     yearthresh = 1800, plotseries = plotseries)
 
 
   #Already checked CA_0006122
@@ -2798,11 +2798,11 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   #### Check intermittent record
   # checkno <- 6444400 #GRDC_NO
   # check <- checkGRDCzeroes( #Check area around 0 values
-  #   GRDCstatsdt, in_GRDC_NO=checkno, period=15, yearthresh=1961,
+  #   GRDCstatsdt, in_GRDC_NO=checkno, period=15, yearthresh=1800,
   #   maxgap=20, in_scales='free', labelvals = F)
   # checkno %in% GRDCtoremove_allinteger #Check whether all integers
   # in_gaugep[in_gaugep$GRDC_NO==checkno & !is.na(in_gaugep$GRDC_NO), "dor_pc_pva"] #check DOR
-  # GRDCstatsdt[GRDC_NO == checkno, integerperc_o1961] #Check % integers
+  # GRDCstatsdt[GRDC_NO == checkno, integerperc_o1800] #Check % integers
 
   #Outliers from examining plots of perennial time series (those that were commented out were initially considered)
   #Try to find those whose low flow plateaus could be 0s and those whose perennial character is dam-driven
@@ -2840,7 +2840,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
 
   #---------- Check flags in winter IR
   plot_winterir(dt = GRDCstatsdt, dbname = 'grdc', inp_resdir = inp_resdir,
-                plotseries = plotseries)
+                yearthresh = 1800, plotseries = plotseries)
 
   #Checked for seemingly anomalous 0s. Sudden decreases.
   #Check for flags, check satellite imagery, station name, check for construction of reservoir
@@ -2854,10 +2854,10 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats,
   )
 
   #------ Check time series of stations within 3 km of seawater
-  GRDCcoastaliro61 <- plot_coastalir(in_gaugep = in_gaugep, dt = GRDCstatsdt,
+  GRDCcoastalirall <- plot_coastalir(in_gaugep = in_gaugep, dt = GRDCstatsdt,
                                      dbname = 'grdc', inp_resdir = inp_resdir,
-                                     plotseries = plotseries)
-  GRDCcoastaliro61[, unique(readformatGRDC(path)$Flag), by=GRDC_NO]
+                                     yearthresh = 1800, plotseries = plotseries)
+  GRDCcoastalirall[, unique(readformatGRDC(path)$Flag), by=GRDC_NO]
   #Nothing obviously suspect beyond those that ad already been flagged
 
   #Inspect statistics for 4208857, 4213531 as no flow days occurred only one year
@@ -3414,7 +3414,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
 create_tasks <- function(in_gaugestats, in_predvars,
                          id_suffix=NULL, include_discharge = TRUE) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
-  datsel <- in_gaugestats[, c('intermittent_o1961',in_predvars$varcode, 'X', 'Y'),
+  datsel <- in_gaugestats[, c('intermittent_o1800',in_predvars$varcode, 'X', 'Y'),
                           with=F] %>%
     na.omit
 
@@ -3436,7 +3436,7 @@ create_tasks <- function(in_gaugestats, in_predvars,
   task_classif <- mlr3spatiotempcv::TaskClassifST$new(
     id=  paste0("inter_class", id_suffix),
     backend = datsel,
-    target = "intermittent_o1961",
+    target = "intermittent_o1800",
     coordinate_names = c("X", "Y"))
 
   #Basic task for regression without oversampling
@@ -3864,7 +3864,7 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats,
     setorder(row_id)
 
   #Format gauge data.table prior to merging
-  datsel <- na.omit(in_gaugestats, c('intermittent_o1961',
+  datsel <- na.omit(in_gaugestats, c('intermittent_o1800',
                                      in_predvars$varcode, 'X', 'Y'))
 
   #Merge all predictions
@@ -4268,14 +4268,14 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
       by= c(varvec, valvec)] %>%
     .[, variables := var1]
 
-  datdf2 <- as.data.table(datdf)[, intermittent_o1961 := as.numeric(as.character(intermittent_o1961))]
+  datdf2 <- as.data.table(datdf)[, intermittent_o1800 := as.numeric(as.character(intermittent_o1800))]
 
   if (nvariate ==1) {
     tileplots_l <- pdformat[,list(list(ggplotGrob(
       ggplot(.SD, aes(x=value1, y=mean1)) +
         geom_line() +
         geom_rug(data=datdf2,
-                 aes_string(x=eval(var1),y='intermittent_o1961'),
+                 aes_string(x=eval(var1),y='intermittent_o1800'),
                  alpha=1/3) +
         scale_y_continuous(name='Partial dependence (probability of intermittency)',
                            limits= c(min(mean1)-0.01, max(mean1)+0.01),  #c(0.25, 0.425),
@@ -4298,7 +4298,7 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
         geom_tile(aes(fill = mean1)) +
         scale_fill_distiller(palette='Grey') +
         geom_jitter(data=datdf,
-                    aes_string(color='intermittent_o1961', x=eval(var1),y=eval(var2)),
+                    aes_string(color='intermittent_o1800', x=eval(var1),y=eval(var2)),
                     alpha=1/3) +
         scale_color_manual(values=c('#0F9FD6','#ff9b52')) +
         labs(x=stringr::str_wrap(in_predvars[varcode==eval(var1), varname],
@@ -4334,14 +4334,14 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
 
   # in_gpredsdt
   #
-  # .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1961)),
+  # .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1800)),
   #          yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
   ##############################################################################
 
   #Plot numeric variables
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
-    cbind(predattri[, c('GAUGE_NO', 'intermittent_o1961'), with=F]) %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1961', 'prob.1', 'preduncert'))
+    cbind(predattri[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'prob.1', 'preduncert'))
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
@@ -4384,10 +4384,10 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
     scale_fill_manual(values=colorpal,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
-    geom_point(aes(x=value, y=preduncert, color=intermittent_o1961), alpha = 1/8) +
+    geom_point(aes(x=value, y=preduncert, color=intermittent_o1800), alpha = 1/8) +
     geom_hline(yintercept=0, alpha=1/2) +
     new_scale_fill() +
-    geom_smooth(aes(x=value, y=preduncert, color=intermittent_o1961),
+    geom_smooth(aes(x=value, y=preduncert, color=intermittent_o1800),
                 method='gam', formula = y ~ s(x, k=3)) +
     # annotate("text", x = Inf-5, y = 0.5, angle = 90,
     #          label = "Pred:Int, Obs:Per",
@@ -4407,9 +4407,9 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
 
 
   #Plot categorical variables
-  predmelt_cat <- predattri[, c('GAUGE_NO', 'intermittent_o1961', 'preduncert',
+  predmelt_cat <- predattri[, c('GAUGE_NO', 'intermittent_o1800', 'preduncert',
                                 'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1961', 'preduncert'))
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'preduncert'))
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
 
@@ -4424,7 +4424,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
     #geom_boxplot(alpha = 0.75) +
     new_scale_fill() +
     geom_violin(aes(x=as.factor(value), y=preduncert,
-                    fill=intermittent_o1961, color=intermittent_o1961),
+                    fill=intermittent_o1800, color=intermittent_o1800),
                 alpha=0.75, color=NA) +
     geom_hline(yintercept=0, alpha=1/2) +
     labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
@@ -4637,8 +4637,8 @@ gggauges <- function(in_gaugepred, in_basemaps,
 
 
   #Subset data into perennial and intermittent rivers
-  perennial_gauges <- gaugepred[gaugepred$intermittent_o1961=='0',]
-  ir_gauges <-  gaugepred[gaugepred$intermittent_o1961=='1',]
+  perennial_gauges <- gaugepred[gaugepred$intermittent_o1800=='0',]
+  ir_gauges <-  gaugepred[gaugepred$intermittent_o1800=='1',]
 
 
   #Make histograms
@@ -4782,7 +4782,7 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
                       scalesenvhist, intermittent=TRUE) {
   print(vartoplot)
   if (intermittent) {
-    vartoplot2 <- c(vartoplot, 'intermittent_o1961')
+    vartoplot2 <- c(vartoplot, 'intermittent_o1800')
   }
 
   varname <- in_predvars[varcode==vartoplot, paste0(Attribute, ' ',

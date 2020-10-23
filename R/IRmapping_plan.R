@@ -79,12 +79,12 @@ plan_preprocess <- drake_plan(
                                .progress = TRUE),
 
   # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-  #                            yearthresh = 1961,
+  #                            yearthresh = 1800,
   #                            inp_resdir = path_resdir,
   #                            maxgap = 20),
   #
-  # GSIMplots = plot_GSIMirs(in_GSIMgaugestats = GSIMgaugestats,
-  #                          yearthresh = 1961,
+  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+  #                          yearthresh = 1800,
   #                          inp_resdir = path_resdir,
   #                          maxgap = 20),
 
@@ -94,52 +94,52 @@ plan_preprocess <- drake_plan(
                                              inp_resdir = path_resdir,
                                              plotseries = FALSE),
 
-  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-                             yearthresh = 1800,
-                             inp_resdir = path_resdir,
-                             maxgap = 20),
-
-  GSIMplots = plot_GSIMirs(in_GSIMgaugestats = GSIMgaugestats,
-                           yearthresh = 1800,
-                           inp_resdir = path_resdir,
-                           maxgap = 20),
-
-  gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
-                                        in_gaugep = gaugep,
-                                        yearthresh = 1961),
-
-  predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-                                   in_gaugestats = gaugestats_format),
-
-  measures = target(list(classif = msr("classif.bacc"),
-                         regr = msr("regr.mae"))
-  ),
-
-  #-------------------- SET-UP TASKS -------------------------------------
-  gauges_div = target(
-    gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
-                        (dis_m3_pyr < discharge_interval[2]),]
-    ,
-    transform = map(discharge_interval = list(c(0, 10), c(10, Inf)),
-                    .names = c('gaugestats_format_u10', 'gaugestats_format_o10')
-    )
-  )
-  ,
-
-  tasks = target(
-    create_tasks(in_gaugestats = in_gauges,
-                in_predvars = predvars,
-                id_suffix = in_id,
-                include_discharge = map_includedis),
-    transform = map(
-      in_gauges = c(gaugestats_format_u10, gaugestats_format_o10),
-      in_id = c('_u10', '_o10'),
-      map_includedis = c(FALSE, TRUE),
-      .names = c('tasks_u10', 'tasks_o10'),
-      tag_in = task,
-      tag_out = size
-    )
-  )
+  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = gaugestats_analyzed[GRDC_NO_],
+  #                            yearthresh = 1800,
+  #                            inp_resdir = path_resdir,
+  #                            maxgap = 20),
+  #
+  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+  #                          yearthresh = 1800,
+  #                          inp_resdir = path_resdir,
+  #                          maxgap = 20),
+  #
+  # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
+  #                                       in_gaugep = gaugep,
+  #                                       yearthresh = 1800),
+  #
+  # predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
+  #                                  in_gaugestats = gaugestats_format),
+  #
+  # measures = target(list(classif = msr("classif.bacc"),
+  #                        regr = msr("regr.mae"))
+  # ),
+  #
+  # #-------------------- SET-UP TASKS -------------------------------------
+  # gauges_div = target(
+  #   gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
+  #                       (dis_m3_pyr < discharge_interval[2]),]
+  #   ,
+  #   transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
+  #                   .names = c('gaugestats_format_u10', 'gaugestats_format_o10')
+  #   )
+  # )
+  # ,
+  #
+  # tasks = target(
+  #   create_tasks(in_gaugestats = in_gauges,
+  #               in_predvars = predvars,
+  #               id_suffix = in_id,
+  #               include_discharge = map_includedis),
+  #   transform = map(
+  #     in_gauges = c(gaugestats_format_u10, gaugestats_format_o10),
+  #     in_id = c('_u10', '_o10'),
+  #     map_includedis = c(FALSE, TRUE),
+  #     .names = c('tasks_u10', 'tasks_o10'),
+  #     tag_in = task,
+  #     tag_out = size
+  #   )
+  # )
 )
 
 
@@ -337,7 +337,7 @@ plan_getoutputs <- drake_plan(
   #                            in_gaugestats = gaugestats_format,
   #                            in_predvars = predvars,
   #                            spatial_rsp = FALSE,
-  #                            yearthresh = 1961,
+  #                            yearthresh = 1800,
   #                            interthresh = interthresh),
   #######################
 
@@ -349,7 +349,7 @@ plan_getoutputs <- drake_plan(
   gauges_plot = gggauges(in_gaugepred =rfpreds_gauges,
                          in_basemaps = basemaps,
                          binarg <- c(30, 60, 100),
-                         binvar <- 'totalYears_kept_o1961'),
+                         binvar <- 'totalYears_kept_o1800'),
 
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
                              in_gaugepred = rfpreds_gauges,
