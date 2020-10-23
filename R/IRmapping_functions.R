@@ -2129,13 +2129,13 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
     if (!fullwindow) {
       movinginter <- all(
         tabyearly[missingdays <= maxgap & year >= yearthresh,
-                  (frollapply(dur, n=windowsize, FUN=checkpos, align="center") > 0)],
+                  (frollapply(dur, n=windowsize, FUN=checkpos, align="center") >= mdurthresh)],
         na.rm=T)
     } else {
       movinginter <- all(
         tabyearly[missingdays <= maxgap & year >= yearthresh,
-                  c((frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="left") > 0),
-                    (frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="right") > 0))],
+                  c((frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="left") >= mdurthresh),
+                    (frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="right") >= mdurthresh))],
         na.rm=T)
     }
 
@@ -2301,15 +2301,15 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
     if (!fullwindow) {
       movinginter <- all(
         mDur_final[year %in% yearsel, checkpos(mDur_minsea_final), by=year] %>%
-          .[, frollapply(V1, n=windowsize, FUN=checkpos, align="center") > 0],
+          .[, frollapply(V1, n=windowsize, FUN=checkpos, align="center") >= mdurthresh],
         na.rm = T
       )
     } else {
       movinginter <- all(
         mDur_final[year %in% yearsel, checkpos(mDur_minsea_final), by=year] %>%
           .[, c(
-            frollapply(V1, n=round(windowsize/2), FUN=checkpos, align="left") > 0,
-            frollapply(V1, n=round(windowsize/2), FUN=checkpos, align="right") > 0
+            frollapply(V1, n=round(windowsize/2), FUN=checkpos, align="left") >= mdurthresh,
+            frollapply(V1, n=round(windowsize/2), FUN=checkpos, align="right") >= mdurthresh
           )],
         na.rm = T
       )
@@ -2898,7 +2898,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   alluv_formatGSIM <- melt(GSIMstatsdt_clean,
                            id.vars = c('gsim_no',
                                        paste0('totalYears_kept_o',
-                                              c(1800,1961, 1971))),
+                                              c(1800, 1961, 1971))),
                            measure.vars = mvars) %>%
     .[totalYears_kept_o1800 < 10 & variable %in% mvars, value := NA] %>%
     .[totalYears_kept_o1961 < 10 & variable %in% mvars[2:3], value := NA] %>%
@@ -2937,9 +2937,9 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
                  labels=c(1, 5, 10, 30, 90, 180, 365)) +
     geom_vline(xintercept=c(1, 5)) +
     annotate(geom='text', x=c(1.7,6.5), y=150, angle=90,
-             label=c(sum(irsensi_format[value==1 & variable=='mDur_o1961',
+             label=c(sum(irsensi_format[value==1 & variable=='mDur_o1800',
                                         max(cumcount), by=is.na(GRDC_NO)]$V1),
-                     sum(irsensi_format[value==5 & variable=='mDur_o1961',
+                     sum(irsensi_format[value==5 & variable=='mDur_o1800',
                                         max(cumcount), by=is.na(GRDC_NO)]$V1))) +
     theme_classic()
 

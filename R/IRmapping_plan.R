@@ -94,15 +94,15 @@ plan_preprocess <- drake_plan(
                                              inp_resdir = path_resdir,
                                              plotseries = FALSE),
 
-  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = gaugestats_analyzed[GRDC_NO_],
-  #                            yearthresh = 1800,
-  #                            inp_resdir = path_resdir,
-  #                            maxgap = 20),
-  #
-  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
-  #                          yearthresh = 1800,
-  #                          inp_resdir = path_resdir,
-  #                          maxgap = 20),
+  GRDCplots = plot_GRDCflags(in_GRDCgaugestats =  GRDCgaugestats[GRDC_NO %in% gaugestats_analyzed$data$GRDC_NO,],
+                             yearthresh = 1800,
+                             inp_resdir = path_resdir,
+                             maxgap = 20),
+
+  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats[gsim_no %in% gaugestats_analyzed$data$gsim_no,],
+                        yearthresh = 1800,
+                        inp_resdir = path_resdir,
+                        maxgap = 20)
   #
   # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
   #                                       in_gaugep = gaugep,
