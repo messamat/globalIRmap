@@ -217,7 +217,7 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
 
   if (showmissing) {
     rawplot <- rawplot +
-      geom_point(data=gaugetab[missingdays >= maxgap,], color='black', alpha=1/6)
+      geom_point(data=gaugetab[missingdays >= maxgap,], color='black', alpha=1/10)
   }
 
   if (!is.null(outpath)) {
@@ -231,7 +231,8 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
 }
 
 #------ plotGSIMtimeseries ----------------------
-plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366) {
+plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
+                               showmissing = FALSE) {
   #Read and format discharge records
   gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
     .[!is.na(MEAN),] %>%
@@ -251,7 +252,7 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366) 
                color='#045a8d', size=1, alpha=1/2) +
     geom_point(data=gaugetab[(missingdays < maxgap) & (MEAN==0),],
                color='red', size=1, alpha=1/2) +
-    geom_ribbon(aes(ymin = ribbonlow, ymax = ribbonhigh), color='grey', alpha=1/3) +
+    geom_ribbon(aes(ymin = ribbonlow, ymax = ribbonhigh), color='lightblue', alpha=1/4) +
     geom_point(data=gaugetab[(missingdays < maxgap) & (MIN>0),],
                aes(y = MIN), color='black', alpha=1/2) +
     geom_point(data=gaugetab[(missingdays < maxgap) & (MIN==0),],
@@ -268,6 +269,23 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366) 
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust=1),
           axis.text.y = element_text())
+
+  if (showmissing) {
+    gaugetab_removed <- gaugetab[missingdays > maxgap,]
+    rawplot <- rawplot +
+      geom_point(data=gaugetab[MEAN>0,],
+                 color='#045a8d', size=1, alpha=1/5) +
+      geom_point(data=gaugetab[(missingdays < maxgap) & (MEAN==0),],
+                 color='red', size=1, alpha=1/5) +
+      geom_point(data=gaugetab[(missingdays < maxgap) & (MIN>0),],
+                 aes(y = MIN), color='black', alpha=1/5) +
+      geom_point(data=gaugetab[(missingdays < maxgap) & (MIN==0),],
+                 aes(y = MIN), color='darkred', alpha=1/5) +
+      geom_point(data=gaugetab[(missingdays < maxgap) & (MAX>0),],
+                 aes(y = MAX), color='black', alpha=1/5) +
+      geom_point(data=gaugetab[(missingdays < maxgap) & (MAX==0),],
+                 aes(y = MAX), color='purple', alpha=1/5)
+  }
 
   if (!is.null(outpath)) {
     if (!(file.exists(outpath))) {
@@ -2361,8 +2379,12 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
 
 #------ plot_GRDCflags ------
 plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
-                           inp_resdir, maxgap) {
-  GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
+                           inp_resdir, maxgap, showmissing = FALSE) {
+  if (inherits(in_GRDCgaugestats, 'data.table')) {
+    GRDCstatsdt <- in_GRDCgaugestats
+  }  else if (is.list(in_GRDCgaugestats)) {
+    GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
+  }
 
   #Create output directory for IRs
   resdir_GRDCirplots <- file.path(inp_resdir,
@@ -2379,7 +2401,8 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
               plotGRDCtimeseries(.SD,
                                  outpath = file.path(resdir_GRDCirplots,
                                                      paste0(GRDC_NO, '.png')),
-                                 maxgap=maxgap
+                                 maxgap=maxgap,
+                                 showmissing = showmissing
               ), by=GRDC_NO]
 
   #Create output directory for non IRs
@@ -2397,7 +2420,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
                                  outpath = file.path(resdir_GRDCperplots,
                                                      paste0(GRDC_NO, '.png')),
                                  maxgap=maxgap,
-                                 showmissing = TRUE
+                                 showmissing = showmissing
               ), by=GRDC_NO]
 
 
@@ -2405,8 +2428,13 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 
 #------ plot_GSIM -------------
 plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
-                         inp_resdir, maxgap) {
-  GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
+                         inp_resdir, maxgap, showmissing) {
+
+  if (inherits(in_GSIMgaugestats, 'data.table')) {
+    GSIMstatsdt <- in_GSIMgaugestats
+  }  else if (is.list(in_GSIMgaugestats)) {
+    GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
+  }
 
   #Create output directory for IRs
   resdir_GSIMirplots <- file.path(inp_resdir,
@@ -2423,7 +2451,8 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
               plotGSIMtimeseries(.SD,
                                  outpath = file.path(resdir_GSIMirplots,
                                                      paste0(gsim_no, '.png')),
-                                 maxgap=maxgap
+                                 maxgap=maxgap,
+                                 showmissing=showmissing
               ), by=gsim_no]
 
 
@@ -2441,7 +2470,8 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
               plotGSIMtimeseries(.SD,
                                  outpath = file.path(resdir_GSIMperplots,
                                                      paste0(gsim_no, '.png')),
-                                 maxgap=maxgap
+                                 maxgap=maxgap,
+                                 showmissing=showmissing
               ), by=gsim_no]
 }
 
@@ -2454,7 +2484,79 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
 
   #Outliers from examining plots of ir time series (those that were commented out were initially considered)
-  GSIMtoremove_irartifacts <- c(
+  GSIMtoremove_o1800_irartifacts <- c(
+    'AT_0000014', #remove - changed flow permanence
+    'BR_0000286', #remove - Tapajos river. Impossible that it dries out.
+    'BR_0000581', #remove - 0 flow happened only once at the end of record
+    'BR_0000786', #remove - probably perennial
+    'BR_0000862', #remove - probably perennial
+    'BR_0001011', #remove - probably perennial
+    'BR_0001116', #remove - probably naturally perennial
+    'BR_0001133', #remove - probably naturally perennial
+    'CA_0001057', #remove - only one 0 flow event in 28 years
+    'CA_0003488', #remove - only one 0 flow event
+    'CA_0003526', #remove - only one 0 flow event
+    'ES_0000078', #remove - first 20 years without 0 flow
+    'ES_0000084', #remove - probably perennial, first 20 years without 0 flow
+    'ES_0000388', #remove - record is too discontinued to assess permanence, probably perennial; besides, it looks regulated
+    'ES_0000444', #remove - only one 0 valid flow occurrence
+    'ES_0000525', #remove - very discontinued record. Seems to have changed flow permanence
+    'ES_0000729', #remove - seems to have shifted
+    'ES_0000785', #remove - erroneous
+    'ES_0000786', #remove - looks regulated
+    'ES_0000816', #remove - doesn't look reliable
+    'ES_0000856', #remove - 0 flow occured only once in record
+    'ES_0000892', #remove - probably perennial
+    'ES_0000806', #remove - probably perennial, 0 flow occurred only once
+    'ES_0000910', #remove - changed flow permanence
+    'ES_0000986', #remove - 0 flow occured only once
+    'ES_0000996', #remove - changed flow permanence
+    'ES_0001020', #remove - hard to tell flow permanence
+    'ES_0001052', #remove - regulated
+    'ES_0001082', #remove - changed flow permanence, either regulated or...
+    'ES_0001085', #remove - changed flow permanence
+    'ES_0001116', #remove - occurred only the last year not the first 22 years
+    'ES_0001162', #remove - most occurrences seem buggy
+    'FI_0000156', #remove - no occurrences in first 60% of record
+    'FR_0000052', #remove - no occurrences in first 20 years
+    'HU_0000017', #remove - only one zero flow occurence in 25 years
+    'IE_0000014', #remove - no 0 flow occurrence in first 25 years
+    'IN_0000023', #remove - no 0 flow occurrence in first 20 years
+    'IN_0000045', #remove - no 0 flow occurrence in first 20 years
+    'IN_0000046', #remove - changed flow permanence
+    'IN_0000050', #remove - changed flow permanence
+    'IN_0000063', #remove - changed flow permanence
+    'IN_0000064', #remove - changed flow permanence
+    'IN_0000113', #remove - only one 0 flow occurrence
+    'IN_0000124', #remove - changed flow permanence
+    'IN_0000125', #remove - changed flow permanence
+    'IN_0000134', #remove - changed flow permanence
+    'IN_0000170', #remove - only one 0 flow occurrence
+    #'IN_0000190', #checked- looked regulated
+    'IN_0000255', #remove - changed flow permanence
+    'IN_0000283', #remove - changed flow permanence
+    'IN_0000312', #remove - changed flow permanence
+    'MZ_0000010', #remove - changed flow permanence
+    'NO_0000028', #remove - changed flow permanence
+    'NO_0000030', #remove - occurred only once
+    'RU_0000189', #remove - occurred only once
+    'RU_0000265', #remove - changed flow permanence
+    'RU_0000358', #remove - changed flow permanence
+    'TZ_0000018', #remove - hard to tell but probably changed flow permanence
+    'US_0005106', #remove - hard to tell, probably changed flow permanence
+    'US_0005874', #remove - changed flow permanence
+    'US_0005876', #remove - changed flow permanence
+    'US_0006103', #remove -  regulated
+    #'US_0006156', #checked -  regulated, barrier made it perennial?
+    'US_0006396', #remove - buggy looking pre-1960
+    'US_0006440', #remove - not enough data to tell, seemed like changed flow permanence
+    'US_0006537', #remove - changed flow permanence
+    'ZA_0000074', #remove - missing data
+    'ZA_0000268', #remove - seemingly changed flow permanence
+    'ZA_0000270', #remove - changed flow permanence
+    )
+
+  GSIMtoremove_o1961_irartifacts <- c(
     #'AR_0000014', #maybe regulated --- checked
     'AT_0000021', #remove
     'AT_0000026', #remove
@@ -2626,6 +2728,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   GSIMtoremove_coastalIR <- c('NO_0000044',
                               'NO_0000090')
 
+
   #------ Remove stations with unstable intermittent flow regime
   #Remove those which have at least one day per year of zero-flow day but instances
   #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
@@ -2640,7 +2743,37 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
                                            intermittent_o1800 == 1, GRDC_NO]
 
   #Outliers from examining plots of ir time series (those that were commented out were initially considered)
-  GRDCtoremove_irartifacts <- c(#1104800, #Keep
+  GRDCtoremove_o1800_irartifacts <- c(
+    1134300, #remove - Appears to have been a change in flow permanence, but too much missing data
+    1159830, #check missing values - probably perennial
+    1160785, #remove - changed flow permanence
+    1160800, #remove - changed flow permanence
+    1160850, #remove - changed flow permanence
+    1160881, #remove - changed flow permanence
+    1196141, #remove - doesn't look reliable, hard to assess long term flow permanence
+    1199410, #remove - changed flow permanence
+    1259500, #remove - hard to assess long term flow permanence
+    1428500, #remove - changed flow permanence
+    1434200, #remove - almost all integers, impossible to tell flow permanence
+    1434300, #remove - almost all integers
+    1491815, #remove - changed flow permanence
+    1591110, #remove - doesn't look reliable, changed flow permanence
+    3652050, #remove - looks naturally perennial
+    3652200, #remove - looks natural perennial (first 15 years)
+    4208372, #remove
+    4208655, #remove - insufficient data to tell flow permanence
+    4208855, #remove - insufficient data to tell flow permanence
+    4208857, #remove - probably not intermittent only occured once - missing years suggest perennial too
+    4213566, #remove - probably perennial
+    4214297, #remove - insufficient data to tell flow permanence
+    4214298, #remove - probably perennial
+    4769200, ##remove - insufficient data to tell flow permanence
+    5204170, #remove - probably changed flow permanence
+    5405095, ##remove - hard to tell whether actually intermittent (change at beginning, maybe regulated?)
+    5708200 #remove - probably perennial
+    )
+
+  GRDCtoremove_o1961_irartifacts <- c(#1104800, #Keep
     1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
     1159302, #Anomalous zero values
     1159303, #weird patterns, isolated 0s, sudden jumps and capped at 77
@@ -2805,8 +2938,22 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   # GRDCstatsdt[GRDC_NO == checkno, integerperc_o1800] #Check % integers
 
   #Outliers from examining plots of perennial time series (those that were commented out were initially considered)
-  #Try to find those whose low flow plateaus could be 0s and those whose perennial character is dam-driven
-  GRDCtoremove_pereartifacts <- c(
+  #Try to find those:
+  # whose low flow plateaus could be 0s
+  # whose perennial character is dam-driven or maybe irrigation driven (changed from IR to perennial but hard to find)
+  # whose missing data are actually 0s
+  # whose quality is too low to be reliable
+  GRDCtoremove_o1800_pereartifacts <- c(
+    1159800, #look regulated
+    #1160302, #looked regulated -- but nothing obvious
+    4101200, #low flows may be zeros as they plateau unless all integers
+    4118850, #low flows plateau
+    4125903, #too regulated
+    4126351, #looks too regulated (as far as the record goes)
+    4148850 #unsure, missing data have lots of zeros
+    )
+
+  GRDCtoremove_o1961_pereartifacts <- c(
     1160331, #remove- Lower plateaus are likely overestimated 0 values
     #1593100 #checked - clearly not intermittent but really bad quality
     1593751, #remove - missing values seem to contain intermittency
@@ -2878,8 +3025,8 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
 
   #Before cleaning
   GRDCtoremove_all <- unique(c(GRDCtoremove_allinteger,
-                               GRDCtoremove_irartifacts,
-                               GRDCtoremove_pereartifacts,
+                               GRDCtoremove_o1961_irartifacts,
+                               GRDCtoremove_o1961_pereartifacts,
                                GRDCtoremove_winterIR,
                                GRDCtoremove_unstableIR))
 
@@ -2888,7 +3035,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
                 !(GRDC_NO %in% GRDCtoremove_all), .N]
 
   ### Check changes in GSIM discharge data availability and flow regime over time ####
-  GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_irartifacts,
+  GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_o1961_irartifacts,
                                                      GSIMtoremove_coastalIR,
                                                      GSIMtoremove_winterIR,
                                                      GSIMtoremove_unstableIR)),]

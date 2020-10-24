@@ -94,52 +94,42 @@ plan_preprocess <- drake_plan(
                                              inp_resdir = path_resdir,
                                              plotseries = FALSE),
 
-  GRDCplots = plot_GRDCflags(in_GRDCgaugestats =  GRDCgaugestats[GRDC_NO %in% gaugestats_analyzed$data$GRDC_NO,],
-                             yearthresh = 1800,
-                             inp_resdir = path_resdir,
-                             maxgap = 20),
+  gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
+                                        in_gaugep = gaugep,
+                                        yearthresh = 1800),
 
-  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats[gsim_no %in% gaugestats_analyzed$data$gsim_no,],
-                        yearthresh = 1800,
-                        inp_resdir = path_resdir,
-                        maxgap = 20)
-  #
-  # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
-  #                                       in_gaugep = gaugep,
-  #                                       yearthresh = 1800),
-  #
-  # predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-  #                                  in_gaugestats = gaugestats_format),
-  #
-  # measures = target(list(classif = msr("classif.bacc"),
-  #                        regr = msr("regr.mae"))
-  # ),
-  #
-  # #-------------------- SET-UP TASKS -------------------------------------
-  # gauges_div = target(
-  #   gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
-  #                       (dis_m3_pyr < discharge_interval[2]),]
-  #   ,
-  #   transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
-  #                   .names = c('gaugestats_format_u10', 'gaugestats_format_o10')
-  #   )
-  # )
-  # ,
-  #
-  # tasks = target(
-  #   create_tasks(in_gaugestats = in_gauges,
-  #               in_predvars = predvars,
-  #               id_suffix = in_id,
-  #               include_discharge = map_includedis),
-  #   transform = map(
-  #     in_gauges = c(gaugestats_format_u10, gaugestats_format_o10),
-  #     in_id = c('_u10', '_o10'),
-  #     map_includedis = c(FALSE, TRUE),
-  #     .names = c('tasks_u10', 'tasks_o10'),
-  #     tag_in = task,
-  #     tag_out = size
-  #   )
-  # )
+  predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
+                                   in_gaugestats = gaugestats_format),
+
+  measures = target(list(classif = msr("classif.bacc"),
+                         regr = msr("regr.mae"))
+  ),
+
+  #-------------------- SET-UP TASKS -------------------------------------
+  gauges_div = target(
+    gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
+                        (dis_m3_pyr < discharge_interval[2]),]
+    ,
+    transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
+                    .names = c('gaugestats_format_u10', 'gaugestats_format_o10')
+    )
+  )
+  ,
+
+  tasks = target(
+    create_tasks(in_gaugestats = in_gauges,
+                in_predvars = predvars,
+                id_suffix = in_id,
+                include_discharge = map_includedis),
+    transform = map(
+      in_gauges = c(gaugestats_format_u10, gaugestats_format_o10),
+      in_id = c('_u10', '_o10'),
+      map_includedis = c(FALSE, TRUE),
+      .names = c('tasks_u10', 'tasks_o10'),
+      tag_in = task,
+      tag_out = size
+    )
+  )
 )
 
 
