@@ -2553,7 +2553,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     'US_0006537', #remove - changed flow permanence
     'ZA_0000074', #remove - missing data
     'ZA_0000268', #remove - seemingly changed flow permanence
-    'ZA_0000270', #remove - changed flow permanence
+    'ZA_0000270' #remove - changed flow permanence
     )
 
   GSIMtoremove_o1961_irartifacts <- c(
@@ -3025,6 +3025,8 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
 
   #Before cleaning
   GRDCtoremove_all <- unique(c(GRDCtoremove_allinteger,
+                               GRDCtoremove_o1800_irartifacts,
+                               GRDCtoremove_o1800_pereartifacts,
                                GRDCtoremove_o1961_irartifacts,
                                GRDCtoremove_o1961_pereartifacts,
                                GRDCtoremove_winterIR,
@@ -3036,6 +3038,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
 
   ### Check changes in GSIM discharge data availability and flow regime over time ####
   GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_o1961_irartifacts,
+                                                     GSIMtoremove_o1800_irartifacts,
                                                      GSIMtoremove_coastalIR,
                                                      GSIMtoremove_winterIR,
                                                      GSIMtoremove_unstableIR)),]
@@ -3186,7 +3189,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'inu_pc_cmn',
     'lka_pc_cse',
     'lka_pc_use',
-    'dor_pc_pva',
+    #'dor_pc_pva', #anthropogenic - degree of regulation
     'gwt_m_cav',
     'ele_pc_rel',
     'slp_dg_cav',
@@ -3211,8 +3214,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'wet_pc_u09',
     'for_pc_use',
     'for_pc_cse',
-    'ire_pc_use',
-    'ire_pc_cse',
+    #'ire_pc_use', #anthropogenic - irrigated area extent
+    #'ire_pc_cse', #anthropogenic - irrigated area extent
     'gla_pc_use',
     'gla_pc_cse',
     'prm_pc_use',
@@ -3223,15 +3226,15 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'lit_cl_cmj',
     'kar_pc_use',
     'kar_pc_cse',
-    'ppd_pk_cav',
-    'ppd_pk_uav',
-    'urb_pc_cse',
-    'urb_pc_use',
-    'hft_ix_c93',
-    'hft_ix_u93',
-    'hft_ix_c09',
-    'hft_ix_u09',
-    'hdi_ix_cav',
+    #'ppd_pk_cav', #anthropogenic - pop density
+    #'ppd_pk_uav', #anthropogenic - pop density
+    #'urb_pc_cse', #anthropogenic - urban cover
+    #'urb_pc_use', #anthropogenic - urban cover
+    #'hft_ix_c93', #anthropogenic - human footprint
+    #'hft_ix_u93', #anthropogenic - human footprint
+    #'hft_ix_c09', #anthropogenic - human footprint
+    #'hft_ix_u09', #anthropogenic - human footprint
+    #'hdi_ix_cav', #anthropogenic - dev index
 
     'cly_pc_cav',
     'cly_pc_uav',
@@ -3263,6 +3266,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     # 'pre_mm_u10',
     # 'pre_mm_u11',
     # 'pre_mm_u12',
+    'aet_mm_cyr',
+    'aet_mm_uyr',
     'pet_mm_cyr',
     'pet_mm_uyr',
     # 'cmi_ix_cyr',
@@ -3311,25 +3316,25 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'wseas_pc_uav',
     'wperm_pc_uav',
     'wfresh_pc_uav',
-    # 'bio1_dc_cav',
-    # 'bio2_dc_cav',
-    # 'bio3_dc_cav',
-    # 'bio4_dc_cav',
-    # 'bio5_dc_cav',
-    # 'bio6_dc_cav',
-    # 'bio7_dc_cav',
-    # 'bio8_dc_cav',
-    # 'bio9_dc_cav',
-    # 'bio10_dc_cav',
-    # 'bio11_dc_cav',
-    # 'bio12_mm_cav',
-    # 'bio13_mm_cav',
-    # 'bio14_mm_cav',
-    # 'bio15_mm_cav',
-    # 'bio16_mm_cav',
-    # 'bio17_mm_cav',
-    # 'bio18_mm_cav',
-    # 'bio19_mm_cav',
+    'bio1_dc_cav',
+    'bio2_dc_cav',
+    'bio3_dc_cav',
+    'bio4_dc_cav',
+    'bio5_dc_cav',
+    'bio6_dc_cav',
+    'bio7_dc_cav',
+    'bio8_dc_cav',
+    'bio9_dc_cav',
+    'bio10_dc_cav',
+    'bio11_dc_cav',
+    'bio12_mm_cav',
+    'bio13_mm_cav',
+    'bio14_mm_cav',
+    'bio15_mm_cav',
+    'bio16_mm_cav',
+    'bio17_mm_cav',
+    'bio18_mm_cav',
+    'bio19_mm_cav',
     'bio1_dc_uav',
     'bio2_dc_uav',
     'bio3_dc_uav',
@@ -4003,12 +4008,12 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats,
     setorder(row_id)
 
   #Get average predictions for oversampled rows and across repetitions - spatial CV
-  rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
-  gpreds_CV_sp <-  rsmp_res_sp$prediction()$set_threshold(1-interthresh) %>%
-    as.data.table %>%
-    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
-    .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
-    setorder(row_id)
+  # rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
+  # gpreds_CV_sp <-  rsmp_res_sp$prediction()$set_threshold(1-interthresh) %>%
+  #   as.data.table %>%
+  #   .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+  #   .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
+  #   setorder(row_id)
 
   #Format gauge data.table prior to merging
   datsel <- na.omit(in_gaugestats, c('intermittent_o1800',
@@ -4018,10 +4023,10 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats,
   datsel[, `:=`(
     IRpredprob_full = gpreds_full$prob[,2],
     IRpredcat_full = gpreds_full$response,
+    # IRpredprob_CVsp = gpreds_CV_sp$prob.1,
+    # IRpredcat_CVsp = gpreds_CV_sp$response,
     IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
-    IRpredcat_CVnosp = gpreds_CV_nosp$response,
-    IRpredprob_CVsp = gpreds_CV_sp$prob.1,
-    IRpredcat_CVsp = gpreds_CV_sp$response
+    IRpredcat_CVnosp = gpreds_CV_nosp$response
   )]
 
   return(datsel)
@@ -4689,6 +4694,64 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
   gdalinfo(out_krigingtif)
 
   return(out_krigingtif)
+}
+
+#------ compare_branches -----------
+compare_branches <- function(grepdsdt_list) {
+  check <- rbind(gpredsdt_u10, gpredsdt_o1,
+                 use.names = TRUE, idcol = "modelgroup")
+
+  check[GAUGE_NO %in% check[duplicated(GAUGE_NO), GAUGE_NO], .N]
+  duplig<- check[GAUGE_NO %in% check[duplicated(GAUGE_NO), GAUGE_NO],]
+
+  dupligcast <- dcast(duplig,
+                      GAUGE_NO+intermittent_o1800~modelgroup, value.var = 'IRpredprob_CVnosp') %>%
+    setnames(old=c('1', '2'), new=c('small_model', 'large_model')) %>%
+    .[, mean_model := mean(c(small_model, large_model)), by=GAUGE_NO]
+
+  ggplot(dupligcast,
+         aes(x=small_model, y=large_model)) +
+    geom_point(aes(color=intermittent_o1800), alpha=1/3) +
+    scale_color_manual(values=c('#1f78b4', '#ff7f00')) +
+    geom_smooth() +
+    geom_abline() +
+    theme_bw()
+
+  ggplot(duplig,  aes(x=IRpredprob_CVnosp, fill=intermittent_o1800)) +
+    geom_histogram(alpha=0.75) +
+    scale_fill_manual(values=c('#1f78b4', '#ff7f00')) +
+    geom_vline(xintercept=0.50) +
+    facet_wrap(~modelgroup) +
+    theme_bw()
+
+  mlr3measures::bacc(dupligcast$intermittent_o1800,
+                     as.factor(dupligcast[, fifelse(small_model > 0.5, '1', '0')])
+  )
+  mlr3measures::ce(dupligcast$intermittent_o1800,
+                   as.factor(dupligcast[, fifelse(small_model > 0.5, '1', '0')])
+  )
+  mlr3measures::bbrier(dupligcast$intermittent_o1800,
+                       dupligcast[, small_model], positive='1')
+
+
+  mlr3measures::bacc(dupligcast$intermittent_o1800,
+                     as.factor(dupligcast[, fifelse(large_model > 0.5, '1', '0')])
+  )
+  mlr3measures::ce(dupligcast$intermittent_o1800,
+                   as.factor(dupligcast[, fifelse(large_model > 0.5, '1', '0')])
+  )
+  mlr3measures::bbrier(dupligcast$intermittent_o1800,
+                       dupligcast[, large_model], positive='1')
+
+
+  mlr3measures::bacc(dupligcast$intermittent_o1800,
+                     as.factor(dupligcast[, fifelse(mean_model > 0.5, '1', '0')])
+  )
+  mlr3measures::ce(dupligcast$intermittent_o1800,
+                   as.factor(dupligcast[, fifelse(mean_model > 0.5, '1', '0')])
+  )
+  mlr3measures::bbrier(dupligcast$intermittent_o1800,
+                       dupligcast[, mean_model], positive='1')
 }
 
 ##### -------------------- Report functions -----------------------------------

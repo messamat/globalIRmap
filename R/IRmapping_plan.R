@@ -110,8 +110,12 @@ plan_preprocess <- drake_plan(
     gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
                         (dis_m3_pyr < discharge_interval[2]),]
     ,
-    transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
-                    .names = c('gaugestats_format_u10', 'gaugestats_format_o10')
+    transform = map(discharge_interval = list(c(0, 1), c(0, 10),
+                                              c(1, Inf), c(10, Inf)),
+                    .names = c('gaugestats_format_u1',
+                               'gaugestats_format_u10',
+                               'gaugestats_format_o1',
+                               'gaugestats_format_o10')
     )
   )
   ,
@@ -122,10 +126,14 @@ plan_preprocess <- drake_plan(
                 id_suffix = in_id,
                 include_discharge = map_includedis),
     transform = map(
-      in_gauges = c(gaugestats_format_u10, gaugestats_format_o10),
-      in_id = c('_u10', '_o10'),
-      map_includedis = c(FALSE, TRUE),
-      .names = c('tasks_u10', 'tasks_o10'),
+      in_gauges = c(gaugestats_format_u1,
+                    gaugestats_format_u10, gaugestats_format_u10,
+                    gaugestats_format_o1,
+                    gaugestats_format_o10),
+      in_id = c('_u1', '_u10nodis', '_u10', '_o1', '_o10'),
+      map_includedis = c(TRUE, FALSE, TRUE, TRUE, TRUE),
+      .names = c('tasks_u1', 'tasks_u10nodis', 'tasks_u10',
+                 'tasks_o1', 'tasks_o10'),
       tag_in = task,
       tag_out = size
     )
@@ -140,7 +148,7 @@ plan_runmodels <- drake_plan(
     create_baselearners(tasks),
     dynamic = map(tasks)),
 
-  #Subdivide the baselearners dynamic targets from 3 to 8
+  #Subdivide the baselearners dynamic targets
   seplearners = target(readd(baselearners, subtarget_list = FALSE)),
 
   autotuningset = target(
@@ -270,7 +278,7 @@ plan_runmodels <- drake_plan(
                                      in_gaugestats = gaugestats_format,
                                      binvar = 'dis_m3_pyr',
                                      binfunc = 'manual',
-                                     binarg = c(0.1, 1, 10, 100, 10000, 100000),
+                                     binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
                                      interthresh=interthresh,
                                      spatial_rsp=FALSE
   ),
@@ -297,7 +305,6 @@ plan_runmodels <- drake_plan(
 )
 
 ########################### PLAN_GETOUTPUTS ####################################
-
 plan_getoutputs <- drake_plan(
   rivernetwork = rformat_network(in_predvars = predvars,
                                  #in_monthlydischarge = monthlydischarge,
@@ -305,7 +312,7 @@ plan_getoutputs <- drake_plan(
                                  inp_riveratlas = path_riveratlas,
                                  inp_riveratlas2 = path_riveratlas2),
 
-  gpredsdt = rbind(gpredsdt_u10, gpredsdt_o10,
+  gpredsdt = rbind(gpredsdt_u10, gpredsdt_o1,
                    use.names = TRUE, idcol = "modelgroup"),
 
   rfpreds_gauges = write_gaugepreds(in_gaugep = gaugep,
@@ -314,9 +321,9 @@ plan_getoutputs <- drake_plan(
 
   rfpreds_network = write_netpreds(
     in_network = rivernetwork,
-    in_rftuned = list(rftuned_u10, rftuned_o10),
+    in_rftuned = list(rftuned_u10, rftuned_o1),
     discharge_interval = list(c(0, 10), c(10, Inf)),
-    interthresh = list(interthresh_u10, interthresh_o10),
+    interthresh = list(interthresh_u10, interthresh_o1),
     in_predvars = predvars,
     outp_riveratlaspred = outpath_riveratlaspred
   ),
@@ -341,10 +348,12 @@ plan_getoutputs <- drake_plan(
                          binarg <- c(30, 60, 100),
                          binvar <- 'totalYears_kept_o1800'),
 
-  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
-                             in_gaugepred = rfpreds_gauges,
-                             in_predvars = predvars),
+  #Reprogram even if missing human stuff
+  # envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
+  #                            in_gaugepred = rfpreds_gauges,
+  #                            in_predvars = predvars),
 
+  ####################### NOT SUPER USEFUL ##### maybe only to reply to reviewers around spatial auto-correlation
   # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
   #                               in_gaugep = gaugep,
   #                               in_gaugestats = gaugestats_format,
@@ -402,15 +411,21 @@ plan_runmodels_u10 <- branch_plan(
   external_arguments_to_modif = c('tasks', 'gaugestats_format'),
   verbose = FALSE)
 
-plan_runmodels_o10 <- branch_plan(
-  plan = plan_runmodels,
-  branch_suffix = '_o10',
-  external_arguments_to_modif = c('tasks', 'gaugestats_format'),
-  verbose = FALSE)
+planbranches <- lapply(
+  c('_u1', '_u10nodis', '_u10', '_o1', '_o10'), function(suffix) {
+    return(
+      branch_plan(
+        plan = plan_runmodels,
+        branch_suffix = suffix,
+        external_arguments_to_modif = c('tasks', 'gaugestats_format'),
+        verbose = FALSE)
+    )
+  }
+) %>%
+  do.call(bind_plans, .)
 
 plan <- bind_plans(plan_preprocess,
-                   plan_runmodels_u10,
-                   plan_runmodels_o10,
-                   plan_getoutputs
+                   planbranches
+                   #plan_getoutputs
 )
 
