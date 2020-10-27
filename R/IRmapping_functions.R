@@ -3954,13 +3954,16 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
 #------ rformat_network ------------------
 rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
-  cols_toread <-  c("HYRIV_ID", "HYBAS_L12", "LENGTH_KM",
-                    in_predvars[, varcode],
-                    'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'ORD_STRA',
-                    #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    paste0('pet_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
-                    paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
+  cols_toread <-  unique(
+    c("HYRIV_ID", "HYBAS_L12", "LENGTH_KM",
+      in_predvars[, varcode],
+      'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'dor_pc_pva',
+      'ORD_STRA',
+      #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+      #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
+      paste0('pet_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
+      paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
+  )
 
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = cols_toread)
@@ -4206,7 +4209,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
 
 
   if (in_bm$task_type == 'classif') {
-    print(in_bm$aggregate(in_measure$classif))
+    print(in_bm$aggregate(measures=in_measure$classif))
     boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure$classif)
 
     preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
@@ -4292,7 +4295,7 @@ bin_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
 
   #Get bins
   bin_gauges <- bin_dt(in_dt = in_gaugestats, binvar = 'dis_m3_pyr',
-                       binfunc = 'manual', binarg=c(0.1, 1, 10, 100, 100, 10000, 100000),
+                       binfunc = 'manual', binarg=binarg,
                        bintrans=NULL, na.rm=FALSE) %>%
     .[, row_id := .I]
 
@@ -4696,63 +4699,6 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
   return(out_krigingtif)
 }
 
-#------ compare_branches -----------
-compare_branches <- function(grepdsdt_list) {
-  check <- rbind(gpredsdt_u10, gpredsdt_o1,
-                 use.names = TRUE, idcol = "modelgroup")
-
-  check[GAUGE_NO %in% check[duplicated(GAUGE_NO), GAUGE_NO], .N]
-  duplig<- check[GAUGE_NO %in% check[duplicated(GAUGE_NO), GAUGE_NO],]
-
-  dupligcast <- dcast(duplig,
-                      GAUGE_NO+intermittent_o1800~modelgroup, value.var = 'IRpredprob_CVnosp') %>%
-    setnames(old=c('1', '2'), new=c('small_model', 'large_model')) %>%
-    .[, mean_model := mean(c(small_model, large_model)), by=GAUGE_NO]
-
-  ggplot(dupligcast,
-         aes(x=small_model, y=large_model)) +
-    geom_point(aes(color=intermittent_o1800), alpha=1/3) +
-    scale_color_manual(values=c('#1f78b4', '#ff7f00')) +
-    geom_smooth() +
-    geom_abline() +
-    theme_bw()
-
-  ggplot(duplig,  aes(x=IRpredprob_CVnosp, fill=intermittent_o1800)) +
-    geom_histogram(alpha=0.75) +
-    scale_fill_manual(values=c('#1f78b4', '#ff7f00')) +
-    geom_vline(xintercept=0.50) +
-    facet_wrap(~modelgroup) +
-    theme_bw()
-
-  mlr3measures::bacc(dupligcast$intermittent_o1800,
-                     as.factor(dupligcast[, fifelse(small_model > 0.5, '1', '0')])
-  )
-  mlr3measures::ce(dupligcast$intermittent_o1800,
-                   as.factor(dupligcast[, fifelse(small_model > 0.5, '1', '0')])
-  )
-  mlr3measures::bbrier(dupligcast$intermittent_o1800,
-                       dupligcast[, small_model], positive='1')
-
-
-  mlr3measures::bacc(dupligcast$intermittent_o1800,
-                     as.factor(dupligcast[, fifelse(large_model > 0.5, '1', '0')])
-  )
-  mlr3measures::ce(dupligcast$intermittent_o1800,
-                   as.factor(dupligcast[, fifelse(large_model > 0.5, '1', '0')])
-  )
-  mlr3measures::bbrier(dupligcast$intermittent_o1800,
-                       dupligcast[, large_model], positive='1')
-
-
-  mlr3measures::bacc(dupligcast$intermittent_o1800,
-                     as.factor(dupligcast[, fifelse(mean_model > 0.5, '1', '0')])
-  )
-  mlr3measures::ce(dupligcast$intermittent_o1800,
-                   as.factor(dupligcast[, fifelse(mean_model > 0.5, '1', '0')])
-  )
-  mlr3measures::bbrier(dupligcast$intermittent_o1800,
-                       dupligcast[, mean_model], positive='1')
-}
 
 ##### -------------------- Report functions -----------------------------------
 #------ get_basemaps ------------

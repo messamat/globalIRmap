@@ -110,12 +110,9 @@ plan_preprocess <- drake_plan(
     gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
                         (dis_m3_pyr < discharge_interval[2]),]
     ,
-    transform = map(discharge_interval = list(c(0, 1), c(0, 10),
-                                              c(1, Inf), c(10, Inf)),
-                    .names = c('gaugestats_format_u1',
-                               'gaugestats_format_u10',
-                               'gaugestats_format_o1',
-                               'gaugestats_format_o10')
+    transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
+                    .names = c('gaugestats_format_u10',
+                               'gaugestats_format_o1')
     )
   )
   ,
@@ -126,14 +123,11 @@ plan_preprocess <- drake_plan(
                 id_suffix = in_id,
                 include_discharge = map_includedis),
     transform = map(
-      in_gauges = c(gaugestats_format_u1,
-                    gaugestats_format_u10, gaugestats_format_u10,
-                    gaugestats_format_o1,
-                    gaugestats_format_o10),
-      in_id = c('_u1', '_u10nodis', '_u10', '_o1', '_o10'),
-      map_includedis = c(TRUE, FALSE, TRUE, TRUE, TRUE),
-      .names = c('tasks_u1', 'tasks_u10nodis', 'tasks_u10',
-                 'tasks_o1', 'tasks_o10'),
+      in_gauges = c(gaugestats_format_u10,
+                    gaugestats_format_o1),
+      in_id = c('_u10', '_o1'),
+      map_includedis = c(TRUE, TRUE),
+      .names = c('tasks_u10', 'tasks_o1'),
       tag_in = task,
       tag_out = size
     )
@@ -155,7 +149,7 @@ plan_runmodels <- drake_plan(
     set_tuning(in_learner = seplearners,
                in_measure = measures,
                nfeatures = length(tasks$classif$feature_names),
-               insamp_nfolds = 4, insamp_neval = 10,
+               insamp_nfolds = 4, insamp_neval = 100,
                insamp_nbatch = parallel::detectCores(logical=FALSE)-2
     ),
     dynamic = map(seplearners)
@@ -209,7 +203,7 @@ plan_runmodels <- drake_plan(
                      outsamp_nfolds = in_outfolds),
     transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
                     in_outrep = c(2, 2),
-                    in_outfolds = c(3, 3),
+                    in_outfolds = c(3, 5),
                     .names = c('featsel_cv', 'featsel_spcv'))
   ),
 
@@ -239,10 +233,10 @@ plan_runmodels <- drake_plan(
   ),
 
   rfbm_featall= analyze_benchmark(in_bm = rfeval_featall,
-                                  in_measure = measures$classif),
+                                  in_measure = measures),
 
   rfbm_featsel = analyze_benchmark(in_bm = rfeval_featsel,
-                                   in_measure = measures$classif),
+                                   in_measure = measures),
 
   interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
 
@@ -252,7 +246,7 @@ plan_runmodels <- drake_plan(
                    in_learnerid = selected_learner,
                    in_taskid = "inter_class_featsel",
                    insamp_nfolds = 4,
-                   insamp_nevals = 10)),
+                   insamp_nevals = 100)),
 
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
@@ -322,11 +316,12 @@ plan_getoutputs <- drake_plan(
   rfpreds_network = write_netpreds(
     in_network = rivernetwork,
     in_rftuned = list(rftuned_u10, rftuned_o1),
-    discharge_interval = list(c(0, 10), c(10, Inf)),
+    discharge_interval = list(c(0, 10), c(1, Inf)),
     interthresh = list(interthresh_u10, interthresh_o1),
     in_predvars = predvars,
     outp_riveratlaspred = outpath_riveratlaspred
-  ),
+  )
+  ,
 
 
   ##### TO REPROGRAM ###########
@@ -402,17 +397,9 @@ plan_getoutputs <- drake_plan(
 )
 
 
-
 ########################### BIND AND BRANCH PLANS ##############################
-
-plan_runmodels_u10 <- branch_plan(
-  plan = plan_runmodels,
-  branch_suffix = '_u10',
-  external_arguments_to_modif = c('tasks', 'gaugestats_format'),
-  verbose = FALSE)
-
 planbranches <- lapply(
-  c('_u1', '_u10nodis', '_u10', '_o1', '_o10'), function(suffix) {
+  c('_u10', '_o1'), function(suffix) {
     return(
       branch_plan(
         plan = plan_runmodels,
@@ -425,7 +412,7 @@ planbranches <- lapply(
   do.call(bind_plans, .)
 
 plan <- bind_plans(plan_preprocess,
-                   planbranches
+                   planbranches,
                    #plan_getoutputs
 )
 
