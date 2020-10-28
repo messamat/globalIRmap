@@ -200,10 +200,10 @@
     },
     "backports": {
       "Package": "backports",
-      "Version": "1.1.7",
+      "Version": "1.1.10",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "e9c8188eb82b137301493492d767a1ac"
+      "Hash": "05ffd2d4acb51aee70f1de68ad7a6aed"
     },
     "base64enc": {
       "Package": "base64enc",
@@ -431,10 +431,10 @@
     },
     "data.table": {
       "Package": "data.table",
-      "Version": "1.13.1",
+      "Version": "1.13.2",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "cbd0570423408954252fa569f24c6c58"
+      "Hash": "907b184e0fd13bc19154a8f322920015"
     },
     "dbplyr": {
       "Package": "dbplyr",
