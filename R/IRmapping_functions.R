@@ -598,7 +598,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
       #catchment average elv - watershec average elev
       ele_pc_rel = fifelse(ele_mt_uav==0, 0, (ele_mt_cav-ele_mt_uav)/ele_mt_uav),
       #runoff coefficient (runoff/precipitation)
-      runc_ix_cyr = run_mm_cyr/bio12_mm_cav,
+      runc_ix_cyr = fifelse(bio12_mm_cav==0, 0, run_mm_cyr/bio12_mm_cav),
       #Specific discharge
       sdis_ms_uyr = dis_m3_pyr/UPLAND_SKM,
       sdis_ms_umn = dis_m3_pmn/UPLAND_SKM
@@ -4103,7 +4103,12 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars,
   ) %>%
     rbindlist
 
-
+  if (networkpreds[duplicated(HYRIV_ID), .N] > 0 ) {
+    networkpreds <- networkpreds[, predbasic800 := mean(predbasic800, na.rm=T),
+                                 by=.(HYRIV_ID)] %>% #Compute mean predicted probability if overlapping models
+      .[!duplicated(HYRIV_ID),] %>%     #Remove duplicates (if overlapping model)
+      .[, predbasic800cat := fifelse(predbasic800 >= 0.5, '1', '0')]
+  }
 
   outp_riveratlaspred <- paste0(gsub('[.][a-z]*$', '', outp_riveratlaspred), '_',
                                 format(Sys.Date(), '%Y%m%d'), '.csv')
