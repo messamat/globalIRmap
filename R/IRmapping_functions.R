@@ -2668,16 +2668,16 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   canadians_toinspect <- in_gaugep[in_gaugep$gsim_no %in%
                                      paste0('CA_000', c(3469, 3473, 3526, 3544, 6082, 6122)),]$reference_no
 
-  if (!dir.exists(hy_dir())) download_hydat()
-  cancheck <- lapply(canadians_toinspect, function(refno) {
-    merge(hy_daily(station_number = refno),
-          hy_stn_regulation(station_number = refno),
-          by='STATION_NUMBER') %>%
-      setDT
-  }) %>%
-    rbindlist
-  cancheck[REGULATED==T, unique(STATION_NUMBER)] #No regulated station
-  cancheck[Value==0, .N, by=.(STATION_NUMBER, Symbol)]
+  # if (!dir.exists(hy_dir())) download_hydat()
+  # cancheck <- lapply(canadians_toinspect, function(refno) {
+  #   merge(hy_daily(station_number = refno),
+  #         hy_stn_regulation(station_number = refno),
+  #         by='STATION_NUMBER') %>%
+  #     setDT
+  # }) %>%
+  #   rbindlist
+  # cancheck[REGULATED==T, unique(STATION_NUMBER)] #No regulated station
+  # cancheck[Value==0, .N, by=.(STATION_NUMBER, Symbol)]
 
   #E - Estimate:  no measured data available for the day or missing period,
   #    and the water level or streamflow value was estimated by an indirect method
@@ -2692,12 +2692,12 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   #R - Revised: The symbol R indicates that a revision, correction or addition
   # `  has been made to the historical discharge database after January 1, 1989.
 
-  ggplot(cancheck[Value > 0, ], aes(x=Date, y=Value, color=Symbol)) +
-    geom_vline(data=cancheck[is.na(Value),], aes(xintercept = Date), color='grey', alpha=1/4) +
-    geom_point(alpha=1/6) +
-    geom_point(data=cancheck[Value==0,]) +
-    facet_wrap(~STATION_NUMBER, scales='free') +
-    theme_classic()
+  # ggplot(cancheck[Value > 0, ], aes(x=Date, y=Value, color=Symbol)) +
+  #   geom_vline(data=cancheck[is.na(Value),], aes(xintercept = Date), color='grey', alpha=1/4) +
+  #   geom_point(alpha=1/6) +
+  #   geom_point(data=cancheck[Value==0,]) +
+  #   facet_wrap(~STATION_NUMBER, scales='free') +
+  #   theme_classic()
 
   #Remove 06NB002, 06AF001 — CA_0003544, CA_0003473
 
