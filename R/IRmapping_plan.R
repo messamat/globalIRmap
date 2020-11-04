@@ -16,6 +16,7 @@ plan_preprocess <- drake_plan(
   path_monthlynetdischarge = 'C:\\globalIRmap\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
   path_riveratlas = file_in('C:\\globalIRmap\\results\\RiverATLAS_v10tab.csv'),
   path_riveratlas2 = file_in('C:\\globalIRmap\\results\\RiverATLAS_v11tab.csv'),
+  path_bas03 = 'C:\\globalIRmap\\data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03',
   path_compresdir = file.path('C:\\globalIRmap\\results\\Comparison_databases'),
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
   path_usdatdir = file.path('C:\\globalIRmap\\data\\Comparison_databases', 'US'),
@@ -293,6 +294,7 @@ plan_runmodels <- drake_plan(
                                      misclass_classif2)),
 
   gpredsdt = make_gaugepreds(in_rftuned = rftuned,
+                             in_res_spcv = res_featsel_spcv,
                              in_gaugestats = gaugestats_format,
                              in_predvars = predvars,
                              interthresh = interthresh)
@@ -306,8 +308,8 @@ plan_getoutputs <- drake_plan(
                                  inp_riveratlas = path_riveratlas,
                                  inp_riveratlas2 = path_riveratlas2),
 
-  gpredsdt = rbind(gpredsdt_u10, gpredsdt_o1,
-                   use.names = TRUE, idcol = "modelgroup"),
+  gpredsdt = bind_gaugepreds(list(gpredsdt_u10, gpredsdt_o1),
+                             interthresh = interthresh),
 
   rfpreds_gauges = write_gaugepreds(in_gaugep = gaugep,
                                     in_gpredsdt = gpredsdt,
@@ -343,10 +345,9 @@ plan_getoutputs <- drake_plan(
                          binarg <- c(30, 60, 100),
                          binvar <- 'totalYears_kept_o1800'),
 
-  #Reprogram even if missing human stuff
-  # envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
-  #                            in_gaugepred = rfpreds_gauges,
-  #                            in_predvars = predvars),
+  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
+                             in_gaugepred = rfpreds_gauges,
+                             in_predvars = predvars),
 
   ####################### NOT SUPER USEFUL ##### maybe only to reply to reviewers around spatial auto-correlation
   # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
@@ -373,7 +374,9 @@ plan_getoutputs <- drake_plan(
                            binfunc = 'manual',
                            binarg = c(0.1, 1, 10, 100, 1000, 10000),
                            na.rm=T,
-                           tidy = FALSE),
+                           tidy = FALSE,
+                           nolake = TRUE,
+                           nozerodis = FALSE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
   )
