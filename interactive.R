@@ -7,7 +7,7 @@ predict_runtime(plan, from_scratch = TRUE) #Predict how long it would take to re
 
 
 cached()
-drake::drake_cache("C:/globalIRmap/src/globalIRmap/.drake")$unlock()
+drake::drake_cache("E:\\Mathis/src/globalIRmap/.drake")$unlock()
 ##########drake::clean(list = cached_unplanned(plan), garbage_collection = TRUE)
 
 history_last <- drake_history(analyze = FALSE) %>%
