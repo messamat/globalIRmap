@@ -4406,19 +4406,23 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     setorder(-imp_wmean)
 
   #Plot 'em
-  ggplot(varimp_basic[1:varnum,],aes(x=varname)) +
+  ggplot(varimp_basic[1:varnum,],aes(x=varname, fill=Category)) +
     geom_bar(aes(y=imp_wmean), stat = 'identity') +
-    geom_errorbar(aes(ymin=imp_wmean-2*imp_wsd, ymax=imp_wmean+2*imp_wsd)) +
+    geom_errorbar(aes(ymin=imp_wmean-imp_wsd, ymax=imp_wmean+imp_wsd)) +
     scale_x_discrete(name='Predictor',
                      labels = function(x) stringr::str_wrap(x, width = 10)) +
     scale_y_continuous(name='Variable importance', expand=c(0,0)) +
-    coord_cartesian(ylim=c(0,min(varimp_basic[, max(imp_wmean+2*imp_wsd)+5],
+    scale_fill_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#d9d9d9')) +
+    coord_cartesian(ylim=c(0,min(varimp_basic[, max(imp_wmean+imp_wsd)+5],
                                  100)
-    )
-    ) +
+    )) +
     theme_classic() +
-    theme(axis.text.x = element_text(size=8))
+    theme(axis.text.x = element_text(size=8),
+          legend.text = element_text(size=12),
+          legend.title = element_text(size=14),
+          legend.position = c(0.90, 0.75))
 }
+
 
 #------ ggpd_bivariate -----------------
 ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
@@ -4543,12 +4547,16 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 }
 
 #------ gggaugeIPR -----------------
-gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
+gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                        interthresh = 0.5, yearthresh, in_learnerid = NULL) {
   #Plot numeric variables
-  predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
-    cbind(predattri[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'prob.1', 'preduncert'))
+  in_gpredsdt[, DApercsdiff := abs(
+    (area_correct-UPLAND_SKM)/mean(c(area_correct, UPLAND_SKM))), by=GAUGE_NO]
+
+  predmelt_num <- in_gpredsdt[
+    , which(as.vector(unlist(lapply(in_gpredsdt, is.numeric)))), with=F] %>%
+    cbind(in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'IRpredprob_CVnosp', 'preduncert'))
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
@@ -4556,98 +4564,143 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
     setkey(varcode) %>%
     .[levels(predmelt_num$variable)] %>%
     .[is.na(varname), varname:=varcode] %>%
-    .[varcode=='totalYears_kept', varname := 'Years of record kept'] %>%
+    .[varcode=='totalYears_kept_o1800', varname := 'Years of record kept'] %>%
     .[varcode=='yearskeptratio', varname := 'Years kept/Years total'] %>%
-    .[varcode=='mDur', varname :='Mean annual # of dry days'] %>%
-    .[varcode=='mFreq', varname :='Mean annual # of dry periods'] %>%
-    .[varcode=='DApercdiff', varname :='Difference in reported drainage area (%)'] %>%
+    .[varcode=='mDur_o1800', varname :='Mean annual # of dry days'] %>%
+    .[varcode=='mFreq_o1800', varname :='Mean annual # of dry periods'] %>%
+    .[varcode=='DApercsdiff', varname :='Absolute symmetric difference in reported drainage area (%)'] %>%
     .[varcode=='ORD_STRA', varname :='Strahler river order'] %>%
-    .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)']
-
+    .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)'] %>%
+    .[varcode=='dor_pc_pva', varname :='Degree of regulation'] %>%
+    .[, varname := str_wrap(varname, 30)]
 
   levels(predmelt_num$variable) <-  varlabels$varname
-  varstoplot <- varlabels[varcode %in% c('totalYears_kept', 'yearskeptratio',
-                                         'mDur', 'mFreq', 'DApercdiff',
-                                         'UPLAND_SKM', 'ORD_STRA',
-                                         'dis_m3_pyr', 'dor_pc_pva',
-                                         'cmi_ix_uyr','ari_ix_uav'),]
+  varstoplot_continuous <- varlabels[varcode %in% c('totalYears_kept_o1800',
+                                                    'mDur_o1800',
+                                                    'mFreq_o1800',
+                                                    'DApercsdiff',
+                                                    'ari_ix_uav'),]
 
-  plotdt <- predmelt_num[variable %in% varstoplot$varcode |
-                           variable %in% varstoplot$varname,]
+  varstoplot_log <- varlabels[varcode %in% c('UPLAND_SKM',
+                                             'dis_m3_pyr',
+                                             'dor_pc_pva'),]
 
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf <- data.table(
-    xmin=rep(-Inf, 4),
+    xmin=rep(0, 4),
     xmax=rep(Inf, 4),
     ymin=c(-1, interthresh-1, 0, interthresh),
     ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
-  gaugeIPR_numplot <-
-    ggplot(plotdt) +
-    geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
-                               ymin=ymin, ymax=ymax, fill=fillpal),
-              alpha=1/4) +
-    scale_fill_manual(values=colorpal,
-                      name='Predicted regime',
-                      labels = c('Perennial', 'Intermittent')) +
-    geom_point(aes(x=value, y=preduncert, color=intermittent_o1800), alpha = 1/8) +
-    geom_hline(yintercept=0, alpha=1/2) +
-    new_scale_fill() +
-    geom_smooth(aes(x=value, y=preduncert, color=intermittent_o1800),
-                method='gam', formula = y ~ s(x, k=3)) +
-    # annotate("text", x = Inf-5, y = 0.5, angle = 90,
-    #          label = "Pred:Int, Obs:Per",
-    #          color = colorpal[[1]]) +
-    # annotate("text", x = Inf-5, y = -0.5, angle = 90,
-    #          label = "Pred:Per, Obs:Int",
-    #          color = colorpal[[2]]) +
-    scale_color_manual(values=colorpal,
-                       name='Observed regime',
-                       labels = c('Perennial', 'Intermittent')) +
-    labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
-    #scale_x_sqrt(expand=c(0,0)) +
-    coord_cartesian(expand=FALSE, clip='off') +
-    facet_wrap(~variable, scales='free') +
-    theme_classic() +
-    theme(legend.position = c(0.85, 0.1))
+
+  scientific_10 <- function(x) {
+    parse(text=gsub(".*e", "10^", scales::scientific_format()(x)))
+  }
+
+  ggIPR_util <- function(plotdt, logx = FALSE, legend=FALSE) {
+    p <- ggplot(plotdt) +
+      geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+                                 ymin=ymin, ymax=ymax, fill=fillpal),
+                alpha=1/4) +
+      scale_y_continuous(limits=c(-1, 1), expand=c(0,0)) +
+      scale_fill_manual(values=colorpal,
+                        name='Predicted regime',
+                        labels = c('Perennial', 'Intermittent')) +
+      geom_point(aes(x=value, y=preduncert, color=intermittent_o1800), alpha = 1/8) +
+      geom_hline(yintercept=0, alpha=1/2) +
+      new_scale_fill() +
+      geom_smooth(aes(x=value, y=preduncert, color=intermittent_o1800),
+                  method='gam', formula = y ~ s(x, k=3)) +
+      # annotate("text", x = Inf-5, y = 0.5, angle = 90,
+      #          label = "Pred:Int, Obs:Per",
+      #          color = colorpal[[1]]) +
+      # annotate("text", x = Inf-5, y = -0.5, angle = 90,
+      #          label = "Pred:Per, Obs:Int",
+      #          color = colorpal[[2]]) +
+      scale_color_manual(values=colorpal,
+                         name='Observed regime',
+                         labels = c('Perennial', 'Intermittent')) +
+      labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
+      #scale_x_sqrt(expand=c(0,0)) +
+      coord_cartesian(expand=FALSE, clip='off') +
+      facet_wrap(~variable, scales='free', ncol=3,
+                 labeller=as_labeller(varlabels)) +
+      theme_classic() +
+      theme(legend.position = c(0.85, 0.2))
+
+    if (logx) {
+      p <- p + scale_x_continuous(
+        trans='log1p',
+        breaks = c(1, 10, 100, 1000, 10000, 100000,1000000),
+        labels = scientific_10)
+    }
+
+    if (!legend) {
+      p <- p + theme(legend.position = 'none')
+    }
+
+    return(p)
+  }
+
+
+  p_continuous <- ggIPR_util(
+    plotdt = predmelt_num[variable %in% varstoplot_continuous$varcode |
+                            variable %in% varstoplot_continuous$varname,],
+    logx=F, legend=T) +
+    labs(x="")
+  p_log <- ggIPR_util(
+    plotdt = predmelt_num[variable %in% varstoplot_log$varcode |
+                            variable %in% varstoplot_log$varname,],
+    logx=T, legend=F) +
+    labs(y="", x='')
 
 
   #Plot categorical variables
-  predmelt_cat <- predattri[, c('GAUGE_NO', 'intermittent_o1800', 'preduncert',
-                                'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
+  predmelt_cat <- in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800', 'preduncert',
+                                  'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
+    .[, `:=`(intermittent_o1800 = factor(intermittent_o1800, levels=c('0','1')))] %>%
     melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'preduncert'))
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
 
+  rectdf_cat <- copy(rectdf)[,xmin:=-Inf]
   gaugeIPR_catplot <-
     ggplot(predmelt_cat) +
-    geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+    geom_rect(data=rectdf_cat, aes(xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, fill=fillpal),
               alpha=1/4) +
     scale_fill_manual(values=colorpal,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
-    #geom_boxplot(alpha = 0.75) +
     new_scale_fill() +
-    geom_violin(aes(x=as.factor(value), y=preduncert,
-                    fill=intermittent_o1800, color=intermittent_o1800),
-                alpha=0.75, color=NA) +
-    geom_hline(yintercept=0, alpha=1/2) +
-    labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
-    coord_cartesian(expand=FALSE, clip='off') +
+    geom_boxplot(aes(x=as.factor(value), y=preduncert,
+                     fill=intermittent_o1800, color=intermittent_o1800),
+                 alpha=0.75) +
+    facet_wrap(~variable, scales='free', labeller=label_value) +
     scale_fill_manual(values=colorpal,
                       name='Observed regime',
                       labels = c('Perennial', 'Intermittent')) +
     scale_color_manual(values=c('#175885', '#9e3f00'),
                        name='Observed regime',
                        labels = c('Perennial', 'Intermittent')) +
-    facet_wrap(~variable, scales='free', labeller=label_value) +
-    theme_classic()
+    geom_hline(yintercept=0, alpha=1/2) +
+    labs(x='Value', y='') + #'Intermittency Prediction Residuals (IPR)') +
+    coord_cartesian(expand=FALSE, clip='off') +
+    theme_classic() +
+    theme(legend.position='none')
+
+
+  grid.arrange(p_continuous, p_log, gaugeIPR_catplot,
+               layout_matrix = rbind(c(1,1,1),
+                                     c(1,1,1),
+                                     c(2,2,2),
+                                     c(3,3,3))
+  )
+
 
   return(list(gaugeIPR_numplot=gaugeIPR_numplot,
-              gaugeIPR_catplot=gaugeIPR_catplot,
-              out_gaugeIPR = predattri[, .(GAUGE_NO, preduncert)]))
+              gaugeIPR_catplot=gaugeIPR_catplot))
 }
 
 #------ krige_spgaugeIPR----
@@ -4775,34 +4828,24 @@ map_basinBACC <- function(in_gaugepred = rfpreds_gauges,
 
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==IRpredcat_full) *
-                     classweights) / sum(classweights)),
+                     classweights) / sum(classweights),
     gnum = .N,
-    gdens = .N/
-    predbias = (sum(IRpredcat_ull==1)/.N) - (sum(intermittent_o1800=='1')/.N),
-    by=HYBAS_ID03]
+    predbias = (sum(IRpredcat_ull==1)/.N) - (sum(intermittent_o1800=='1')/.N)
+  ), by=HYBAS_ID03]
 
-  basbacc_format <- merge(bas03, basbacc, by.x='HYBAS_ID', by.y='HYBAS_ID03',
-                          all.x.=T, all.y=T)
 
-  cols_toditch<- colnames(basbacc_format)[
-    !(colnames(basbacc_format) %in% c('HYBAS_ID', 'basbacc', 'gnum','predbias'))]
+  basbacc_format <- base::merge(
+    bas03,
+    basbacc[, -'geometry', with=F],
+    by.x='HYBAS_ID', by.y='HYBAS_ID03',
+    all.x.=T, all.y=T) %>%
+    .[, gdens := gnum/UP_AREA]
 
-  out_gaugep <- base::merge(
-    in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
-    in_gpredsdt[, -'geometry', with=F],
-    by='GAUGE_NO',
-    all.x=F)
 
-  st_write(obj=out_gaugep,
-           dsn=outp_gaugep,
+  st_write(obj=basbacc_format,
+           dsn=outp_basinerror,
            driver = 'gpkg',
-           delete_dsn=T)
-
-
-
-
-
-
+           delete_dsn=F)
 }
 
 ##### -------------------- Report functions -----------------------------------

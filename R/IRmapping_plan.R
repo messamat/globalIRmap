@@ -115,7 +115,8 @@ plan_preprocess <- drake_plan(
     transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
                     .names = c('gaugestats_format_u10',
                                'gaugestats_format_o1')
-    )
+    ),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -132,7 +133,8 @@ plan_preprocess <- drake_plan(
       .names = c('tasks_u10', 'tasks_o1'),
       tag_in = task,
       tag_out = size
-    )
+    ),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   )
 )
 
@@ -142,10 +144,12 @@ plan_preprocess <- drake_plan(
 plan_runmodels <- drake_plan(
   baselearners = target(
     create_baselearners(tasks),
-    dynamic = map(tasks)),
+    dynamic = map(tasks),
+    trigger  = trigger(mode = "condition", condition =FALSE)),
 
   #Subdivide the baselearners dynamic targets
-  seplearners = target(readd(baselearners, subtarget_list = FALSE)),
+  seplearners = target(readd(baselearners, subtarget_list = FALSE),
+                       trigger  = trigger(mode = "condition", condition =FALSE)),
 
   autotuningset = target(
     set_tuning(in_learner = seplearners,
@@ -154,7 +158,8 @@ plan_runmodels <- drake_plan(
                insamp_nfolds = 4, insamp_neval = 100,
                insamp_nbatch = parallel::detectCores(logical=FALSE)-2
     ),
-    dynamic = map(seplearners)
+    dynamic = map(seplearners),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
@@ -168,7 +173,8 @@ plan_runmodels <- drake_plan(
                      in_resampling = resamplingset,
                      store_models = TRUE,
                      type = 'classif'),
-    dynamic = map(autotuningset)
+    dynamic = map(autotuningset),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   rfresampled_regr = target(
@@ -179,14 +185,16 @@ plan_runmodels <- drake_plan(
                      type = 'regr'),
     transform = map(in_tsk = c(tasks$regr, tasks$regover),
                     in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
-                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
+                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res')),
+    trigger  = trigger(mode = "condition", condition =FALSE)
 
   ),
 
   rfbm_classif = target(
     combine_bm(in_resampleresults = readd(rfresampled_classif,
                                           subtarget_list = TRUE),
-               write_qs = T, inp_resdir = path_resdir)
+               write_qs = T, inp_resdir = path_resdir),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   # bm_checked = target(
@@ -206,15 +214,20 @@ plan_runmodels <- drake_plan(
     transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
                     in_outrep = c(2, 2),
                     in_outfolds = c(3, 5),
-                    .names = c('featsel_cv', 'featsel_spcv'))
+                    .names = c('featsel_cv', 'featsel_spcv')),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  tasks_featsel = select_features(
-    in_bm = rfbm_classif,
-    in_lrnid =  selected_learner,
-    in_task = tasks$classif,
-    pcutoff = 0.05
-  ),
+  tasks_featsel = target(
+    select_features(
+      in_bm = rfbm_classif,
+      in_lrnid =  selected_learner,
+      in_task = tasks$classif,
+      pcutoff = 0.05
+    ),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
 
   rfresampled_featsel = target(
     dynamic_resamplebm(in_task = in_taskfeatsel,
@@ -226,19 +239,29 @@ plan_runmodels <- drake_plan(
     transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
                      in_resampling = c(featsel_cv, featsel_spcv),
                      .names = c('res_all_cv', 'res_featsel_cv',
-                                'res_all_spcv', 'res_featsel_spcv'))
+                                'res_all_spcv', 'res_featsel_spcv')),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  rfeval_featall = target(c(res_all_cv, res_all_spcv)),
+  rfeval_featall = target(c(res_all_cv, res_all_spcv),
+                          trigger  = trigger(mode = "condition", condition =FALSE)),
 
-  rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv) #Cannot use combine as lead to BenchmarkResult directly in the branching
+  rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
+                          trigger  = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
+
+  rfbm_featall= target(
+    analyze_benchmark(in_bm = rfeval_featall,
+                      in_measure = measures),
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  rfbm_featall= analyze_benchmark(in_bm = rfeval_featall,
-                                  in_measure = measures),
-
-  rfbm_featsel = analyze_benchmark(in_bm = rfeval_featsel,
-                                   in_measure = measures),
+  rfbm_featsel = target(
+    analyze_benchmark(in_bm = rfeval_featsel,
+                      in_measure = measures),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+    ),
 
   interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
 
@@ -248,7 +271,9 @@ plan_runmodels <- drake_plan(
                    in_learnerid = selected_learner,
                    in_taskid = "inter_class_featsel",
                    insamp_nfolds = 4,
-                   insamp_nevals = 100)),
+                   insamp_nevals = 100),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+    ),
 
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
@@ -307,14 +332,20 @@ plan_getoutputs <- drake_plan(
                                  #in_monthlydischarge = monthlydischarge,
                                  inp_riveratlasmeta = path_riveratlas_meta,
                                  inp_riveratlas = path_riveratlas,
-                                 inp_riveratlas2 = path_riveratlas2),
+                                 inp_riveratlas2 = path_riveratlas2
+                                 )
+  ,
 
   gpredsdt = bind_gaugepreds(list(gpredsdt_u10, gpredsdt_o1),
-                             interthresh = interthresh),
+                             interthresh = interthresh
+                             )
+  ,
 
   rfpreds_gauges = write_gaugepreds(in_gaugep = gaugep,
                                     in_gpredsdt = gpredsdt,
-                                    outp_gaugep = outpath_gaugep),
+                                    outp_gaugep = outpath_gaugep
+                                    )
+  ,
 
   rfpreds_network = write_netpreds(
     in_network = rivernetwork,
@@ -326,15 +357,11 @@ plan_getoutputs <- drake_plan(
   )
   ,
 
-
-  ##### TO REPROGRAM ###########
-  # gaugeIPR_plot = gggaugeIPR(in_rftuned = rftuned$rf_outer,
-  #                            in_gaugestats = gaugestats_format,
-  #                            in_predvars = predvars,
-  #                            spatial_rsp = FALSE,
-  #                            yearthresh = 1800,
-  #                            interthresh = interthresh),
-  #######################
+  gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
+                             in_predvars = predvars,
+                             spatial_rsp = FALSE,
+                             yearthresh = 1800,
+                             interthresh = interthresh),
 
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
                           outp_riveratlaspred = rfpreds_network),
