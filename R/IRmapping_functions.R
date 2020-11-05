@@ -1194,24 +1194,31 @@ fread_cols <- function(file_name, cols_tokeep) {
 
 #When given an mlr3 task with binary classification target, gets which class is minority and the ratio
 
-
-get_oversamp_ratio <- function(in_task, classcol=NULL) {
-  if (inherits(in_task, 'Task')) {
-    if (is.null(classcol)) {
-      classcol <- in_task$target_names
-    }
-    dat <- in_task$data()[, .N, by = classcol] %>%
-      setnames(old=classcol, new='classcol')
-  } else if (inherits(in_task, 'data.table')) {
-    dat <- in_task[, .N, by=classcol]%>%
-      setnames(old=classcol, new='classcol')
-  }
+get_oversamp_ratio <- function(in_task) {
   return(
-    dat %>%
+    in_task$data()[, .N, by=get(in_task$target_names)] %>%
       setorder(N) %>%
-      .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
+      .[, list(minoclass=get[1], ratio=N[2]/N[1])]
   )
 }
+
+# get_oversamp_ratio <- function(in_task, classcol=NULL) {
+#   if (inherits(in_task, 'Task')) {
+#     if (is.null(classcol)) {
+#       classcol <- in_task$target_names
+#     }
+#     dat <- in_task$data()[, .N, by = classcol] %>%
+#       setnames(old=classcol, new='classcol')
+#   } else if (inherits(in_task, 'data.table')) {
+#     dat <- in_task[, .N, by=classcol]%>%
+#       setnames(old=classcol, new='classcol')
+#   }
+#   return(
+#     dat %>%
+#       setorder(N) %>%
+#       .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
+#   )
+# }
 
 #------ convert_clastoregrtask -----------------
 #' Convert classification task to regression task
@@ -4748,24 +4755,50 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
 #------ map_BACC ------
 map_basinBACC <- function(in_gaugepred = rfpreds_gauges,
                           in_rivernetwork = rivernetwork, #################################### NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
-                          in_basin = 'C:\\globalIRmap\\data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03') {
-  bas03 <- st_read(dsn = dirname(in_basin),
-                   layer = basename(in_basin))
+                          inp_basin = path_bas03,
+                          outp_basinerror = outpath_bas03error) {
+  bas03 <- st_read(dsn = dirname(inp_basin),
+                   layer = basename(inp_basin))
 
   gnetjoin <- merge(rfpreds_gauges, rivernetwork[,.(HYRIV_ID, HYBAS_ID03)],
                     by='HYRIV_ID', all.x=T, all.y=F)
 
-  minoratio <- get_oversamp_ratio(gpredsdt, classcol='intermittent_o1800')
+  classcol='intermittent_o1800'
+  dat <- gpredsdt[, .N, by=classcol]%>%
+           setnames(old=classcol, new='classcol')
+  minoratio <- dat %>%
+    setorder(N) %>%
+    .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
+
   gnetjoin[, classweights := fifelse(intermittent_o1800 == minoratio$minoclass,
                                      minoratio$ratio, 1)]
 
-
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==IRpredcat_full) *
-                     classweights) / sum(classweights)), by=HYBAS_ID03]
+                     classweights) / sum(classweights)),
+    gnum = .N,
+    gdens = .N/
+    predbias = (sum(IRpredcat_ull==1)/.N) - (sum(intermittent_o1800=='1')/.N),
+    by=HYBAS_ID03]
 
-  basbacc_format <- merge(bas03, basbacc, by.x='HYBAS_ID', by.y='HYBAS_ID03')
-  ########### WRITE IT OUT
+  basbacc_format <- merge(bas03, basbacc, by.x='HYBAS_ID', by.y='HYBAS_ID03',
+                          all.x.=T, all.y=T)
+
+  cols_toditch<- colnames(basbacc_format)[
+    !(colnames(basbacc_format) %in% c('HYBAS_ID', 'basbacc', 'gnum','predbias'))]
+
+  out_gaugep <- base::merge(
+    in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
+    in_gpredsdt[, -'geometry', with=F],
+    by='GAUGE_NO',
+    all.x=F)
+
+  st_write(obj=out_gaugep,
+           dsn=outp_gaugep,
+           driver = 'gpkg',
+           delete_dsn=T)
+
+
 
 
 

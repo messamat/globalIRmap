@@ -29,6 +29,7 @@ plan_preprocess <- drake_plan(
 
   outpath_gaugep = file_out('C:\\globalIRmap\\results\\GRDCstations_predbasic800.gpkg'),
   outpath_riveratlaspred = file_out('C:\\globalIRmap\\results\\RiverATLAS_predbasic800.csv'),
+  outpath_bas03error = file_out('C:\\globalIRmap\\results\\BasinATLAS_v10_lev03_errors.gpkg'),
   path_bufrasdir = file.path('C:\\globalIRmap\\results\\bufrasdir'),
   #outpath_krigingtif = file_out("C:\\globalIRmap\\results\\prederror_krigingtest.tif"),
 
