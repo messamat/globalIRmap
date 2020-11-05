@@ -4691,7 +4691,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     theme(legend.position='none')
 
 
-  grid.arrange(p_continuous, p_log, gaugeIPR_catplot,
+  outp <- grid.arrange(p_continuous, p_log, gaugeIPR_catplot,
                layout_matrix = rbind(c(1,1,1),
                                      c(1,1,1),
                                      c(2,2,2),
@@ -4699,8 +4699,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   )
 
 
-  return(list(gaugeIPR_numplot=gaugeIPR_numplot,
-              gaugeIPR_catplot=gaugeIPR_catplot))
+  return(outp)
 }
 
 #------ krige_spgaugeIPR----

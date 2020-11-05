@@ -337,7 +337,7 @@ plan_getoutputs <- drake_plan(
   ,
 
   gpredsdt = bind_gaugepreds(list(gpredsdt_u10, gpredsdt_o1),
-                             interthresh = interthresh
+                             interthresh = 0.5
                              )
   ,
 
@@ -360,8 +360,7 @@ plan_getoutputs <- drake_plan(
   gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
                              in_predvars = predvars,
                              spatial_rsp = FALSE,
-                             yearthresh = 1800,
-                             interthresh = interthresh),
+                             yearthresh = 1800),
 
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
                           outp_riveratlaspred = rfpreds_network),
