@@ -1194,7 +1194,6 @@ fread_cols <- function(file_name, cols_tokeep) {
 
 #When given an mlr3 task with binary classification target, gets which class is minority and the ratio
 
-
 get_oversamp_ratio <- function(in_task) {
   return(
     in_task$data()[, .N, by=get(in_task$target_names)] %>%
@@ -1202,6 +1201,24 @@ get_oversamp_ratio <- function(in_task) {
       .[, list(minoclass=get[1], ratio=N[2]/N[1])]
   )
 }
+
+# get_oversamp_ratio <- function(in_task, classcol=NULL) {
+#   if (inherits(in_task, 'Task')) {
+#     if (is.null(classcol)) {
+#       classcol <- in_task$target_names
+#     }
+#     dat <- in_task$data()[, .N, by = classcol] %>%
+#       setnames(old=classcol, new='classcol')
+#   } else if (inherits(in_task, 'data.table')) {
+#     dat <- in_task[, .N, by=classcol]%>%
+#       setnames(old=classcol, new='classcol')
+#   }
+#   return(
+#     dat %>%
+#       setorder(N) %>%
+#       .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
+#   )
+# }
 
 #------ convert_clastoregrtask -----------------
 #' Convert classification task to regression task
@@ -1770,6 +1787,8 @@ ggcompare <- function(datmerge, binarg) {
                       ymax = Inf)
   return(plot_join)
 }
+
+#------ bacc_manual ------
 
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
@@ -2428,7 +2447,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 
 #------ plot_GSIM -------------
 plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
-                         inp_resdir, maxgap, showmissing) {
+                      inp_resdir, maxgap, showmissing) {
 
   if (inherits(in_GSIMgaugestats, 'data.table')) {
     GSIMstatsdt <- in_GSIMgaugestats
@@ -2554,7 +2573,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     'ZA_0000074', #remove - missing data
     'ZA_0000268', #remove - seemingly changed flow permanence
     'ZA_0000270' #remove - changed flow permanence
-    )
+  )
 
   GSIMtoremove_o1961_irartifacts <- c(
     #'AR_0000014', #maybe regulated --- checked
@@ -2771,7 +2790,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     5204170, #remove - probably changed flow permanence
     5405095, ##remove - hard to tell whether actually intermittent (change at beginning, maybe regulated?)
     5708200 #remove - probably perennial
-    )
+  )
 
   GRDCtoremove_o1961_irartifacts <- c(#1104800, #Keep
     1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
@@ -2951,7 +2970,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     4125903, #too regulated
     4126351, #looks too regulated (as far as the record goes)
     4148850 #unsure, missing data have lots of zeros
-    )
+  )
 
   GRDCtoremove_o1961_pereartifacts <- c(
     1160331, #remove- Lower plateaus are likely overestimated 0 values
@@ -3955,7 +3974,7 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
 rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
   cols_toread <-  unique(
-    c("HYRIV_ID", "HYBAS_L12", "LENGTH_KM",
+    c("HYRIV_ID", "HYBAS_L12", "HYBAS_ID03", "LENGTH_KM",
       in_predvars[, varcode],
       'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'dor_pc_pva',
       'ORD_STRA',
@@ -3990,24 +4009,24 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
 }
 
 #------ make_gaugepreds -------------
-make_gaugepreds <- function(in_rftuned, in_gaugestats,
+make_gaugepreds <- function(in_rftuned, in_res_spcv, in_gaugestats,
                             in_predvars, interthresh) {
-
-  #Get binary classification threshold
-  if (inherits(interthresh, 'data.table')) {
-    interthresh <- interthresh[learner == in_learnerid, thresh]
-  }
-
   #Get fully trained predictions
   gpreds_full <- in_rftuned$rf_inner$predict(in_rftuned$task)
-  gpreds_full$set_threshold(1-interthresh)
+
+  #Get unique ID for each spatial fold-repetition combination
+  spcv_clusters <- in_res_spcv$resampling$instance
+  spcv_clustersformat <- dcast(spcv_clusters, row_id~rep, value.var = 'fold') %>%
+    setnames(old=unique(spcv_clusters$rep)+1, paste0('fold', unique(spcv_clusters$rep))) %>%
+    .[, spfold_unique := do.call(paste0, .SD),
+      .SDcols = paste0('fold', unique(spcv_clusters$rep))] %>%
+    setorder(row_id)
 
   #Get average predictions for oversampled rows and across repetitions - simple CV
   rsmp_res_nosp <- get_outerrsmp(in_rftuned, spatial_rsp=FALSE)
-  gpreds_CV_nosp <-  rsmp_res_nosp$prediction()$set_threshold(1-interthresh) %>%
+  gpreds_CV_nosp <-  rsmp_res_nosp$prediction() %>%
     as.data.table %>%
     .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id]%>%
-    .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
     setorder(row_id)
 
   #Get average predictions for oversampled rows and across repetitions - spatial CV
@@ -4025,15 +4044,50 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats,
   #Merge all predictions
   datsel[, `:=`(
     IRpredprob_full = gpreds_full$prob[,2],
-    IRpredcat_full = gpreds_full$response,
     # IRpredprob_CVsp = gpreds_CV_sp$prob.1,
     # IRpredcat_CVsp = gpreds_CV_sp$response,
     IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
-    IRpredcat_CVnosp = gpreds_CV_nosp$response
-  )]
+    spfold_unique =  spcv_clustersformat$spfold_unique
+  )] %>%
+    setnames(old='spfold_unique', new=paste0(in_rftuned$task$id, '_spfold'))
 
   return(datsel)
 }
+
+#------ bind_gaugepreds -----------------
+bind_gaugepreds <- function(in_gpredsdt, interthresh) {
+  #Get binary classification threshold
+  if (inherits(interthresh, 'data.table')) {
+    interthresh <- interthresh[learner == in_learnerid, thresh]
+  }
+
+  if (is.list(in_gpredsdt) & !inherits(in_gpredsdt, 'data.table')) {
+    in_gpredsdt <- rbindlist(in_gpredsdt,
+                            use.names = TRUE, fill = TRUE, idcol = "modelgroup")
+  }
+
+  if (in_gpredsdt[duplicated(GAUGE_NO), .N] > 0 ) {
+    out_gpredsdt <- in_gpredsdt[, `:=`(
+      IRpredprob_full=mean(IRpredprob_full, na.rm=T),
+      IRpredprob_CVnosp=mean(IRpredprob_CVnosp, na.rm=T)
+    ),
+    by=.(GAUGE_NO)] %>% #Compute mean predicted probability if overlapping models
+      .[!duplicated(GAUGE_NO),]     #Remove duplicates (if overlapping model)
+  } else {
+    out_gpredsdt <- in_gpredsdt
+  }
+
+  out_gpredsdt[,`:=`(IRpredcat_full = fifelse(IRpredprob_full >= interthresh,
+                                              '1', '0'),
+                     IRpredcat_CVnosp =fifelse(IRpredprob_CVnosp >= interthresh,
+                                              '1', '0'),
+                     preduncert = IRpredprob_full -
+                       as.numeric(as.character(intermittent_o1800))
+  )]
+
+  return(out_gpredsdt)
+}
+
 
 
 #------ write_gaugepreds -----------------
@@ -4107,7 +4161,7 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars,
     networkpreds <- networkpreds[, predbasic800 := mean(predbasic800, na.rm=T),
                                  by=.(HYRIV_ID)] %>% #Compute mean predicted probability if overlapping models
       .[!duplicated(HYRIV_ID),] %>%     #Remove duplicates (if overlapping model)
-      .[, predbasic800cat := fifelse(predbasic800 >= 0.5, '1', '0')]
+      .[, predbasic800cat := fifelse(predbasic800 >= interthresh, '1', '0')]
   }
 
   outp_riveratlaspred <- paste0(gsub('[.][a-z]*$', '', outp_riveratlaspred), '_',
@@ -4360,8 +4414,8 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     scale_y_continuous(name='Variable importance', expand=c(0,0)) +
     coord_cartesian(ylim=c(0,min(varimp_basic[, max(imp_wmean+2*imp_wsd)+5],
                                  100)
-                           )
-                    ) +
+    )
+    ) +
     theme_classic() +
     theme(axis.text.x = element_text(size=8))
 }
@@ -4491,13 +4545,6 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp,
                        interthresh = 0.5, yearthresh, in_learnerid = NULL) {
-
-  # in_gpredsdt
-  #
-  # .[, `:=`(preduncert = prob.1-as.numeric(as.character(intermittent_o1800)),
-  #          yearskeptratio = get((paste0('totalYears_kept_o', yearthresh)))/totalYears)]
-  ##############################################################################
-
   #Plot numeric variables
   predmelt_num <- predattri[, which(as.vector(unlist(lapply(predattri, is.numeric)))), with=F] %>%
     cbind(predattri[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
@@ -4705,6 +4752,59 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
 }
 
 
+#------ map_BACC ------
+map_basinBACC <- function(in_gaugepred = rfpreds_gauges,
+                          in_rivernetwork = rivernetwork, #################################### NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
+                          inp_basin = path_bas03,
+                          outp_basinerror = outpath_bas03error) {
+  bas03 <- st_read(dsn = dirname(inp_basin),
+                   layer = basename(inp_basin))
+
+  gnetjoin <- merge(rfpreds_gauges, rivernetwork[,.(HYRIV_ID, HYBAS_ID03)],
+                    by='HYRIV_ID', all.x=T, all.y=F)
+
+  classcol='intermittent_o1800'
+  dat <- gpredsdt[, .N, by=classcol]%>%
+           setnames(old=classcol, new='classcol')
+  minoratio <- dat %>%
+    setorder(N) %>%
+    .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
+
+  gnetjoin[, classweights := fifelse(intermittent_o1800 == minoratio$minoclass,
+                                     minoratio$ratio, 1)]
+
+  basbacc <- gnetjoin[, list(
+    basbacc =  sum((intermittent_o1800==IRpredcat_full) *
+                     classweights) / sum(classweights)),
+    gnum = .N,
+    gdens = .N/
+    predbias = (sum(IRpredcat_ull==1)/.N) - (sum(intermittent_o1800=='1')/.N),
+    by=HYBAS_ID03]
+
+  basbacc_format <- merge(bas03, basbacc, by.x='HYBAS_ID', by.y='HYBAS_ID03',
+                          all.x.=T, all.y=T)
+
+  cols_toditch<- colnames(basbacc_format)[
+    !(colnames(basbacc_format) %in% c('HYBAS_ID', 'basbacc', 'gnum','predbias'))]
+
+  out_gaugep <- base::merge(
+    in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
+    in_gpredsdt[, -'geometry', with=F],
+    by='GAUGE_NO',
+    all.x=F)
+
+  st_write(obj=out_gaugep,
+           dsn=outp_gaugep,
+           driver = 'gpkg',
+           delete_dsn=T)
+
+
+
+
+
+
+}
+
 ##### -------------------- Report functions -----------------------------------
 #------ get_basemaps ------------
 get_basemapswintri <- function() {
@@ -4877,27 +4977,33 @@ gggauges <- function(in_gaugepred, in_basemaps,
 #------ formatscales ------------
 formatscales <- function(in_df, varstoplot) {
   scales_x <- list(
-    ari_ix_uav = scale_x_sqrt(expand=c(0,0)),
+    ari_ix_uav = scale_x_continuous(expand=c(0,0)),
+    bio12_mm_uav  = scale_x_sqrt(expand=c(0,0),
+                                 labels=c(0, 1000, 2000, 5000, 10000)),
+    bio14_mm_uav  = scale_x_sqrt(expand=c(0,0),
+                                 breaks = c(0, 50, 100, 200, 500),
+                                 labels=c(0, 50, 100, 200, 500)),
     cly_pc_uav = scale_x_continuous(labels=percent_format(scale=1), expand=c(0,0)),
-    clz_cl_cmj = scale_x_continuous(limits=c(1,18), expand=c(0,0),
-                                    breaks=seq(0,18)),
     cmi_ix_uyr = scale_x_continuous(),
-    dis_m3_pyr = scale_x_sqrt(breaks=c(0, 10^2,
-                                       10^(0:log10(max(in_df$dis_m3_pmn)))),
-                              labels=c(0, 10^2,
-                                       10^(0:log10(max(in_df$dis_m3_pmn)))),
-                              expand=c(0,0)),
+    dis_m3_pyr = scale_x_log10(breaks=c(1, 10^2,
+                                        10^(0:log10(max(in_df$dis_m3_pyr)))),
+                               labels=c(0, 10^2,
+                                        10^(0:log10(max(in_df$dis_m3_pyr)))),
+                               expand=c(0,0)),
     dor_pc_pva = scale_x_continuous(labels=percent_format(scale=1),
                                     expand=c(0,0)),
     for_pc_use = scale_x_continuous(labels=percent_format(scale=1),
                                     expand=c(0,0)),
     gla_pc_use = scale_x_continuous(labels=percent_format(scale=1),
                                     expand=c(0,0)),
-    kar_pc_use = scale_x_continuous(labels=percent_format(scale=1),
-                                    expand=c(0,0)),
-    lka_pc_use = scale_x_continuous(labels=percent_format(scale=1),
-                                    expand=c(0,0)),
+    kar_pc_use = scale_x_sqrt(breaks=c(0, 5, 20, 50, 100),
+                              labels=percent_format(scale=1),
+                              expand=c(0,0)),
+    lka_pc_use = scale_x_sqrt(breaks=c(0, 5, 20, 50, 100),
+                              labels=percent_format(scale=1),
+                              expand=c(0,0)),
     pet_mm_uyr = scale_x_continuous(expand=c(0,0)),
+    sdis_ms_uyr = scale_x_continuous(expand=c(0,0)),
     snw_pc_uyr = scale_x_continuous(labels=percent_format(scale=1),
                                     expand=c(0,0)),
     run_mm_cyr = scale_x_continuous(expand=c(0,0)),
@@ -4907,24 +5013,33 @@ formatscales <- function(in_df, varstoplot) {
     hdi_ix_cav = scale_x_continuous(expand=c(0,0)),
     hft_ix_c93 = scale_x_continuous(expand=c(0,0)),
     ORD_STRA = scale_x_continuous(expand=c(0,0)),
-    gwt_m_cav = scale_x_continuous(expand=c(0,0)),
+    UPLAND_SKM = scale_x_log10(breaks=c(1, 10^2,
+                                        10^(0:log10(max(in_df$UPLAND_SKM)))),
+                               labels=c(1, 10^2,
+                                        10^(0:log10(max(in_df$UPLAND_SKM)))),
+                               expand=c(0,0)),
+    gwt_m_cav = scale_x_sqrt(expand=c(0,0)),
     ire_pc_use = scale_x_continuous(labels=percent_format(scale=1),
                                     expand=c(0,0))
   ) %>%
     .[(names(.) %in% names(in_df)) & names(.) %in% varstoplot]
   #Only keep those variables that are actually in df and that we want to plot
 
-  scales_y <- unlist(rep(list(scale_y_log10(expand=c(0,0))), labels = scientific_format(),
+  scales_y <- unlist(rep(list(scale_y_continuous(expand=c(0,0))),
+                         labels = scientific_format(),
                          length(scales_x)),
                      recursive=F) %>%
     setNames(names(scales_x))
+
   scales_y[['dis_m3_pmn']] <- scale_y_sqrt(expand=c(0,0))
+  scales_y[['glc_pc_u16']] <- scale_y_continuous(trans='log1p',
+                                                 breaks=c(10, 1000, 100000, 10000000))
 
   coordcart <- lapply(varstoplot, function(var) {
     coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var), na.rm=T),
                                                   max(get(var), na.rm=T))])
   }) %>%
-    setNames(names(scales_x))
+    setNames(varstoplot)
 
   coordcart[['clz_cl_cmj']] <-  coord_cartesian(
     xlim=c(1,max(in_df$clz_cl_cmj)))
@@ -4934,6 +5049,8 @@ formatscales <- function(in_df, varstoplot) {
     xlim=c(0, max(in_df$pet_mm_uyr)))
   coordcart[['ORD_STRA']] <-  coord_cartesian(
     xlim=c(1, 10))
+  coordcart[['ari_ix_uav']] <-  coord_cartesian(
+    xlim=c(0, 100))
 
   return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
 }
@@ -4946,27 +5063,57 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
     vartoplot2 <- c(vartoplot, 'intermittent_o1800')
   }
 
-  varname <- in_predvars[varcode==vartoplot, paste0(Attribute, ' ',
-                                                    Keyscale,
-                                                    Keystat,
-                                                    ' (',unit,')')]
+  varname <- in_predvars[varcode==vartoplot, Attribute]
+  #paste0(Attribute, ' ',Keyscale,Keystat,' (',unit,')')]
 
-  penvhist <- ggplot(in_gaugedt, aes_string(x=vartoplot)) +
-    geom_histogram(data=in_rivdt, bins=20, fill='lightgray') +
-    geom_histogram(bins=20, fill='darkgray') +
-    #aes(fill=intermittent), position = 'stack') - doesn't work with log or sqrt y scale
-    # scale_fill_manual(values=c('#0F9FD6','#ff9b52'),
-    #                   labels = c('Perennial', 'Intermittent'), name=NULL) +
+  if (vartoplot == "clz_cl_cmj") {
+    rivclz <- in_rivdt[, sum(LENGTH_KM)/in_rivdt[,sum(LENGTH_KM)],
+                       by=as.factor(clz_cl_cmj)]
+    gclz <- in_gaugedt[,.N/in_gaugedt[,.N],by=as.factor(clz_cl_cmj)]
+    bindclz <- rbind(rivclz, gclz, idcol='source')%>%
+      setnames(c( 'source', vartoplot, 'density'))
+
+    penvhist <- ggplot(bindclz, aes_string(x=vartoplot, y='density')) +
+      geom_bar(aes(fill=as.factor(source)), stat='identity',
+               position = 'dodge', alpha=1/2, width=.6) +
+      scale_fill_manual(values=c('#2b8cbe', '#dd3497'))
+
+  } else if (vartoplot == "glc_pc_u16") {
+    rivclz <- in_rivdt[, sum(LENGTH_KM)/in_rivdt[,sum(LENGTH_KM)],
+                       by=glc_pc_u16]
+    gclz <- in_gaugedt[,.N/in_gaugedt[,.N],by=glc_pc_u16]
+    bindclz <- rbind(rivclz, gclz, idcol='source')%>%
+      setnames(c( 'source', vartoplot, 'density'))
+
+    penvhist <- ggplot(bindclz, aes_string(x=vartoplot, y='density')) +
+      geom_bar(aes(fill=as.factor(source)), stat='identity',
+               position = 'identity', alpha=1/2, width=.6) +
+      scale_fill_manual(values=c('#2b8cbe', '#dd3497'))
+    #
+    #     penvhist <- ggplot(in_gaugedt, aes_string(x=vartoplot)) +
+    #       geom_histogram(data=in_rivdt, aes(weight = LENGTH_KM),
+    #                      fill='#2b8cbe', alpha=0.5, bins=101) +
+    #       geom_histogram(fill='#dd3497', alpha=0.5, bins=101)
+
+  } else {
+    penvhist <- ggplot(in_gaugedt, aes_string(x=vartoplot)) +
+      geom_density(data=in_rivdt, aes(weight = LENGTH_KM),
+                   fill='#2b8cbe', alpha=0.5) +
+      geom_density(fill='#dd3497', alpha=0.5) +
+      ylab('Density')
+  }
+
+  penvhist <- penvhist +
     scalesenvhist$scales_x[[vartoplot]] +
-    scalesenvhist$scales_y[[vartoplot]] +
+    #scalesenvhist$scales_y[[vartoplot]] +
     scalesenvhist$coordcart[[vartoplot]] +
     xlab(varname) +
-    ylab('Count') +
     theme_classic() +
     theme(strip.background=element_rect(colour="white", fill='lightgray'),
+          legend.position = 'none',
           axis.title.y = element_blank(),
           axis.title = element_text(size=12))
-
+  penvhist
 
   # if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
   #   penvhist <- penvhist +
@@ -4978,11 +5125,15 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
 
 #------ layout_ggenvhist --------------------------
 layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
-  varstoplot_hist <- c("ari_ix_uav", "cly_pc_uav", "clz_cl_cmj", "cmi_ix_umn",
-                       "dis_m3_pyr", "dor_pc_pva", "for_pc_use", "wfresh_pc_cav",
-                       "kar_pc_use", "lka_pc_use", "pet_mm_uyr", "snw_pc_uyr",
-                       "run_mm_cyr", "swc_pc_uyr", "bio1_dc_uav", "hdi_ix_cav",
-                       "hft_ix_u09", "UPLAND_SKM", "gwt_m_cav", "ire_pc_use")
+  varstoplot_hist <- c(
+    "bio1_dc_uav", "bio7_dc_uav", "bio12_mm_uav", "bio14_mm_uav", "clz_cl_cmj",
+    "ari_ix_uav", "dis_m3_pyr", "sdis_ms_uyr", "gwt_m_cav", "UPLAND_SKM",
+    "lka_pc_use", "snw_pc_uyr", "kar_pc_use", "for_pc_use") #, "glc_pc_u16")
+
+  if ("dis_m3_pyr" %in% varstoplot_hist) {
+    in_rivernetwork[, dis_m3_pyr := dis_m3_pyr + 1]
+    in_gaugepred[, dis_m3_pyr := dis_m3_pyr + 1]
+  }
 
   scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
 
@@ -4991,7 +5142,7 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
                            in_rivdt = in_rivernetwork,
                            in_predvars = in_predvars,
                            scalesenvhist = scalesenvhist)
-  do.call("grid.arrange", list(grobs=penvhist_grobs))
+  do.call("grid.arrange", list(grobs=penvhist_grobs, nrow=5))
 }
 
 #------ tabulate_benchmarks ------------
@@ -5121,16 +5272,28 @@ tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
                                    weightvar,
                                    valuevar, valuevarsub,
                                    binfunc=NULL, binarg=NULL, bintrans=NULL,
-                                   na.rm=T, tidy=FALSE) {
+                                   na.rm=T, tidy=FALSE,
+                                   nolake = TRUE,
+                                   nozerodis = FALSE) {
 
   #Import global predictions
   rivpred <- fread(outp_riveratlaspred)
   #Columns to import from full network
-  incols <- c('HYRIV_ID', castvar, idvars, valuevar, weightvar)
+  incols <- c('HYRIV_ID', 'INLAKEPERC', castvar, idvars, valuevar, weightvar)
   #Import global river network and join to predictions
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = incols) %>%
     .[rivpred, on='HYRIV_ID']
+
+  #Exclude either those that intersect lakes and/or those that have zero discharge
+  if (nolake) {
+    riveratlas <- riveratlas[INLAKEPERC < 100,]
+  }
+
+  if (nozerodis) {
+    riveratlas <- riveratlas[dis_m3_pyr > 0,]
+  }
+
 
   #If global administrative boundaries were selected for idvar, get country names
   if ('gad_id_cmj' %in% incols) {
