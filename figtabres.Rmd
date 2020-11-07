@@ -72,21 +72,21 @@ results_table_u10 <- rbindlist(list(tablebm_classif1_u10$results,
                            fill=T, use.names=T)
 flextable(results_table_u10)
 
-loadd(tablebm_classif1_o10)
-loadd(tablebm_regr1_o10)
-loadd(tablebm_classif2_o10)
-setup_table_o10 <- rbindlist(list(tablebm_classif1_o10$setup,
-                              tablebm_regr1_o10$setup,
-                              tablebm_classif2_o10$setup),
+loadd(tablebm_classif1_o1)
+loadd(tablebm_regr1_o1)
+loadd(tablebm_classif2_o1)
+setup_table_o1 <- rbindlist(list(tablebm_classif1_o1$setup,
+                              tablebm_regr1_o1$setup,
+                              tablebm_classif2_o1$setup),
                          fill=T, use.names=T)
 
-flextable(setup_table_o10)
+flextable(setup_table_o1)
 
-results_table_o10 <- rbindlist(list(tablebm_classif1_o10$results,
-                              tablebm_regr1_o10$results,
-                              tablebm_classif2_o10$results),
+results_table_o1 <- rbindlist(list(tablebm_classif1_o1$results,
+                              tablebm_regr1_o1$results,
+                              tablebm_classif2_o1$results),
                          fill=T, use.names=T)
-flextable(results_table_o10)
+flextable(results_table_o1)
 ```
 
 #Methods - Figure 2. Benchmark comparison of models through curves
@@ -94,8 +94,8 @@ flextable(results_table_o10)
 loadd(misclass_plot_u10)
 print(misclass_plot_u10)
 
-loadd(misclass_plot_o10)
-print(misclass_plot_o10)
+loadd(misclass_plot_o1)
+print(misclass_plot_o1)
 
 ```
 
@@ -104,8 +104,8 @@ print(misclass_plot_o10)
 loadd(vimp_plot_u10)
 print(vimp_plot_u10)
 
-loadd(vimp_plot_o10)
-print(vimp_plot_o10)
+loadd(vimp_plot_o1)
+print(vimp_plot_o1)
 ```
 
 #Main text - Figure 3. Partial dependence plots
@@ -113,17 +113,17 @@ print(vimp_plot_o10)
 loadd(pd_plot_u10)
 lapply(pd_plot_u10, function(p) plot(p))
 
-loadd(pd_plot_o10)
-lapply(pd_plot_o10, function(p) plot(p))
+loadd(pd_plot_o1)
+lapply(pd_plot_o1, function(p) plot(p))
 ```
 
 #Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
 ```{r prediction-uncertainty-by-variable, fig.width=12, fig.height=10, echo=FALSE}
-# loadd(gaugeIPR_plot)
-# print(gaugeIPR_plot_u10["gaugeIPR_numplot"])
-# 
-# loadd(gaugeIPR_plot_o10)
-# print(gaugeIPR_plot_o10["gaugeIPR_numplot"])
+loadd(gaugeIPR_plot)
+print(gaugeIPR_plot_u10["gaugeIPR_numplot"])
+
+loadd(gaugeIPR_plot_o1)
+print(gaugeIPR_plot_o1["gaugeIPR_numplot"])
 ```
 
 
@@ -168,6 +168,9 @@ print(us_plot)
 
 #Comparison of results with on-the-ground observations
 ```{r QC, echo = FALSE, fig.width = 8,  dpi=300}
-# loadd(pnw_plot)
-# print(pnw_plot)
+loadd(pnw_plot)
+print(pnw_plot)
+
+loadd(onde_plot)
+print(onde_plot)
 ```
