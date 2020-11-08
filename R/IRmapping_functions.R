@@ -1777,7 +1777,7 @@ ggcompare <- function(datmerge, binarg) {
     labs(x= bquote('Drainage area'~(km^2)),
          y='Prevalence of intermittency (% river length)') +
     theme_classic() +
-    theme(legend.position = c(0.1, 0.90),
+    theme(legend.position = c(0.15, 0.90),
           legend.background = element_blank(),
           axis.ticks.x = element_line(color = c(rep(NA, len - 1), rep("black", len))))
 
@@ -4442,7 +4442,8 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
   #Get partial dependence across all folds and repeats
   nlearners <-with(rsmp_res$resampling$param_set$values, folds*repeats)
   datdf <- as.data.frame(rsmp_res$task$data()) #This may be shortened
-  varimp <- weighted_vimportance_nestedrf(rsmp_res, pvalue=FALSE)
+  varimp <- weighted_vimportance_nestedrf(rsmp_res, pvalue=FALSE) %>%
+    setorder(-imp_wmean)
 
   if (length(colnums) > nrow(varimp)) {
     colnums <- colnums[1:nrow(varimp)]
@@ -4491,7 +4492,8 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     setDT %>%
     .[, list(mean1 = weighted.mean(`1`, classif.bacc)),
       by= c(varvec, valvec)] %>%
-    .[, variables := var1]
+    .[, variables := var1] %>%
+    merge(predvars[, .(varcode, varname)], by.x='var1', by.y='varcode')
 
   datdf2 <- as.data.table(datdf)[, intermittent_o1800 := as.numeric(as.character(intermittent_o1800))]
 
@@ -4505,9 +4507,10 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
         scale_y_continuous(name='Partial dependence (probability of intermittency)',
                            limits= c(min(mean1)-0.01, max(mean1)+0.01),  #c(0.25, 0.425),
                            expand=c(0,0))+
-        scale_x_continuous(name=eval(variables)) +
+        scale_x_continuous(name=stringr::str_wrap(eval(varname), width = 30)) +
         theme_classic() +
-        theme(text = element_text(size=12))
+        theme(text = element_text(size=12),
+              axis.title.y = element_blank())
     ))), by=.(var1)]
 
   } else if (nvariate == 2) {
@@ -4547,9 +4550,10 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 
   tileplots_multipl <- lapply(pagelayout, function(page) {
     print(page)
-    return(do.call("grid.arrange", list(grobs=(tileplots_l[page,V1]))))
+    return(do.call("grid.arrange",list(
+      grobs=(tileplots_l[page,V1]),
+      left = 'Partial dependence (probability of intermittency)')))
   })
-  plot(tileplots_multipl[[1]])
   return(tileplots_multipl)
 }
 
@@ -4808,10 +4812,10 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
 
 
 #------ map_BACC ------
-map_basinBACC <- function(in_gaugepred = gpredsdt, #rfpreds_gauges,
-                          in_rivernetwork = rivernetwork, #################################### NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
-                          inp_basin = path_bas03,
-                          outp_basinerror = outpath_bas03error) {
+map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
+                          in_rivernetwork, #################################### NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
+                          inp_basin,
+                          outp_basinerror) {
   bas03 <- st_read(dsn = dirname(inp_basin),
                    layer = basename(inp_basin))
 
@@ -5015,8 +5019,9 @@ gggauges <- function(in_gaugepred, in_basemaps,
                       ymin = -9000000,
                       ymax = -1000000)
 
-  p_pr/p_ir
-  return(p_pr/p_ir)
+  p_patch <- p_pr/p_ir
+  outp <- p_patch + plot_annotation(tag_levels = 'A')
+  return(outp)
 }
 
 #------ formatscales ------------
@@ -5158,7 +5163,6 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
           legend.position = 'none',
           axis.title.y = element_blank(),
           axis.title = element_text(size=12))
-  penvhist
 
   # if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
   #   penvhist <- penvhist +
@@ -5180,13 +5184,34 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
     setDT(in_gaugepred)[, dis_m3_pyr := dis_m3_pyr + 1]
   }
 
+  #Get legend
+  pleg <- ggplot(in_gaugepred, aes(x=dis_m3_pyr, fill=factor(IRpredcat_full))) +
+    geom_density(alpha=1/2) +
+    scale_fill_manual(values=c('#2b8cbe', '#dd3497'),
+                      name = 'Dataset',
+                      labels=c('Global river network',
+                               'Training gauges')) +
+    theme(text=element_text(size=14))
+  
+  tmp <- ggplot_gtable(ggplot_build(pleg)) 
+  leg <- tmp$grobs[[
+    which(sapply(tmp$grobs, function(y) y$name) == "guide-box") 
+  ]]
+
+  #Get scales
   scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
 
+  #Plot each facet
   penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
                            in_gaugedt = in_gaugepred,
                            in_rivdt = in_rivernetwork,
                            in_predvars = in_predvars,
                            scalesenvhist = scalesenvhist)
+  #Add legend
+  penvhist_grobs[[length(penvhist_grobs) + 1]] <- leg
+  
+  #Plot
+  grid.newpage()
   do.call("grid.arrange", list(grobs=penvhist_grobs, nrow=5))
 }
 

@@ -280,7 +280,7 @@ plan_runmodels <- drake_plan(
   
   pd_plot = ggpartialdep(in_rftuned=rftuned,
                          in_predvars=predvars,
-                         colnums=1:30,
+                         colnums=1:27,
                          nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = T,
                          spatial_rsp = FALSE),
   
@@ -315,9 +315,13 @@ plan_runmodels <- drake_plan(
       .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
   ),
   
-  misclass_plot = ggmisclass_bm(list(misclass_classif1,
-                                     misclass_regr1,
-                                     misclass_classif2)),
+  misclass_plot = target(
+    ggmisclass_bm(list(misclass_classif1,
+                       misclass_regr1,
+                       misclass_classif2)),
+    trigger = trigger(condition=FALSE)
+  )
+  ,
   
   gpredsdt = make_gaugepreds(in_rftuned = rftuned,
                              in_res_spcv = res_featsel_spcv,
@@ -369,8 +373,17 @@ plan_getoutputs <- drake_plan(
   
   gauges_plot = gggauges(in_gaugepred =rfpreds_gauges,
                          in_basemaps = basemaps,
-                         binarg <- c(30, 60, 100),
-                         binvar <- 'totalYears_kept_o1800'),
+                         binarg = c(30, 60, 100),
+                         binvar = 'totalYears_kept_o1800'
+  )
+  ,
+  
+  basinBACC = map_basinBACC(in_gaugepred = gpredsdt,
+                            in_rivernetwork = rivernetwork, # NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
+                            inp_basin = path_bas03,
+                            outp_basinerror = outpath_bas03error
+  )
+  ,
   
   envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
                              in_gaugepred = rfpreds_gauges,
@@ -411,8 +424,11 @@ plan_getoutputs <- drake_plan(
   
   fr_plot = compare_fr(inp_frdir = path_frresdir,
                        in_rivpred = rivpred,
-                       binarg = c(10,20,50,100,200,500,1000,
-                                  2000,5000,10000,50000,100000,150000)),
+                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000)
+  )
+  ,
+                       # binarg = c(10,20,50,100,200,500,1000,
+                       #            2000,5000,10000,50000,100000,150000)),
   
   us_plot = compare_us(inp_usresdir = path_usresdir,
                        inp_usdatdir = path_usdatdir,

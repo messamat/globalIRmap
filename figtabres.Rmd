@@ -1,6 +1,8 @@
 ---
 title: "figs_tabs_results"
-output: word_document
+output:
+  word_document: default
+  pdf_document: default
 ---
 
 ```{r import, echo=FALSE}
@@ -15,6 +17,7 @@ resdir <- file.path(rootdir, 'results')
 #Source packages functions
 library(drake)
 library(flextable)
+library(grid)
 source(file.path(srcdir, 'R/IRmapping_packages.R'))
 source(file.path(srcdir, 'R/IRmapping_functions.R'))
 source(file.path(srcdir, 'R/IRmapping_plan.R'))
@@ -25,15 +28,15 @@ loadd(gpredsdt)
 
 #Geographical distribution of reference streamgauging stations
 ##Statistics for paper
-- Number of gauges in total: `gpredsdt[, .N]`  
-- Number of perennial gauges taking in account only post-1961 (average number of years of data): 
-`gpredsdt[intermittent_o1961==0, .N]`(`gpredsdt[intermittent_o1961==0, mean(totalYears_kept_o1961)]`)
-- Number of intermittent gauges taking in account only post-1961 (average number of years of data): 
-`gpredsdt[intermittent_o1961==1, .N]`(`gpredsdt[intermittent_o1961==1, mean(totalYears_kept_o1961)]`)
-gpredsdt[dis_m3_pyr < 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]]
-gpredsdt[dis_m3_pyr >= 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]]
+- Number of gauges in total: `r gpredsdt[, .N]`  
+- Number of perennial gauges used in analysis (average number of years of data): 
+`r gpredsdt[intermittent_o1800==0, .N]`(`gpredsdt[intermittent_o1800==0, mean(totalYears_kept_o1800)]`)
+- Number of intermittent gauges taking in account only post-1800 (average number of years of data): 
+`r gpredsdt[intermittent_o1800==1, .N]`(`r gpredsdt[intermittent_o1800==1, mean(totalYears_kept_o1800)]`)
+<!-- gpredsdt[dis_m3_pyr < 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]] -->
+<!-- gpredsdt[dis_m3_pyr >= 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]] -->
 
-```{r basic-map, echo = FALSE, fig.width = 6,  dpi=300}
+```{r basic-map, echo = FALSE, fig.width = 7,  fig.height = 5, dpi=600}
 loadd(gauges_plot)
 print(gauges_plot)
 ```
@@ -47,10 +50,10 @@ flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
 ```
 
 #Environmental distribution of reference streamgauging stations
-Bernhard, is dor_pc_pva x 100 rather than x10 (as written in doc)?
-```{r envdistrib, fig.width = 12, fig.height=8, dpi=300, message=FALSE, echo=FALSE}
+```{r envdistrib, fig.width = 10, fig.height=9, dpi=600, message=FALSE, echo=FALSE}
 loadd(envhist)
-plot(envhist)
+grid.newpage() 
+grid.draw(envhist)
 ```
 
 
@@ -59,6 +62,7 @@ plot(envhist)
 loadd(tablebm_classif1_u10)
 loadd(tablebm_regr1_u10)
 loadd(tablebm_classif2_u10)
+print('Setup table u10')
 setup_table_u10 <- rbindlist(list(tablebm_classif1_u10$setup,
                               tablebm_regr1_u10$setup,
                               tablebm_classif2_u10$setup),
@@ -66,12 +70,14 @@ setup_table_u10 <- rbindlist(list(tablebm_classif1_u10$setup,
 
 flextable(setup_table_u10)
 
+print('Results table u10')
 results_table_u10 <- rbindlist(list(tablebm_classif1_u10$results,
                                 tablebm_regr1_u10$results,
                                 tablebm_classif2_u10$results),
                            fill=T, use.names=T)
 flextable(results_table_u10)
 
+print('Setup table o1')
 loadd(tablebm_classif1_o1)
 loadd(tablebm_regr1_o1)
 loadd(tablebm_classif2_o1)
@@ -82,6 +88,7 @@ setup_table_o1 <- rbindlist(list(tablebm_classif1_o1$setup,
 
 flextable(setup_table_o1)
 
+print('Results table o1')
 results_table_o1 <- rbindlist(list(tablebm_classif1_o1$results,
                               tablebm_regr1_o1$results,
                               tablebm_classif2_o1$results),
@@ -90,7 +97,7 @@ flextable(results_table_o1)
 ```
 
 #Methods - Figure 2. Benchmark comparison of models through curves
-```{r models-benchmarking-curves, fig.width=8, echo=FALSE}
+```{r models-benchmarking-curves, fig.width=8, echo=FALSE, eval=FALSE}
 loadd(misclass_plot_u10)
 print(misclass_plot_u10)
 
@@ -100,12 +107,21 @@ print(misclass_plot_o1)
 ```
 
 #Main text - Figure 2. Variable importance for top 15 variables
-```{r variable-importance, fig.width=12, fig.height=6, echo=FALSE}
+```{r variable-importance, fig.width=12, fig.height=10, echo=FALSE}
 loadd(vimp_plot_u10)
-print(vimp_plot_u10)
-
 loadd(vimp_plot_o1)
-print(vimp_plot_o1)
+
+p_u10 <- vimp_plot_u10 + 
+  ggtitle(bquote('A. Gauges with mean annual discharge < 10'~m^3~s^-1)) +
+  theme(axis.title.x = element_blank(),
+        plot.margin = unit(c(-0.25,0,0,0), unit='in'))
+p_o1 <- vimp_plot_o1 + 
+    theme(legend.position = 'none') + 
+  ggtitle(expression(B.~Gauges~with~mean~annual~discharge >= 1~m^3~s^-1)) + 
+  theme(plot.margin = unit(c(0,0,0,0), unit='in'))
+
+p_bind <- p_u10/p_o1
+print(p_bind)
 ```
 
 #Main text - Figure 3. Partial dependence plots
@@ -118,12 +134,10 @@ lapply(pd_plot_o1, function(p) plot(p))
 ```
 
 #Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
-```{r prediction-uncertainty-by-variable, fig.width=12, fig.height=10, echo=FALSE}
+```{r prediction-uncertainty-by-variable, fig.width=9, fig.height=9, echo=FALSE}
 loadd(gaugeIPR_plot)
-print(gaugeIPR_plot_u10["gaugeIPR_numplot"])
-
-loadd(gaugeIPR_plot_o1)
-print(gaugeIPR_plot_o1["gaugeIPR_numplot"])
+grid.newpage()
+grid.draw(gaugeIPR_plot)
 ```
 
 
@@ -158,19 +172,22 @@ ft[[4]]
 ```
 
 #Comparison of results with regional-national estimates
-```{r comparison, echo = FALSE, fig.width = 8,  dpi=300}
+```{r comparison, echo = FALSE, fig.width = 5, fig.height = 3  dpi=300}
 loadd(fr_plot)
-print(fr_plot)
-
 loadd(us_plot)
-print(us_plot)
+
+p_bind <- fr_plot/us_plot
+p_out <- p_bind + 
 ```
 
-#Comparison of results with on-the-ground observations
-```{r QC, echo = FALSE, fig.width = 8,  dpi=300}
+#Comparison of results with on-the-ground observations for PROSPER
+```{r QC, echo = FALSE, fig.width = 8, fig.height=6, dpi=300}
 loadd(pnw_plot)
 print(pnw_plot)
+```
 
+#Comparison of results with on-the-ground observations for ONDE
+```{r QC, echo = FALSE, fig.width = 8, fig.height=8, dpi=300}
 loadd(onde_plot)
 print(onde_plot)
 ```
