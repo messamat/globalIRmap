@@ -281,7 +281,7 @@ plan_runmodels <- drake_plan(
   pd_plot = ggpartialdep(in_rftuned=rftuned,
                          in_predvars=predvars,
                          colnums=1:27,
-                         nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = T,
+                         nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
                          spatial_rsp = FALSE),
   
   table_allbm = target(
@@ -360,6 +360,13 @@ plan_getoutputs <- drake_plan(
     outp_riveratlaspred = outpath_riveratlaspred
   )
   ,
+  
+  bin_finalmisclass = bin_misclass(in_predictions = gpredsdt,
+                                   binvar = 'dis_m3_pyr',
+                                   binfunc = 'manual',
+                                   binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+                                   interthresh=0.5
+  ),
   
   gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
                              in_predvars = predvars,

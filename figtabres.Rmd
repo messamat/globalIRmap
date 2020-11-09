@@ -107,7 +107,7 @@ print(misclass_plot_o1)
 ```
 
 #Main text - Figure 2. Variable importance for top 15 variables
-```{r variable-importance, fig.width=12, fig.height=10, echo=FALSE}
+```{r variable-importance, fig.width=12, fig.height=10, dpi=600, echo=FALSE}
 loadd(vimp_plot_u10)
 loadd(vimp_plot_o1)
 
@@ -134,12 +134,18 @@ lapply(pd_plot_o1, function(p) plot(p))
 ```
 
 #Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
-```{r prediction-uncertainty-by-variable, fig.width=9, fig.height=9, echo=FALSE}
+```{r prediction-uncertainty-by-variable, fig.width=9, fig.height=9, dpi=600, echo=FALSE}
 loadd(gaugeIPR_plot)
 grid.newpage()
 grid.draw(gaugeIPR_plot)
 ```
 
+#Final binned summary statistics
+```{r binned_misclas, echo=FALSE}
+loadd(bin_finalmisclass)
+flextable(bin_finalmisclass)
+
+```
 
 #Tables of intermittence by categories
 ```{r inter-tables, echo=FALSE}
@@ -172,22 +178,23 @@ ft[[4]]
 ```
 
 #Comparison of results with regional-national estimates
-```{r comparison, echo = FALSE, fig.width = 5, fig.height = 3  dpi=300}
+```{r comparison, echo = FALSE, fig.width = 6, fig.height = 6,  dpi=600}
 loadd(fr_plot)
 loadd(us_plot)
 
-p_bind <- fr_plot/us_plot
-p_out <- p_bind + 
+grid.arrange(fr_plot, us_plot, left = 'Prevalence of intermittency (% river length)') 
+p_out <- p_bind
+print(p_out)
 ```
 
 #Comparison of results with on-the-ground observations for PROSPER
-```{r QC, echo = FALSE, fig.width = 8, fig.height=6, dpi=300}
+```{r QC_pnw, echo = FALSE, fig.width = 8, fig.height=6, dpi=600}
 loadd(pnw_plot)
 print(pnw_plot)
 ```
 
 #Comparison of results with on-the-ground observations for ONDE
-```{r QC, echo = FALSE, fig.width = 8, fig.height=8, dpi=300}
+```{r QC_onde, echo = FALSE, fig.width = 8, fig.height=8, dpi=600}
 loadd(onde_plot)
 print(onde_plot)
 ```

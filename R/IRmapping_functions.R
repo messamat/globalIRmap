@@ -1755,10 +1755,10 @@ ggcompare <- function(datmerge, binarg) {
     scale_x_continuous(breaks = c(sort(unique(datmerge$bin)), x_tick)[seq(1, 2*len, 2)],
                        labels = c(rep(c(""), len), binarg)[seq(1, 2*len, 2)]) +
     scale_y_continuous(trans='log1p',
-                       breaks = c(1, 1000, 10000, 100000,1000000, 5000000),
+                       breaks = c(1, 1000, 100000),
                        labels = scientific_10) +
-    labs(x= '', #bquote('Drainage area'~(km^2)),
-         y='Total river length (km)') +
+    labs(x= '', 
+         y='River length (km)') +
     coord_cartesian(expand=FALSE, clip="off") +
     theme_classic() +
     theme(legend.position = 'none',
@@ -1774,7 +1774,7 @@ ggcompare <- function(datmerge, binarg) {
     scale_x_continuous(breaks = c(sort(unique(datmerge$bin)), x_tick),
                        labels = c(rep(c(""), len), binarg[1:length(unique(datmerge$bin))])) +
     coord_cartesian(expand=FALSE, ylim=c(0, 1.4*max(datmerge$perc)), clip="off") +
-    labs(x= bquote('Drainage area'~(km^2)),
+    labs(x= bquote('Discharge'~(m^3~s^-1)),
          y='Prevalence of intermittency (% river length)') +
     theme_classic() +
     theme(legend.position = c(0.15, 0.90),
@@ -3982,9 +3982,8 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
   cols_toread <-  unique(
     c("HYRIV_ID", "HYBAS_L12", "HYBAS_ID03", "LENGTH_KM",'INLAKEPERC',
-      in_predvars[, varcode],
-      'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'dor_pc_pva',
-      'ORD_STRA',
+      in_predvars[, varcode], 'pop_ct_csu', 'pop_ct_usu',
+      'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'dor_pc_pva', 'ORD_STRA',
       #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
       #paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0)),
       paste0('pet_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
@@ -4088,7 +4087,9 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
                                               '1', '0'),
                      IRpredcat_CVnosp =fifelse(IRpredprob_CVnosp >= interthresh,
                                               '1', '0'),
-                     preduncert = IRpredprob_full -
+                     preduncert_full = IRpredprob_full -
+                       as.numeric(as.character(intermittent_o1800)),
+                     preduncert_CVnosp = IRpredprob_CVnosp -
                        as.numeric(as.character(intermittent_o1800))
   )]
 
@@ -4347,23 +4348,36 @@ bin_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
   if (!is.null(in_rftuned)) {
     if (inherits(in_rftuned, 'list')) {
       rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-    } else if (inherits(in_rftuned, 'ResampleResult')) {
+    } 
+    else if (inherits(in_rftuned, 'ResampleResult')) {
       rsmp_res <- in_rftuned
     }
+    
     in_predictions <- rsmp_res$prediction() %>%
       as.data.table
+    
+    #Get average predicted probability and response across CV repeats
+    predsformat <- in_predictions[, list(prob.1 = mean(prob.1)),
+                                  by=.(row_id, truth)] %>%
+      .[, response := fifelse(prob.1 >= interthresh, 1, 0)]
+    
+    #Get bins
+    bin_gauges <- bin_dt(in_dt = in_gaugestats, binvar = 'dis_m3_pyr',
+                         binfunc = 'manual', binarg=binarg,
+                         bintrans=NULL, na.rm=FALSE) %>%
+      .[, row_id := .I]
+    
+  } else if (is.null(in_rftuned) & !is.null(in_predictions)) {
+    #Get bins
+    bin_gauges <- bin_dt(in_dt = in_predictions, binvar = 'dis_m3_pyr',
+                         binfunc = 'manual', binarg=binarg,
+                         bintrans=NULL, na.rm=FALSE) %>%
+      .[, row_id := .I]
+    
+    predsformat <- in_predictions[, `:=`(truth = intermittent_o1800,
+                                         response = IRpredcat_CVnosp,
+                                         row_id = .I)] 
   }
-
-  #Get average predicted probability and response across CV repeats
-  predsformat <- in_predictions[, list(prob.1 = mean(prob.1)),
-                                by=.(row_id, truth)] %>%
-    .[, response := fifelse(prob.1 >= interthresh, 1, 0)]
-
-  #Get bins
-  bin_gauges <- bin_dt(in_dt = in_gaugestats, binvar = 'dis_m3_pyr',
-                       binfunc = 'manual', binarg=binarg,
-                       bintrans=NULL, na.rm=FALSE) %>%
-    .[, row_id := .I]
 
   #Merge bins with predictions
   gselpreds <- merge(bin_gauges, predsformat, by='row_id', all.y=F)
@@ -4396,8 +4410,9 @@ bin_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
   performtable <- gselpreds[, binconfustats(.SD),
                             by=.(bin, paste0(round(bin_lmin, 2), '-',
                                              round(bin_lmax, 2)))] %>%
-    setorder(bin)
-
+    setorder(bin) %>%
+    rbind(binconfustats(gselpreds)[, paste0 := 'All'], use.names=T, fill=T)
+  
   return(performtable)
 }
 
@@ -4493,7 +4508,7 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     .[, list(mean1 = weighted.mean(`1`, classif.bacc)),
       by= c(varvec, valvec)] %>%
     .[, variables := var1] %>%
-    merge(predvars[, .(varcode, varname)], by.x='var1', by.y='varcode')
+    merge(in_predvars[, .(varcode, varname)], by.x='var1', by.y='varcode')
 
   datdf2 <- as.data.table(datdf)[, intermittent_o1800 := as.numeric(as.character(intermittent_o1800))]
 
@@ -4567,7 +4582,8 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   predmelt_num <- in_gpredsdt[
     , which(as.vector(unlist(lapply(in_gpredsdt, is.numeric)))), with=F] %>%
     cbind(in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'IRpredprob_CVnosp', 'preduncert'))
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 
+                   'IRpredprob_CVnosp', 'preduncert_CVnosp'))
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
@@ -4614,10 +4630,11 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
       scale_fill_manual(values=colorpal,
                         name='Predicted regime',
                         labels = c('Perennial', 'Intermittent')) +
-      geom_point(aes(x=value, y=preduncert, color=intermittent_o1800), alpha = 1/8) +
+      geom_point(aes(x=value, y=preduncert_CVnosp, color=intermittent_o1800), 
+                 alpha = 1/8) +
       geom_hline(yintercept=0, alpha=1/2) +
       new_scale_fill() +
-      geom_smooth(aes(x=value, y=preduncert, color=intermittent_o1800),
+      geom_smooth(aes(x=value, y=preduncert_CVnosp, color=intermittent_o1800),
                   method='gam', formula = y ~ s(x, k=3)) +
       # annotate("text", x = Inf-5, y = 0.5, angle = 90,
       #          label = "Pred:Int, Obs:Per",
@@ -4664,10 +4681,10 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
 
 
   #Plot categorical variables
-  predmelt_cat <- in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800', 'preduncert',
+  predmelt_cat <- in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800', 'preduncert_CVnosp',
                                   'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
     .[, `:=`(intermittent_o1800 = factor(intermittent_o1800, levels=c('0','1')))] %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'preduncert'))
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'preduncert_CVnosp'))
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
 
@@ -4681,7 +4698,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
     new_scale_fill() +
-    geom_boxplot(aes(x=as.factor(value), y=preduncert,
+    geom_boxplot(aes(x=as.factor(value), y=preduncert_CVnosp,
                      fill=intermittent_o1800, color=intermittent_o1800),
                  alpha=0.75) +
     facet_wrap(~variable, scales='free', labeller=label_value) +
@@ -4836,6 +4853,7 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==IRpredcat_CVnosp) *
                      classweights) / sum(classweights),
+    ce = sum(intermittent_o1800==IRpredcat_CVnosp)/.N,
     gnum = .N,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(IRpredcat_CVnosp==1)/.N) - (sum(intermittent_o1800=='1')/.N)
@@ -5485,7 +5503,7 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
                               binfunc = 'manual',
                               binarg =  binarg,
                               binlabels = binlabels,
-                              datname = 'Snelder predictions') %>%
+                              datname = 'Snelder') %>%
     .[, binsumlength := binsumlength/1000]
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
@@ -5496,14 +5514,16 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
                                 binfunc = 'manual',
                                 binarg =  binarg,
                                 binlabels = binlabels,
-                                datname = 'Global predictions')
+                                datname = 'Global')
 
   datmerge <- rbind(tidyperc_fr, tidyperc_riv) %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
 
   return(
-    ggcompare(datmerge, binarg)
+    ggcompare(datmerge, binarg) + theme(axis.title.y = element_blank(),
+                                        axis.title.x = element_blank(),
+                                        legend.title = element_blank())
   )
 }
 
@@ -5745,24 +5765,15 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
   #Create plot
   return(
     ggcompare(datmerge_all, binarg=binarg) +
-      labs(x=bquote('Discharge'~(m^3~s^-1)))+#^(-1)))) +
-      geom_bar(data=datmerge_noartificial, alpha=0.75,
-               stat='identity', position='dodge')
+      geom_bar(data=datmerge_noartificial, alpha=0.5,
+               stat='identity', pattern = 'stripe', position='dodge') +
+      theme(axis.title.y = element_blank(),
+            legend.title = element_blank())
   )
 }
 
 
 #------ qc_pnw ------------
-# path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases')
-# path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases')
-# path_pnwdatdir = file.path(path_insitudatdir, 'pnw')
-# path_pnwresdir = file.path(path_insituresdir, 'pnw.gdb')
-#
-# inp_pnwdatdir = path_pnwdatdir
-# inp_pnwresdir = path_pnwresdir
-# in_rivpred = readd(rivpred)
-# loadd(interthresh)
-
 qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
@@ -5801,15 +5812,21 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
                        in_rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
                                       predbasic800cat)],
                        by='HYRIV_ID', all.y=F) %>%
-    .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] %>% #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
+    .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
+
+  
+  #Consider that if one location is non-perennial, that reach is not perennial
+  refpts_reach <- refpts_join[
+    , refinter_reach := as.numeric(any(refinter == 1)), by=HYRIV_ID] %>%
+    setorder(HYRIV_ID, -refinter) %>%
+    .[!duplicated(HYRIV_ID),] %>%
     .[, IPR := predbasic800 - refinter] #Compute prediction error
   
-
   #Compute BACC
-  refpts_join[, `:=`(truth = factor(as.character(refinter),levels=c('0', '1')),
+  refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
                      response = factor(predbasic800cat,levels=c('0','1'))
   )]
-  pnw_measures <- refpts_join[, list(
+  pnw_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
     auc = mlr3measures::auc(truth, predbasic800, positive='1'),
     ce = mlr3measures::ce(truth, response),
@@ -5828,16 +5845,16 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   print(paste0('Specificity rate based on PROSPER: ',
                round(pnw_measures$spe, 3)))
   print(paste0('Median discharge of observations for PROSPER',
-               refpts_join[, round(median(HYDROSHEDSdis), 2)]))
+               refpts_reach[, round(median(HYDROSHEDSdis), 2)]))
   
   #Compute relative position of observation point on HydroSHEDS reach line
-  refpts_join[, RATIOLENGTH := (fromM)/LENGTH_KM]
+  refpts_reach[, RATIOLENGTH := min(c(1, (fromM*95)/LENGTH_KM)), by=OBJECTID]
   
   #Write data out to points
   predtowrite <- merge(
     st_read(dsn = inp_pnwresdir,
             layer = basename(in_refpts))[,c('OBJECTID', 'Shape')],
-    refpts_join[,-c('Shape','i.Shape'), with=F], 
+    refpts_reach[,-c('Shape','i.Shape'), with=F], 
     by='OBJECTID', all.x=T) %>%
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
                    "predbasic800cat", "predbasic800"),
@@ -5847,22 +5864,23 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   st_write(obj=predtowrite[,c('OBJECTID', 'IPR', 
                               "LINEdis", "LINEDA", 
                               "predcat", "predp", 
-                               'nobs', 'refinter', 
+                               'nobs', 'refinter_reach', 
                                'pop_ct_usu')], 
            dsn = dirname(inp_pnwresdir),
-           layer='pnwobs_IPR12.shp',
+           layer=paste0('pnwobs_IPR',
+                        format(Sys.time(), '%Y%m%d%H'), '.shp'),
            driver='ESRI Shapefile')
   
-  #Scatterpoint of x = drainage area, y = predprobability - refinter
-  refpts_joinmelt <- melt(
-    refpts_join[, .(OBJECTID, IPR, 
+  #Scatterpoint of x = drainage area, y = predprobability - refinter_reach
+  refpts_reachmelt <- melt(
+    refpts_reach[, .(OBJECTID, IPR, 
                     HYDROSHEDSdis, RATIOLENGTH,
-                    nobs, refinter, 
+                    nobs, refinter_reach, 
                     pop_ct_usu)],
-    id.vars = c('OBJECTID', 'IPR', 'refinter'))
+    id.vars = c('OBJECTID', 'IPR', 'refinter_reach'))
   
   
-  levels(refpts_joinmelt$variable) <- c(
+  levels(refpts_reachmelt$variable) <- c(
     'HydroSHEDS Discharge (m3)',
     'Length ratio',
     '# of field obs.',
@@ -5878,18 +5896,18 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
     fillpal = rep(colorpal, 2)
   )
 
-  pnw_qcplot <- ggplot(refpts_joinmelt) +
+  pnw_qcplot <- ggplot(refpts_reachmelt) +
     geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, fill=fillpal),
               alpha=1/4) +
     scale_fill_manual(values=colorpal,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
-    geom_point(aes(x=value, y=IPR, color=factor(refinter)),
+    geom_point(aes(x=value, y=IPR, color=factor(refinter_reach)),
                alpha=1/5) +
     geom_hline(yintercept=0, alpha=1/2) +
     new_scale_fill() +
-    # geom_smooth(aes(x=value, y=IPR, color=factor(refinter)),
+    # geom_smooth(aes(x=value, y=IPR, color=factor(refinter_reach)),
     #             method='loess', span=1) + #, formula = "y ~ s(x, k=2)") +
     scale_x_sqrt() +
     # scale_x_continuous(trans='log1p',
@@ -5925,8 +5943,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     setnames(gsub('(F_)|_', '', names(.))) %>%
     setkey('CdSiteHydro')
 
-  #All observations (excluding those that were not kept by PROSPER (aside from more recent osb, see python code for details)
-  #with duplicate records for single locations (multiple observations for different dates)
+  #All observations with duplicate records for single locations (multiple observations for different dates)
   fulldat <- fread(in_fulldat) %>%
     setnames(gsub('<|>', '', names(.))) %>%
     setkey('CdSiteHydro')
@@ -5992,7 +6009,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                                            'glc_pc_c16', 'glc_pc_u16')
   )
   
-  #Merge points with rivernetwork by HYRIV_IDRIV_ID
+  #Merge points with rivernetwork by HYRIV_ID
   refpts_join <- merge(obsattri,
                        in_rivpred[, .(HYRIV_ID, HYBAS_L12, LENGTH_KM,
                                       predbasic800, predbasic800cat, dis_m3_pyr)],
@@ -6000,12 +6017,18 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     merge(riveratlas, by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
     .[, IPR := predbasic800 - refinter] #Compute prediction error
   
+  #Consider that if one location is non-perennial, that reach is not perennial
+  refpts_reach <- refpts_join[
+    , refinter_reach := as.numeric(any(refinter == 1)), by=HYRIVIDjoinedit] %>%
+    setorder(HYRIVIDjoinedit, -refinter) %>%
+    .[!duplicated(HYRIVIDjoinedit),] %>%
+    .[, IPR := predbasic800 - refinter] #Compute prediction error
 
   #Compute BACC
-  refpts_join[, `:=`(truth = factor(as.character(refinter),levels=c('0', '1')),
+  refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
                      response = factor(predbasic800cat,levels=c('0','1'))
                      )]
-  onde_measures <- refpts_join[, list(
+  onde_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
     auc = mlr3measures::auc(truth, predbasic800, positive='1'),
     ce = mlr3measures::ce(truth, response),
@@ -6024,7 +6047,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
   print(paste0('Specificity rate based on ONDE: ',
                round(onde_measures$spe, 3)))
   print(paste0('Median discharge of observations',
-               refpts_join[, round(median(HYDROSHEDSdis), 2)]))
+               refpts_reach[, round(median(HYDROSHEDSdis), 2)]))
   
   #Compute relative position of observation point on HydroSHEDS reach line
   refpts_join[, RATIOLENGTH := (fromM/1000)/LENGTH_KM]
@@ -6072,8 +6095,6 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
-
-  qplot(refpts_joinsub$RATIOLENGTH)
 
   onde_qcplot <- ggplot(refpts_joinmelt) +
     geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
