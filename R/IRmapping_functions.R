@@ -4853,7 +4853,7 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==IRpredcat_CVnosp) *
                      classweights) / sum(classweights),
-    ce = sum(intermittent_o1800==IRpredcat_CVnosp)/.N,
+    acc = sum(intermittent_o1800==IRpredcat_CVnosp)/.N,
     gnum = .N,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(IRpredcat_CVnosp==1)/.N) - (sum(intermittent_o1800=='1')/.N)
@@ -5482,8 +5482,10 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
   in_baspath <- file.path(inp_frdir, 'hydrobasins12')
   valuevarsub <- "1"
 
-  net <- st_read(dsn = dirname(in_netpath),
+  net_all <- st_read(dsn = dirname(in_netpath),
                  layer = basename(in_netpath))
+  net <- net_all[(net_all$rhtvs2_all_phi_qclass_SURF_BV>=10) | 
+        (net_all$rhtvs2_all_phi_qclass_MODULE >= 0.1),]
 
   bas <- st_read(dsn = dirname(in_baspath),
                  layer = basename(in_baspath)) %>%
@@ -5519,7 +5521,9 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
   datmerge <- rbind(tidyperc_fr, tidyperc_riv) %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
-
+  print('Percentage intermittence for France')
+  print(datmerge[, weighted.mean(perc, binsumlength), by=dat])
+  
   return(
     ggcompare(datmerge, binarg) + theme(axis.title.y = element_blank(),
                                         axis.title.x = element_blank(),
@@ -5794,6 +5798,8 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
   ) %>%
     setDT %>%
     setkey('OBJECTID')
+  
+  #fulldat[OBJECTID %in% refpts$OBJECTID, .N]
 
   #Join points and compute # of observations, min and max months of observations
   refpts_full <- merge(refpts, fulldat[, c('OBJECTID', 'dupligroup'), with=F],
@@ -5855,7 +5861,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
     st_read(dsn = inp_pnwresdir,
             layer = basename(in_refpts))[,c('OBJECTID', 'Shape')],
     refpts_reach[,-c('Shape','i.Shape'), with=F], 
-    by='OBJECTID', all.x=T) %>%
+    by='OBJECTID', all.x=F, all.y=T) %>%
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
                    "predbasic800cat", "predbasic800"),
              new=c("LINEdis", "LINEDA", "predcat", "predp")) %>%
@@ -5993,7 +5999,11 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                                  POINTdis, POINTDA)] %>%
     unique
 
-  obsattri <- merge(obstats, uniquesites, by='CdSiteHydro')
+  obsattri <- merge(obstats, uniquesites, by='CdSiteHydro') %>%
+    .[nobs > 20,]
+  
+  obsattri[, sum(nobs)]
+
 
   #Compute (observation point/hydrosheds reach pour point) ratio of discharge and drainage area
   obsattri[, `:=`(RATIODA = POINTDA/(HYDROSHEDSDA*100),
@@ -6023,6 +6033,9 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     setorder(HYRIVIDjoinedit, -refinter) %>%
     .[!duplicated(HYRIVIDjoinedit),] %>%
     .[, IPR := predbasic800 - refinter] #Compute prediction error
+  
+  refpts_reach[, .N]
+  refpts_reach[, .N, by=refinter_reach]
 
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
