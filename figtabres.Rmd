@@ -183,8 +183,6 @@ loadd(fr_plot)
 loadd(us_plot)
 
 grid.arrange(fr_plot, us_plot, left = 'Prevalence of intermittency (% river length)') 
-p_out <- p_bind
-print(p_out)
 ```
 
 #Comparison of results with on-the-ground observations for PROSPER
