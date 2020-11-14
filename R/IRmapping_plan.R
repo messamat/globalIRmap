@@ -6,58 +6,60 @@ plan_preprocess <- drake_plan(
   #-------------------- DEFINE INPUT AND OUTPUT FILES ##########################
   #Note: for dependency tracking, drake only reads string literals inside file_in and file_out; hence the use of absolute paths
   #Tidy evaluation (!!) didn't work for some reason -- can look into it later
-  path_resdir = "E:\\Mathis\\results",
-  path_GRDCgaugep = "E:\\Mathis\\results\\spatialoutputs.gdb\\grdcstations_cleanjoin",
-  path_GRDCgaugedir =  file_in("E:\\Mathis\\data\\GRDCdat_day"),
-  path_GSIMgaugep = "E:\\Mathis\\results\\GSIM\\GSIM.gdb\\GSIMstations_cleanriverjoin",
-  path_GSIMindicesdir =  file_in("E:\\Mathis\\data\\GSIM\\GSIM_indices"),
-  path_riveratlas_meta = file_in('E:\\Mathis\\data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx'),
-  path_riveratlas_legends = file_in('E:\\Mathis\\data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx'),
-  path_monthlynetdischarge = 'E:\\Mathis\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
-  path_riveratlas = file_in('E:\\Mathis\\results\\RiverATLAS_v10tab.csv'),
-  path_riveratlas2 = file_in('E:\\Mathis\\results\\RiverATLAS_v11tab.csv'),
-  path_compresdir = file.path('E:\\Mathis\\results\\Comparison_databases'),
-  path_bas03 = 'E:\\Mathis\\data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03',
+  path_resdir = "E://Mathis//results",
+  path_GRDCgaugep = "E://Mathis//results//spatialoutputs.gdb//grdcstations_cleanjoin",
+  path_GRDCgaugedir =  file_in("E://Mathis//data//GRDCdat_day"),
+  path_GSIMgaugep = "E://Mathis//results//GSIM//GSIM.gdb//GSIMstations_cleanriverjoin",
+  path_GSIMindicesdir =  file_in("E://Mathis//data//GSIM//GSIM_indices"),
+  path_riveratlas_meta = file_in('E://Mathis//data//HydroATLAS//HydroATLAS_metadata_MLMv11.xlsx'),
+  path_riveratlas_legends = file_in('E://Mathis//data//HydroATLAS//HydroATLAS_v10_Legends.xlsx'),
+  path_monthlynetdischarge = 'E://Mathis//data//HydroSHEDS//HS_discharge_monthly.gdb//Hydrosheds_discharge_monthly',
+  path_riveratlas = file_in('E://Mathis//results//RiverATLAS_v10tab.csv'),
+  path_riveratlas2 = file_in('E://Mathis//results//RiverATLAS_v11tab.csv'),
+  path_compresdir = file.path('E://Mathis//results//Comparison_databases'),
+  path_bas03 = 'E://Mathis//data//HydroATLAS//BasinATLAS_v10.gdb//BasinATLAS_v10_lev03',
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
-  path_usdatdir = file.path('E:\\Mathis\\data\\Comparison_databases', 'US'),
+  path_usdatdir = file.path('E://Mathis//data//Comparison_databases', 'US'),
   path_usresdir = file.path(path_compresdir, 'us.gdb'),
-  path_insitudatdir = file.path('E:\\Mathis\\data\\Insitu_databases'),
-  path_insituresdir = file.path('E:\\Mathis\\results\\Insitu_databases'),
+  path_insitudatdir = file.path('E://Mathis//data//Insitu_databases'),
+  path_insituresdir = file.path('E://Mathis//results//Insitu_databases'),
   path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
   
   
-  outpath_gaugep = file_out('E:\\Mathis\\results\\GRDCstations_predbasic800.gpkg'),
-  outpath_riveratlaspred = file_out('E:\\Mathis\\results\\RiverATLAS_predbasic800.csv'),
-  path_bufrasdir = file.path('E:\\Mathis\\results\\bufrasdir'),
-  #outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
-  outpath_bas03error = file_out('E:\\Mathis\\results\\BasinATLAS_v10_lev03_errors.gpkg'),
-  
+  outpath_gaugep = file_out('E://Mathis//results//GRDCstations_predbasic800.gpkg'),
+  outpath_riveratlaspred = file_out('E://Mathis//results//RiverATLAS_predbasic800.csv'),
+  path_bufrasdir = file.path('E://Mathis//results//bufrasdir'),
+  #outpath_krigingtif = file_out("E://Mathis//results//prederror_krigingtest.tif"),
+  outpath_bas03error = file_out('E://Mathis//results//BasinATLAS_v10_lev03_errors.gpkg'),
   #-------------------- PRE-ANALYSIS ------------------------------------------
   #monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
   
   
-  gaugep = read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
-                       inp_GSIMgaugep = path_GSIMgaugep,
-                       #in_monthlydischarge = monthlydischarge,
-                       inp_riveratlas2 = path_riveratlas2
-  ),
-  
+  gaugep = target(
+    read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
+                inp_GSIMgaugep = path_GSIMgaugep,
+                #in_monthlydischarge = monthlydischarge,
+                inp_riveratlas2 = path_riveratlas2
+    )
+  )
+  ,
+
   GRDCgauged_filenames = read_GRDCgauged_paths(
     inp_GRDCgaugedir = path_GRDCgaugedir,
     in_gaugep = gaugep),
-  
+
   GSIMgaugedmo_filenames = read_GSIMgauged_paths(
     inp_GSIMindicesdir = path_GSIMindicesdir,
     in_gaugep = gaugep,
     timestep = 'month'),
-  
+
   GSIMgaugedsea_filenames = read_GSIMgauged_paths(
     inp_GSIMindicesdir = path_GSIMindicesdir,
     in_gaugep = gaugep,
     timestep = 'season'),
-  
+
   GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
                               comp_GRDCdurfreq, #Function to run on each file name
                               maxgap = 20,
@@ -68,7 +70,7 @@ plan_preprocess <- drake_plan(
                               mdurthresh = 1,
                               verbose = FALSE,
                               .progress = TRUE),
-  
+
   GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
                                GSIMgaugedsea_filenames,
                                comp_GSIMdurfreq, #Function to run on each file name
@@ -79,7 +81,7 @@ plan_preprocess <- drake_plan(
                                monthsel = NULL, #Other arguments in function
                                mdurthresh = 1,
                                .progress = TRUE),
-  
+
   # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
   #                            yearthresh = 1800,
   #                            inp_resdir = path_resdir,
@@ -89,24 +91,29 @@ plan_preprocess <- drake_plan(
   #                          yearthresh = 1800,
   #                          inp_resdir = path_resdir,
   #                          maxgap = 20),
-  
+
   gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
                                              in_GSIMgaugestats = GSIMgaugestats,
                                              in_gaugep = gaugep,
                                              inp_resdir = path_resdir,
                                              plotseries = FALSE),
-  
+
   gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
                                         in_gaugep = gaugep,
                                         yearthresh = 1800),
-  
-  predvars = selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-                                   in_gaugestats = gaugestats_format),
-  
+
+  predvars = target(
+    selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
+                          in_gaugestats = gaugestats_format),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
+    
+
   measures = target(list(classif = msr("classif.bacc"),
                          regr = msr("regr.mae"))
   ),
-  
+
   #-------------------- SET-UP TASKS -------------------------------------
   gauges_div = target(
     gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
@@ -119,7 +126,7 @@ plan_preprocess <- drake_plan(
     trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
-  
+
   tasks = target(
     create_tasks(in_gaugestats = in_gauges,
                  in_predvars = predvars,
@@ -145,7 +152,9 @@ plan_runmodels <- drake_plan(
   baselearners = target(
     create_baselearners(tasks),
     dynamic = map(tasks),
-    trigger  = trigger(mode = "condition", condition =FALSE)),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+    )
+  ,
   
   #Subdivide the baselearners dynamic targets
   seplearners = target(readd(baselearners, subtarget_list = FALSE),
@@ -194,7 +203,7 @@ plan_runmodels <- drake_plan(
     combine_bm(in_resampleresults = readd(rfresampled_classif,
                                           subtarget_list = TRUE),
                write_qs = T, inp_resdir = path_resdir),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    trigger  = trigger(mode = "condition", condition =TRUE)
   ),
   
   # bm_checked = target(
@@ -211,11 +220,11 @@ plan_runmodels <- drake_plan(
                      in_task = tasks$classif,
                      outsamp_nrep = in_outrep,
                      outsamp_nfolds = in_outfolds),
-    transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
+    transform = map(in_strategy = c('repeated_cv', "repeated_spcv_coords"),
                     in_outrep = c(2, 2),
-                    in_outfolds = c(3, 5),
+                    in_outfolds = c(3, 10),
                     .names = c('featsel_cv', 'featsel_spcv')),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    trigger  = trigger(mode = "condition", condition =TRUE)
   ),
   
   tasks_featsel = target(
@@ -240,14 +249,14 @@ plan_runmodels <- drake_plan(
                      in_resampling = c(featsel_cv, featsel_spcv),
                      .names = c('res_all_cv', 'res_featsel_cv',
                                 'res_all_spcv', 'res_featsel_spcv')),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    trigger  = trigger(mode = "condition", condition =TRUE)
   ),
   
   rfeval_featall = target(c(res_all_cv, res_all_spcv),
                           trigger  = trigger(mode = "condition", condition =FALSE)),
   
   rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
-                          trigger  = trigger(mode = "condition", condition =FALSE)
+                          trigger  = trigger(mode = "condition", condition =TRUE)
   )
   ,
   
@@ -263,71 +272,73 @@ plan_runmodels <- drake_plan(
     trigger  = trigger(mode = "condition", condition =FALSE)
   ),
   
-  interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
-  
-  # Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
-  rftuned = target(
-    selecttrain_rf(in_rf = res_featsel_cv,
-                   in_learnerid = selected_learner,
-                   in_taskid = "inter_class_featsel",
-                   insamp_nfolds = 4,
-                   insamp_nevals = 100),
-    trigger  = trigger(mode = "condition", condition =FALSE)
-  ),
-  
-  vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
-                     varnum=20, spatial_rsp = FALSE),
-  
-  pd_plot = ggpartialdep(in_rftuned=rftuned,
-                         in_predvars=predvars,
-                         colnums=1:27,
-                         nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
-                         spatial_rsp = FALSE),
-  
-  table_allbm = target(
-    tabulate_benchmarks(in_bm, in_bmid),
-    transform = map(
-      in_bm = list(
-        rfbm_classif,
-        c(rfresampled_regr_res, rfresampled_regover_res),
-        c(rfeval_featall, rfeval_featsel)),
-      in_bmid = list('classif1', 'regr1', 'classif2'),
-      .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
-  ),
-  
-  bin_rftunedmisclass = bin_misclass(in_rftuned = rftuned,
-                                     in_gaugestats = gaugestats_format,
-                                     binvar = 'dis_m3_pyr',
-                                     binfunc = 'manual',
-                                     binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-                                     interthresh=interthresh,
-                                     spatial_rsp=FALSE
-  ),
-  
-  misclass_format = target(
-    formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
-    transform = map(
-      in_bm = list(
-        rfbm_classif,
-        c(rfresampled_regr_res, rfresampled_regover_res),
-        c(rfeval_featall, rfeval_featsel)),
-      in_bmid = list('classif1', 'regr1', 'classif2'),
-      .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
-  ),
-  
-  misclass_plot = target(
-    ggmisclass_bm(list(misclass_classif1,
-                       misclass_regr1,
-                       misclass_classif2)),
-    trigger = trigger(condition=FALSE)
-  )
-  ,
-  
-  gpredsdt = make_gaugepreds(in_rftuned = rftuned,
-                             in_res_spcv = res_featsel_spcv,
-                             in_gaugestats = gaugestats_format,
-                             in_predvars = predvars,
-                             interthresh = interthresh)
+  # interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
+  # 
+  # # Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
+  # rftuned = target(
+  #   selecttrain_rf(in_rf = res_featsel_cv,
+  #                  in_learnerid = selected_learner,
+  #                  in_taskid = "inter_class_featsel",
+  #                  insamp_nfolds = 4,
+  #                  insamp_nevals = 100),
+  #   trigger  = trigger(mode = "condition", condition =FALSE)
+  # ),
+  # 
+  # vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
+  #                    varnum=20, spatial_rsp = FALSE),
+  # 
+  # pd_plot = ggpartialdep(in_rftuned=rftuned,
+  #                        in_predvars=predvars,
+  #                        colnums=1:27,
+  #                        nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
+  #                        spatial_rsp = FALSE),
+  # 
+  # table_allbm = target(
+  #   tabulate_benchmarks(in_bm, in_bmid),
+  #   transform = map(
+  #     in_bm = list(
+  #       rfbm_classif,
+  #       c(rfresampled_regr_res, rfresampled_regover_res),
+  #       c(rfeval_featall, rfeval_featsel)),
+  #     in_bmid = list('classif1', 'regr1', 'classif2'),
+  #     .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
+  # ),
+  # 
+  # ######################### REPLACE WITH SPCV
+  # bin_rftunedmisclass = bin_misclass(in_rftuned = rftuned,
+  #                                    in_gaugestats = gaugestats_format,
+  #                                    binvar = 'dis_m3_pyr',
+  #                                    binfunc = 'manual',
+  #                                    binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+  #                                    interthresh=interthresh,
+  #                                    spatial_rsp=FALSE
+  # ),
+  # 
+  # misclass_format = target(
+  #   formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
+  #   transform = map(
+  #     in_bm = list(
+  #       rfbm_classif,
+  #       c(rfresampled_regr_res, rfresampled_regover_res),
+  #       c(rfeval_featall, rfeval_featsel)),
+  #     in_bmid = list('classif1', 'regr1', 'classif2'),
+  #     .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2')),
+  #   trigger = trigger(condition=FALSE)
+  # ),
+  # 
+  # misclass_plot = target(
+  #   ggmisclass_bm(list(misclass_classif1,
+  #                      misclass_regr1,
+  #                      misclass_classif2)),
+  #   trigger = trigger(condition=FALSE)
+  # )
+  # ,
+  # 
+  # gpredsdt = make_gaugepreds(in_rftuned = rftuned,
+  #                            in_res_spcv = res_featsel_spcv,
+  #                            in_gaugestats = gaugestats_format,
+  #                            in_predvars = predvars,
+  #                            interthresh = interthresh)
 )
 
 ########################### PLAN_GETOUTPUTS ####################################
@@ -473,8 +484,10 @@ planbranches <- lapply(
 ) %>%
   do.call(bind_plans, .)
 
-plan <- bind_plans(plan_preprocess,
-                   planbranches,
-                   plan_getoutputs
+plan <- bind_plans(plan_preprocess
+                   ,
+                   planbranches
+                   #,
+                   #plan_getoutputs
 )
 
