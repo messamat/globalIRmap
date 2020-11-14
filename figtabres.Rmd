@@ -50,7 +50,7 @@ flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
 ```
 
 #Environmental distribution of reference streamgauging stations
-```{r envdistrib, fig.width = 10, fig.height=9, dpi=600, message=FALSE, echo=FALSE}
+```{r envdistrib, echo=FALSE, fig.height=9, fig.width=10, message=FALSE, dpi=600}
 loadd(envhist)
 grid.newpage() 
 grid.draw(envhist)
@@ -111,17 +111,28 @@ print(misclass_plot_o1)
 loadd(vimp_plot_u10)
 loadd(vimp_plot_o1)
 
-p_u10 <- vimp_plot_u10 + 
-  ggtitle(bquote('A. Gauges with mean annual discharge < 10'~m^3~s^-1)) +
-  theme(axis.title.x = element_blank(),
-        plot.margin = unit(c(-0.25,0,0,0), unit='in'))
-p_o1 <- vimp_plot_o1 + 
-    theme(legend.position = 'none') + 
-  ggtitle(expression(B.~Gauges~with~mean~annual~discharge >= 1~m^3~s^-1)) + 
-  theme(plot.margin = unit(c(0,0,0,0), unit='in'))
+p_u10 <- vimp_plot_u10
+  theme(plot.margin = unit(c(10,260,0,0), "pt")) +
+  labs(x=bquote('A. Gauges with mean annual discharge < 10'~m^3~s^-1))
 
-p_bind <- p_u10/p_o1
-print(p_bind)
+p_o1format <- vimp_plot_o1
+  scale_x_discrete(name=expression(
+    B.~Gauges~with~mean~annual~discharge >= 1~m^3~s^-1),
+                   limits = rev,
+                   labels = function(x) {
+                     stringr::str_wrap(tolower(x), width = 30)
+                   },
+                   position='top') +
+  scale_y_reverse(position='right', expand=c(0,0)) +
+  coord_flip(ylim=c(min(vimp_plot_o1$data[, max(imp_wmean+imp_wsd)+1], 100), 0),
+             clip='off') +
+  theme(legend.position = 'none',
+        plot.background = element_blank(),
+        panel.background = element_blank())
+
+p_u10 +
+  patchwork::inset_element(
+    p_o1format, left = 0.2, bottom = 0, right = 2.2, top = 1.035)
 ```
 
 #Main text - Figure 3. Partial dependence plots
