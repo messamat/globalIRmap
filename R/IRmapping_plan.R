@@ -6,33 +6,33 @@ plan_preprocess <- drake_plan(
   #-------------------- DEFINE INPUT AND OUTPUT FILES ##########################
   #Note: for dependency tracking, drake only reads string literals inside file_in and file_out; hence the use of absolute paths
   #Tidy evaluation (!!) didn't work for some reason -- can look into it later
-  path_resdir = "E:\\Mathis\\results",
-  path_GRDCgaugep = "E:\\Mathis\\results\\spatialoutputs.gdb\\grdcstations_cleanjoin",
-  path_GRDCgaugedir =  file_in("E:\\Mathis\\data\\GRDCdat_day"),
-  path_GSIMgaugep = "E:\\Mathis\\results\\GSIM\\GSIM.gdb\\GSIMstations_cleanriverjoin",
-  path_GSIMindicesdir =  file_in("E:\\Mathis\\data\\GSIM\\GSIM_indices"),
-  path_riveratlas_meta = file_in('E:\\Mathis\\data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx'),
-  path_riveratlas_legends = file_in('E:\\Mathis\\data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx'),
-  path_monthlynetdischarge = 'E:\\Mathis\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
-  path_riveratlas = file_in('E:\\Mathis\\results\\RiverATLAS_v10tab.csv'),
-  path_riveratlas2 = file_in('E:\\Mathis\\results\\RiverATLAS_v11tab.csv'),
-  path_compresdir = file.path('E:\\Mathis\\results\\Comparison_databases'),
-  path_bas03 = 'E:\\Mathis\\data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03',
+  path_resdir = "C:\\globalIRmap\\results",
+  path_GRDCgaugep = "C:\\globalIRmap\\results\\spatialoutputs.gdb\\grdcstations_cleanjoin",
+  path_GRDCgaugedir =  file_in("C:\\globalIRmap\\data\\GRDCdat_day"),
+  path_GSIMgaugep = "C:\\globalIRmap\\results\\GSIM\\GSIM.gdb\\GSIMstations_cleanriverjoin",
+  path_GSIMindicesdir =  file_in("C:\\globalIRmap\\data\\GSIM\\GSIM_indices"),
+  path_riveratlas_meta = file_in('C:\\globalIRmap\\data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx'),
+  path_riveratlas_legends = file_in('C:\\globalIRmap\\data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx'),
+  path_monthlynetdischarge = 'C:\\globalIRmap\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
+  path_riveratlas = file_in('C:\\globalIRmap\\results\\RiverATLAS_v10tab.csv'),
+  path_riveratlas2 = file_in('C:\\globalIRmap\\results\\RiverATLAS_v11tab.csv'),
+  path_bas03 = 'C:\\globalIRmap\\data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03',
+  path_compresdir = file.path('C:\\globalIRmap\\results\\Comparison_databases'),
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
-  path_usdatdir = file.path('E:\\Mathis\\data\\Comparison_databases', 'US'),
+  path_usdatdir = file.path('C:\\globalIRmap\\data\\Comparison_databases', 'US'),
   path_usresdir = file.path(path_compresdir, 'us.gdb'),
-  path_insitudatdir = file.path('E:\\Mathis\\data\\Insitu_databases'),
-  path_insituresdir = file.path('E:\\Mathis\\results\\Insitu_databases'),
+  path_insitudatdir = file.path('C:\\globalIRmap\\data\\Insitu_databases'),
+  path_insituresdir = file.path('C:\\globalIRmap\\results\\Insitu_databases'),
   path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
 
+  outpath_gaugep = file_out('C:\\globalIRmap\\results\\GRDCstations_predbasic800.gpkg'),
+  outpath_riveratlaspred = file_out('C:\\globalIRmap\\results\\RiverATLAS_predbasic800.csv'),
+  outpath_bas03error = file_out('C:\\globalIRmap\\results\\BasinATLAS_v10_lev03_errors.gpkg'),
+  path_bufrasdir = file.path('C:\\globalIRmap\\results\\bufrasdir'),
+  #outpath_krigingtif = file_out("C:\\globalIRmap\\results\\prederror_krigingtest.tif"),
 
-  outpath_gaugep = file_out('E:\\Mathis\\results\\GRDCstations_predbasic800.gpkg'),
-  outpath_riveratlaspred = file_out('E:\\Mathis\\results\\RiverATLAS_predbasic800.csv'),
-  path_bufrasdir = file.path('E:\\Mathis\\results\\bufrasdir'),
-  #outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
-  outpath_bas03error = file_out('E:\\Mathis\\results\\BasinATLAS_v10_lev03_errors.gpkg'),
 
   #-------------------- PRE-ANALYSIS ------------------------------------------
   #monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
@@ -156,7 +156,7 @@ plan_runmodels <- drake_plan(
                in_measure = measures,
                nfeatures = length(tasks$classif$feature_names),
                insamp_nfolds = 4, insamp_neval = 100,
-               insamp_nbatch = parallel::detectCores(logical=FALSE)-1
+               insamp_nbatch = parallel::detectCores(logical=FALSE)-2
     ),
     dynamic = map(seplearners),
     trigger  = trigger(mode = "condition", condition =FALSE)
@@ -444,6 +444,6 @@ planbranches <- lapply(
 
 plan <- bind_plans(plan_preprocess,
                    planbranches,
-                   plan_getoutputs
+                   #plan_getoutputs
 )
 
