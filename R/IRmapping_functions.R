@@ -5051,6 +5051,124 @@ gggauges <- function(in_gaugepred, in_basemaps,
   return(outp)
 }
 
+#------ get_gaugestats ----------
+comp_GRDCqstats <- function(path, maxgap,
+                            minyear = 1971 , maxyear = 2000, verbose = FALSE) {
+  if (verbose) {
+    print(path)
+  }
+
+  #Read and format discharge records
+  gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
+  gaugetab <- readformatGRDC(path)
+
+  #Remove years with too many gaps, no data records, and
+  gaugetabsub <- gaugetab[(missingdays <= maxgap) &
+                            (year >= minyear & year <= maxyear) &
+                            !(Original %in% c(-999, -99, -9999, 99, 999, 9999) |
+                                is.na(Original)),]
+
+  gaugestatsyr <- gaugetabsub[, list(
+    qminyr = min(Original, na.rm=T),
+    q3minyr = min(frollmean(Original, 3, align='center'), na.rm=T)
+  ),by=year] %>%
+    .[, list(qminyr = mean(qminyr, na.rm=T),
+             q3minyr = mean(q3minyr, na.rm=T))]
+
+  gaugestats <- gaugetabsub[, list(
+    GRDC_NO = unique(GRDC_NO),
+    nyears = length(unique(year)),
+    qmean = mean(Original, na.rm=T),
+    q10 = quantile(Original, 0.9, na.rm=T),
+    q90 = quantile(Original, 0.1, na.rm=T),
+    q99 = quantile(Original, 0.01, na.rm=T)
+  )] %>%
+    cbind(gaugestatsyr)
+
+  return(gaugestats)
+}
+
+
+#------ eval_watergap -------
+#binarg = c(1, 10, 100, 1000, 10000, 1000000)
+in_selgauges <- gaugestats_format
+
+eval_watergap <- function(in_qstats, in_selgauges, binarg) {
+  qsub <- in_qstats[!is.na(GRDC_NO) &
+                      nyears >= 20 &
+                      GRDC_NO %in% in_selgauges$GRDC_NO,] %>%
+    .[!(GRDC_NO %in% c('5204010')),]
+  #5204010 - issue with units which does not affect zero flow assessment
+  #Checked 1160520 - mixed but not clear enough
+
+  qsubp <- merge(qsub, in_selgauges, by='GRDC_NO', all.x=T, all.y=F) %>%
+    .[dor_pc_pva < 1000,]
+  qsubp_bin <- bin_dt(in_dt = qsubp, binvar='qmean', binarg = binarg, binfunc = 'manual')
+
+  #Compute a simple set of performance statistics, including rsquare for ols without studentized outliers
+  getqstats <- function(dt, x, y, rstudthresh= 3, log=FALSE) {
+    if (log) {
+      in_form = paste0('log10(', y, '+0.1)~log10(', x, '+0.1)')
+    } else {
+      in_form = paste0(y,'~',x)
+    }
+
+    mod <- lm(as.formula(in_form), data=dt)
+
+    outrows <- setDT(olsrr::ols_prep_rstudlev_data(mod)$`levrstud`)[
+      abs(rstudent)>rstudthresh & color == 'outlier & leverage',]
+    if (nrow(outrows) >0) {
+      dtsub <- dt[-(outrows$obs),]
+    } else {
+      dtsub <- dt
+    }
+
+    mod_nooutliers <- lm(as.formula(in_form), data=dtsub)
+
+    outstats <- dt[, list(pearsonr = round(cor(get(y), get(x)), 3),
+              mae = round(Metrics::mae(get(y), get(x)), 2),
+              smape = round(Metrics::smape(get(y), get(x)), 2),
+              pbias = round(Metrics::percent_bias(get(y), get(x))),
+              rsq = round(summary(mod)$r.squared, 3),
+              rsq_nooutliers = round(summary(mod_nooutliers)$r.squared, 3),
+              n_total = .N,
+              noutliers = nrow(outrows)
+              )
+       ,]
+
+    return(outstats)
+  }
+
+  qsubp_bin[qmean >= 100,
+            getqstats(dt=.SD, x='dis_m3_pyr', y='qmean',
+                      rstudthresh = 3)]
+
+
+  #Get stats for mean Q ~ dis_m3_pyr (watergap mean annual)
+  qmean_stats <- qsubp_bin[,
+                           getqstats(dt=.SD, x='dis_m3_pyr', y='qmean',
+                                     rstudthresh = 3),
+                           by=.(bin, bin_lformat)] %>%
+    rbind(
+      getqstats(dt=qsubp_bin, x='dis_m3_pyr', y='qmean', log=T)[
+        , `:=`(bin_lformat='all', bin=length(binarg)+1)]
+      ) %>%
+    .[, comp := 'qmean_dism3pyr']
+
+  #Get stats for Q90 ~ dis_m3_pyr (watergap min monthly)
+  q90_stats <- qsubp_bin[,
+                           getqstats(dt=.SD, x='dis_m3_pmn', y='q90',
+                                     rstudthresh = 3),
+                           by=.(bin, bin_lformat)] %>%
+    rbind(getqstats(dt=qsubp_bin, x='dis_m3_pmn', y='q90', log=T)[
+      , `:=`(bin_lformat='all', bin=length(binarg)+1)]) %>%
+    .[, comp := 'q90_dism3mn']
+
+  outstats <- rbind(qmean_stats, q90_stats) %>%
+    setorder(-comp, bin)
+  return(outstats)
+}
+
 #------ formatscales ------------
 formatscales <- function(in_df, varstoplot) {
   scales_x <- list(
