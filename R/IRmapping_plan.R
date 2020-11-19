@@ -60,27 +60,37 @@ plan_preprocess <- drake_plan(
     in_gaugep = gaugep,
     timestep = 'season'),
 
-  GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
-                              comp_GRDCdurfreq, #Function to run on each file name
-                              maxgap = 20,
-                              in_gaugep = gaugep,
-                              windowsize = 20,
-                              fullwindow = FALSE,
-                              monthsel = NULL, #Other arguments in function
-                              mdurthresh = 1,
-                              verbose = FALSE,
-                              .progress = TRUE),
+  #------ get_gaugestats ----------
+  GRDCqstats = rbindlist(future_map(GRDCgauged_filenames,
+                                    comp_GRDCqstats,
+                                    maxgap = 20,
+                                    minyear = 1971,
+                                    maxyear = 2000,
+                                    verbose = FALSE,
+                                    .progress = TRUE))
+  ,
 
-  GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
-                               GSIMgaugedsea_filenames,
-                               comp_GSIMdurfreq, #Function to run on each file name
-                               maxgap = 20,
-                               in_gaugep = gaugep,
-                               windowsize = 20,
-                               fullwindow = FALSE,
-                               monthsel = NULL, #Other arguments in function
-                               mdurthresh = 1,
-                               .progress = TRUE),
+  # GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
+  #                             comp_GRDCdurfreq, #Function to run on each file name
+  #                             maxgap = 20,
+  #                             in_gaugep = gaugep,
+  #                             windowsize = 20,
+  #                             fullwindow = FALSE,
+  #                             monthsel = NULL, #Other arguments in function
+  #                             mdurthresh = 1,
+  #                             verbose = FALSE,
+  #                             .progress = TRUE),
+  #
+  # GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
+  #                              GSIMgaugedsea_filenames,
+  #                              comp_GSIMdurfreq, #Function to run on each file name
+  #                              maxgap = 20,
+  #                              in_gaugep = gaugep,
+  #                              windowsize = 20,
+  #                              fullwindow = FALSE,
+  #                              monthsel = NULL, #Other arguments in function
+  #                              mdurthresh = 1,
+  #                              .progress = TRUE),
 
   # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
   #                            yearthresh = 1800,
@@ -92,57 +102,62 @@ plan_preprocess <- drake_plan(
   #                          inp_resdir = path_resdir,
   #                          maxgap = 20),
 
-  gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
-                                             in_GSIMgaugestats = GSIMgaugestats,
-                                             in_gaugep = gaugep,
-                                             inp_resdir = path_resdir,
-                                             plotseries = FALSE),
+  # gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
+  #                                            in_GSIMgaugestats = GSIMgaugestats,
+  #                                            in_gaugep = gaugep,
+  #                                            inp_resdir = path_resdir,
+  #                                            plotseries = FALSE),
+  #
+  # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
+  #                                       in_gaugep = gaugep,
+  #                                       yearthresh = 1800),
 
-  gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
-                                        in_gaugep = gaugep,
-                                        yearthresh = 1800),
-
-  predvars = target(
-    selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-                          in_gaugestats = gaugestats_format),
-    trigger  = trigger(mode = "condition", condition =FALSE)
-  )
-  ,
-
-
-  measures = target(list(classif = msr("classif.bacc"),
-                         regr = msr("regr.mae"))
+  watergap_stats = eval_watergap(in_qstats = GRDCqstats,
+                                 in_selgauges = gaugestats_format,
+                                 binarg = c(1, 10, 100, 1000, 10000, 1000000)
   ),
-
-  #-------------------- SET-UP TASKS -------------------------------------
-  gauges_div = target(
-    gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
-                        (dis_m3_pyr < discharge_interval[2]),]
-    ,
-    transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
-                    .names = c('gaugestats_format_u10',
-                               'gaugestats_format_o1')
-    ),
-    trigger  = trigger(mode = "condition", condition =FALSE)
-  )
-  ,
-
-  tasks = target(
-    create_tasks(in_gaugestats = in_gauges,
-                 in_predvars = predvars,
-                 id_suffix = in_id,
-                 include_discharge = map_includedis),
-    transform = map(
-      in_gauges = c(gaugestats_format_u10,
-                    gaugestats_format_o1),
-      in_id = c('_u10', '_o1'),
-      map_includedis = c(TRUE, TRUE),
-      .names = c('tasks_u10', 'tasks_o1'),
-      tag_in = task,
-      tag_out = size
-    ),
-    trigger  = trigger(mode = "condition", condition =FALSE)
-  )
+  #
+  # predvars = target(
+  #   selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
+  #                         in_gaugestats = gaugestats_format),
+  #   trigger  = trigger(mode = "condition", condition =FALSE)
+  # )
+  # ,
+  #
+  #
+  # measures = target(list(classif = msr("classif.bacc"),
+  #                        regr = msr("regr.mae"))
+  # ),
+  #
+  # #-------------------- SET-UP TASKS -------------------------------------
+  # gauges_div = target(
+  #   gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
+  #                       (dis_m3_pyr < discharge_interval[2]),]
+  #   ,
+  #   transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
+  #                   .names = c('gaugestats_format_u10',
+  #                              'gaugestats_format_o1')
+  #   ),
+  #   trigger  = trigger(mode = "condition", condition =FALSE)
+  # )
+  # ,
+  #
+  # tasks = target(
+  #   create_tasks(in_gaugestats = in_gauges,
+  #                in_predvars = predvars,
+  #                id_suffix = in_id,
+  #                include_discharge = map_includedis),
+  #   transform = map(
+  #     in_gauges = c(gaugestats_format_u10,
+  #                   gaugestats_format_o1),
+  #     in_id = c('_u10', '_o1'),
+  #     map_includedis = c(TRUE, TRUE),
+  #     .names = c('tasks_u10', 'tasks_o1'),
+  #     tag_in = task,
+  #     tag_out = size
+  #   ),
+  #   trigger  = trigger(mode = "condition", condition =FALSE)
+  # )
 )
 
 
