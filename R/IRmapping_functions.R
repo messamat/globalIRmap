@@ -3806,7 +3806,7 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
 #------ dynamic_resample ------------------
 #Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
 dynamic_resample <- function(in_task, in_learner, in_resampling, type,
-                             store_models = TRUE) {
+                             store_models = FALSE) {
   if (is.list(in_learner)) {
     in_learner <- in_learner[[1]]
   }
@@ -3838,7 +3838,7 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
 #------ dynamic_resamplebm ------------------
 #Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
 dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
-                               store_models = TRUE) {
+                               store_models = FALSE) {
   #If path, read qs
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
