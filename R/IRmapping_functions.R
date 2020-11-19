@@ -518,6 +518,17 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   in_dt2[snw_pc_cyr == -9999, snw_pc_cyr:=0]
   in_dt2[snw_pc_cmx == -9999, snw_pc_cmx:=0]
 
+  #Places with very high slope value (in Greenland) have -9999 - replace with high value
+  #in_dt2[, max(slp_dg_uav)]
+  in_dt2[slp_dg_cav == -9999, `:=`(slp_dg_cav = 750,
+                                   slp_dg_uav = 650)]
+
+  #bio5 is -9999 in a few places in Greenland. Set at lowest existing value
+  # in_dt2[bio5_dc_cav>-9999, min(bio5_dc_cav)]
+  # in_dt2[bio5_dc_uav != -9999, min(bio5_dc_uav)]
+  in_dt2[bio5_dc_cav == -9999, bio5_dc_cav := -950]
+  in_dt2[bio5_dc_uav == -9999, bio5_dc_uav:= -9500]
+
   print('Number of NA values per column')
   colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x)))]
   print(colNAs)
@@ -531,7 +542,8 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
 
   #Define column groups
   gladcols <- unlist(lapply(c('cav', 'uav'),function(s) {
-    lapply(c('wloss', 'wdryp', 'wwetp', 'whfrq', 'wseas', 'wperm', 'wfresh'),
+    lapply(c('wloss', 'wdryp', 'wwetp', 'whfrq', 'wseas', 'wperm', 'wfresh',
+             'wwpix', 'wdpix'),
            function(v) {
              paste0(v, '_pc_', s)
            })
@@ -553,7 +565,7 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   #Convert -9999 to NAs
   for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
     if (!(j %in% which(names(in_dt2) %in% c(gladcols, sgcols, 'wet_cl_cmj')))) {
-      set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to 0 if -9999
+      set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to NA if -9999
     }
   }
 
@@ -4129,7 +4141,7 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars,
     in_network <- in_network[(dis_m3_pyr >= discharge_interval[1]) &
                                (dis_m3_pyr < discharge_interval[2]),]
 
-    #Get rows for which a predictor variable is NA (seecomp_derivedvar for formatting/determining variables)
+    #Get rows for which no predictor variable is NA (seecomp_derivedvar for formatting/determining variables)
     netnoNArows <- in_network[, c(!(.I %in% unique(unlist(
       lapply(.SD, function(x) which(is.na(x))))))),
       .SDcols = in_predvars$varcode]
@@ -5090,9 +5102,6 @@ comp_GRDCqstats <- function(path, maxgap,
 
 
 #------ eval_watergap -------
-#binarg = c(1, 10, 100, 1000, 10000, 1000000)
-in_selgauges <- gaugestats_format
-
 eval_watergap <- function(in_qstats, in_selgauges, binarg) {
   qsub <- in_qstats[!is.na(GRDC_NO) &
                       nyears >= 20 &
@@ -5128,7 +5137,7 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
     outstats <- dt[, list(pearsonr = round(cor(get(y), get(x)), 3),
               mae = round(Metrics::mae(get(y), get(x)), 2),
               smape = round(Metrics::smape(get(y), get(x)), 2),
-              pbias = round(Metrics::percent_bias(get(y), get(x))),
+              #pbias = round(Metrics::percent_bias(get(y), get(x))),
               rsq = round(summary(mod)$r.squared, 3),
               rsq_nooutliers = round(summary(mod_nooutliers)$r.squared, 3),
               n_total = .N,
