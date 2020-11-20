@@ -1,75 +1,81 @@
 source('R/IRmapping_functions.R')
 source('R/planutil_functions.R')
 
+rootdir <- find_root(has_dir("src")) #Set root working directory
+
 ########################### PLAN_PREPROCESS ####################################
 plan_preprocess <- drake_plan(
   #-------------------- DEFINE INPUT AND OUTPUT FILES ##########################
   #Note: for dependency tracking, drake only reads string literals inside file_in and file_out; hence the use of absolute paths
   #Tidy evaluation (!!) didn't work for some reason -- can look into it later
-  path_resdir = "E:\\Mathis\\results",
-  path_GRDCgaugep = "E:\\Mathis\\results\\spatialoutputs.gdb\\grdcstations_cleanjoin",
-  path_GRDCgaugedir =  file_in("E:\\Mathis\\data\\GRDCdat_day"),
-  path_GSIMgaugep = "E:\\Mathis\\results\\GSIM\\GSIM.gdb\\GSIMstations_cleanriverjoin",
-  path_GSIMindicesdir =  file_in("E:\\Mathis\\data\\GSIM\\GSIM_indices"),
-  path_riveratlas_meta = file_in('E:\\Mathis\\data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx'),
-  path_riveratlas_legends = file_in('E:\\Mathis\\data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx'),
-  path_monthlynetdischarge = 'E:\\Mathis\\data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly',
-  path_riveratlas = file_in('E:\\Mathis\\results\\RiverATLAS_v10tab.csv'),
-  path_riveratlas2 = file_in('E:\\Mathis\\results\\RiverATLAS_v11tab.csv'),
-  path_bas03 = 'E:\\Mathis\\data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03',
-  path_compresdir = file.path('E:\\Mathis\\results\\Comparison_databases'),
+  path_resdir = file.path(!!rootdir, "results"),
+  path_GRDCgaugep = file.path(path_resdir, "spatialoutputs.gdb\\grdcstations_cleanjoin"),
+  path_GRDCgaugedir =  file_in(!!file.path(rootdir, "data\\GRDCdat_day")),
+  path_GSIMgaugep = file.path(path_resdir, "GSIM\\GSIM.gdb\\GSIMstations_cleanriverjoin"),
+  path_GSIMindicesdir = file.path(!!rootdir, "data\\GSIM\\GSIM_indices"),
+  path_riveratlas_meta = file_in(
+    !!file.path(rootdir, "data\\HydroATLAS\\HydroATLAS_metadata_MLMv11.xlsx")),
+  path_riveratlas_legends = file_in(!!file.path(rootdir, "data\\HydroATLAS\\HydroATLAS_v10_Legends.xlsx")),
+  path_monthlynetdischarge = file.path(!!rootdir,
+                                       "data\\HydroSHEDS\\HS_discharge_monthly.gdb\\Hydrosheds_discharge_monthly"),
+  path_riveratlas = file_in(!!file.path(rootdir, 'results\\RiverATLAS_v10tab.csv')),
+  path_riveratlas2 = file_in(!!file.path(rootdir, 'results\\RiverATLAS_v11tab.csv')),
+  path_bas03 = file.path(path_resdir, "data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03"),
+  path_compresdir = file_in(!!file.path(rootdir, 'results\\Comparison_databases')),
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
-  path_usdatdir = file.path('E:\\Mathis\\data\\Comparison_databases', 'US'),
+  path_usdatdir = file.path(rootdir, 'data\\Comparison_databases', 'US'),
   path_usresdir = file.path(path_compresdir, 'us.gdb'),
-  path_insitudatdir = file.path('E:\\Mathis\\data\\Insitu_databases'),
-  path_insituresdir = file.path('E:\\Mathis\\results\\Insitu_databases'),
+  path_insitudatdir = file.path(rootdir, 'data\\Insitu_databases'),
+  path_insituresdir = file.path(path_resdir, 'Insitu_databases'),
   path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
 
-  outpath_gaugep = file_out('E:\\Mathis\\results\\GRDCstations_predbasic800.gpkg'),
-  outpath_riveratlaspred = file_out('E:\\Mathis\\results\\RiverATLAS_predbasic800.csv'),
-  outpath_bas03error = file_out('E:\\Mathis\\results\\BasinATLAS_v10_lev03_errors.gpkg'),
-  path_bufrasdir = file.path('E:\\Mathis\\results\\bufrasdir'),
+  outpath_gaugep = file_out(!!file.path(rootdir, 'results\\GRDCstations_predbasic800.gpkg')),
+  outpath_riveratlaspred = file_out(!!file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv')),
+  outpath_bas03error = file_out(!!file.path(rootdir, 'results\\BasinATLAS_v10_lev03_errors.gpkg')),
+  path_bufrasdir = file.path(path_resdir, 'bufrasdir')
+  #,
+
   #outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
 
   #-------------------- PRE-ANALYSIS ------------------------------------------
   #monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
 
 
-  gaugep = target(
-    read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
-                inp_GSIMgaugep = path_GSIMgaugep,
-                #in_monthlydischarge = monthlydischarge,
-                inp_riveratlas2 = path_riveratlas2
-    )
-  )
-  ,
-
-  GRDCgauged_filenames = read_GRDCgauged_paths(
-    inp_GRDCgaugedir = path_GRDCgaugedir,
-    in_gaugep = gaugep),
-
-  GSIMgaugedmo_filenames = read_GSIMgauged_paths(
-    inp_GSIMindicesdir = path_GSIMindicesdir,
-    in_gaugep = gaugep,
-    timestep = 'month'),
-
-  GSIMgaugedsea_filenames = read_GSIMgauged_paths(
-    inp_GSIMindicesdir = path_GSIMindicesdir,
-    in_gaugep = gaugep,
-    timestep = 'season'),
-
-  #------ get_gaugestats ----------
-  GRDCqstats = rbindlist(future_map(GRDCgauged_filenames,
-                                    comp_GRDCqstats,
-                                    maxgap = 20,
-                                    minyear = 1971,
-                                    maxyear = 2000,
-                                    verbose = FALSE,
-                                    .progress = TRUE))
-  ,
-
+  # gaugep = target(
+  #   read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
+  #               inp_GSIMgaugep = path_GSIMgaugep,
+  #               #in_monthlydischarge = monthlydischarge,
+  #               inp_riveratlas2 = path_riveratlas2
+  #   )
+  # )
+  # ,
+  # 
+  # GRDCgauged_filenames = read_GRDCgauged_paths(
+  #   inp_GRDCgaugedir = path_GRDCgaugedir,
+  #   in_gaugep = gaugep),
+  # 
+  # GSIMgaugedmo_filenames = read_GSIMgauged_paths(
+  #   inp_GSIMindicesdir = path_GSIMindicesdir,
+  #   in_gaugep = gaugep,
+  #   timestep = 'month'),
+  # 
+  # GSIMgaugedsea_filenames = read_GSIMgauged_paths(
+  #   inp_GSIMindicesdir = path_GSIMindicesdir,
+  #   in_gaugep = gaugep,
+  #   timestep = 'season'),
+  # 
+  # #------ get_gaugestats ----------
+  # GRDCqstats = rbindlist(future_map(GRDCgauged_filenames,
+  #                                   comp_GRDCqstats,
+  #                                   maxgap = 20,
+  #                                   minyear = 1971,
+  #                                   maxyear = 2000,
+  #                                   verbose = FALSE,
+  #                                   .progress = TRUE))
+  # ,
+  # 
   # GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
   #                             comp_GRDCdurfreq, #Function to run on each file name
   #                             maxgap = 20,
@@ -80,7 +86,7 @@ plan_preprocess <- drake_plan(
   #                             mdurthresh = 1,
   #                             verbose = FALSE,
   #                             .progress = TRUE),
-  #
+  # 
   # GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
   #                              GSIMgaugedsea_filenames,
   #                              comp_GSIMdurfreq, #Function to run on each file name
@@ -91,44 +97,44 @@ plan_preprocess <- drake_plan(
   #                              monthsel = NULL, #Other arguments in function
   #                              mdurthresh = 1,
   #                              .progress = TRUE),
-
+  # 
   # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
   #                            yearthresh = 1800,
   #                            inp_resdir = path_resdir,
   #                            maxgap = 20),
-  #
+  # 
   # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
   #                          yearthresh = 1800,
   #                          inp_resdir = path_resdir,
   #                          maxgap = 20),
-
+  # 
   # gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
   #                                            in_GSIMgaugestats = GSIMgaugestats,
   #                                            in_gaugep = gaugep,
   #                                            inp_resdir = path_resdir,
   #                                            plotseries = FALSE),
-  #
+  # 
   # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
   #                                       in_gaugep = gaugep,
   #                                       yearthresh = 1800),
-
-  watergap_stats = eval_watergap(in_qstats = GRDCqstats,
-                                 in_selgauges = gaugestats_format,
-                                 binarg = c(1, 10, 100, 1000, 10000, 1000000)
-  ),
-  #
+  # 
+  # watergap_stats = eval_watergap(in_qstats = GRDCqstats,
+  #                                in_selgauges = gaugestats_format,
+  #                                binarg = c(1, 10, 100, 1000, 10000, 1000000)
+  # ),
+  # 
   # predvars = target(
   #   selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
   #                         in_gaugestats = gaugestats_format),
   #   trigger  = trigger(mode = "condition", condition =FALSE)
   # )
   # ,
-  #
-  #
+  # 
+  # 
   # measures = target(list(classif = msr("classif.bacc"),
   #                        regr = msr("regr.mae"))
   # ),
-  #
+  # 
   # #-------------------- SET-UP TASKS -------------------------------------
   # gauges_div = target(
   #   gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
@@ -141,7 +147,7 @@ plan_preprocess <- drake_plan(
   #   trigger  = trigger(mode = "condition", condition =FALSE)
   # )
   # ,
-  #
+  # 
   # tasks = target(
   #   create_tasks(in_gaugestats = in_gauges,
   #                in_predvars = predvars,
