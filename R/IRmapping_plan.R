@@ -3,6 +3,10 @@ source('R/planutil_functions.R')
 
 rootdir <- find_root(has_dir("src")) #Set root working directory
 
+#Quick plan
+#set mdurthresh
+
+
 ########################### PLAN_PREPROCESS ####################################
 plan_preprocess <- drake_plan(
   #-------------------- DEFINE INPUT AND OUTPUT FILES ##########################
@@ -35,135 +39,137 @@ plan_preprocess <- drake_plan(
   outpath_riveratlaspred = file_out(!!file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv')),
   outpath_bas03error = file_out(!!file.path(rootdir, 'results\\BasinATLAS_v10_lev03_errors.gpkg')),
   path_bufrasdir = file.path(path_resdir, 'bufrasdir')
-  #,
+  ,
 
-  #outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
+  outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
 
   #-------------------- PRE-ANALYSIS ------------------------------------------
   #monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
 
 
-  # gaugep = target(
-  #   read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
-  #               inp_GSIMgaugep = path_GSIMgaugep,
-  #               #in_monthlydischarge = monthlydischarge,
-  #               inp_riveratlas2 = path_riveratlas2
-  #   )
-  # )
-  # ,
-  # 
-  # GRDCgauged_filenames = read_GRDCgauged_paths(
-  #   inp_GRDCgaugedir = path_GRDCgaugedir,
-  #   in_gaugep = gaugep),
-  # 
-  # GSIMgaugedmo_filenames = read_GSIMgauged_paths(
-  #   inp_GSIMindicesdir = path_GSIMindicesdir,
-  #   in_gaugep = gaugep,
-  #   timestep = 'month'),
-  # 
-  # GSIMgaugedsea_filenames = read_GSIMgauged_paths(
-  #   inp_GSIMindicesdir = path_GSIMindicesdir,
-  #   in_gaugep = gaugep,
-  #   timestep = 'season'),
-  # 
-  # #------ get_gaugestats ----------
-  # GRDCqstats = rbindlist(future_map(GRDCgauged_filenames,
-  #                                   comp_GRDCqstats,
-  #                                   maxgap = 20,
-  #                                   minyear = 1971,
-  #                                   maxyear = 2000,
-  #                                   verbose = FALSE,
-  #                                   .progress = TRUE))
-  # ,
-  # 
-  # GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
-  #                             comp_GRDCdurfreq, #Function to run on each file name
-  #                             maxgap = 20,
-  #                             in_gaugep = gaugep,
-  #                             windowsize = 20,
-  #                             fullwindow = FALSE,
-  #                             monthsel = NULL, #Other arguments in function
-  #                             mdurthresh = 1,
-  #                             verbose = FALSE,
-  #                             .progress = TRUE),
-  # 
-  # GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
-  #                              GSIMgaugedsea_filenames,
-  #                              comp_GSIMdurfreq, #Function to run on each file name
-  #                              maxgap = 20,
-  #                              in_gaugep = gaugep,
-  #                              windowsize = 20,
-  #                              fullwindow = FALSE,
-  #                              monthsel = NULL, #Other arguments in function
-  #                              mdurthresh = 1,
-  #                              .progress = TRUE),
-  # 
-  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-  #                            yearthresh = 1800,
-  #                            inp_resdir = path_resdir,
-  #                            maxgap = 20),
-  # 
-  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
-  #                          yearthresh = 1800,
-  #                          inp_resdir = path_resdir,
-  #                          maxgap = 20),
-  # 
-  # gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
-  #                                            in_GSIMgaugestats = GSIMgaugestats,
-  #                                            in_gaugep = gaugep,
-  #                                            inp_resdir = path_resdir,
-  #                                            plotseries = FALSE),
-  # 
-  # gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
-  #                                       in_gaugep = gaugep,
-  #                                       yearthresh = 1800),
-  # 
-  # watergap_stats = eval_watergap(in_qstats = GRDCqstats,
-  #                                in_selgauges = gaugestats_format,
-  #                                binarg = c(1, 10, 100, 1000, 10000, 1000000)
-  # ),
-  # 
-  # predvars = target(
-  #   selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-  #                         in_gaugestats = gaugestats_format),
-  #   trigger  = trigger(mode = "condition", condition =FALSE)
-  # )
-  # ,
-  # 
-  # 
-  # measures = target(list(classif = msr("classif.bacc"),
-  #                        regr = msr("regr.mae"))
-  # ),
-  # 
-  # #-------------------- SET-UP TASKS -------------------------------------
-  # gauges_div = target(
-  #   gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
-  #                       (dis_m3_pyr < discharge_interval[2]),]
-  #   ,
-  #   transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
-  #                   .names = c('gaugestats_format_u10',
-  #                              'gaugestats_format_o1')
-  #   ),
-  #   trigger  = trigger(mode = "condition", condition =FALSE)
-  # )
-  # ,
-  # 
-  # tasks = target(
-  #   create_tasks(in_gaugestats = in_gauges,
-  #                in_predvars = predvars,
-  #                id_suffix = in_id,
-  #                include_discharge = map_includedis),
-  #   transform = map(
-  #     in_gauges = c(gaugestats_format_u10,
-  #                   gaugestats_format_o1),
-  #     in_id = c('_u10', '_o1'),
-  #     map_includedis = c(TRUE, TRUE),
-  #     .names = c('tasks_u10', 'tasks_o1'),
-  #     tag_in = task,
-  #     tag_out = size
-  #   ),
-  #   trigger  = trigger(mode = "condition", condition =FALSE)
-  # )
+  gaugep = target(
+    read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
+                inp_GSIMgaugep = path_GSIMgaugep,
+                #in_monthlydischarge = monthlydischarge,
+                inp_riveratlas2 = path_riveratlas2
+    )
+  )
+  ,
+
+  GRDCgauged_filenames = read_GRDCgauged_paths(
+    inp_GRDCgaugedir = path_GRDCgaugedir,
+    in_gaugep = gaugep),
+
+  GSIMgaugedmo_filenames = read_GSIMgauged_paths(
+    inp_GSIMindicesdir = path_GSIMindicesdir,
+    in_gaugep = gaugep,
+    timestep = 'month'),
+
+  GSIMgaugedsea_filenames = read_GSIMgauged_paths(
+    inp_GSIMindicesdir = path_GSIMindicesdir,
+    in_gaugep = gaugep,
+    timestep = 'season'),
+
+  #------ get_gaugestats ----------
+  GRDCqstats = rbindlist(future_map(GRDCgauged_filenames,
+                                    comp_GRDCqstats,
+                                    maxgap = 20,
+                                    minyear = 1971,
+                                    maxyear = 2000,
+                                    verbose = FALSE,
+                                    .progress = TRUE))
+)
+
+########################### PLAN_SETUPDATA ####################################
+plan_setupdata <- drake_plan(
+  GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
+                              comp_GRDCdurfreq, #Function to run on each file name
+                              maxgap = 20,
+                              in_gaugep = gaugep,
+                              windowsize = 20,
+                              fullwindow = FALSE,
+                              monthsel = NULL, #Other arguments in function
+                              mdurthresh = 1,
+                              verbose = FALSE,
+                              .progress = TRUE),
+
+  GSIMgaugestats = future_map2(GSIMgaugedmo_filenames, #To map
+                               GSIMgaugedsea_filenames,
+                               comp_GSIMdurfreq, #Function to run on each file name
+                               maxgap = 20,
+                               in_gaugep = gaugep,
+                               windowsize = 20,
+                               fullwindow = FALSE,
+                               monthsel = NULL, #Other arguments in function
+                               mdurthresh = 1,
+                               .progress = TRUE),
+
+  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+                             yearthresh = 1800,
+                             inp_resdir = path_resdir,
+                             maxgap = 20),
+
+  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+                           yearthresh = 1800,
+                           inp_resdir = path_resdir,
+                           maxgap = 20),
+
+  gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
+                                             in_GSIMgaugestats = GSIMgaugestats,
+                                             in_gaugep = gaugep,
+                                             inp_resdir = path_resdir,
+                                             plotseries = FALSE),
+
+  gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
+                                        in_gaugep = gaugep,
+                                        yearthresh = 1800),
+
+  watergap_stats = eval_watergap(in_qstats = GRDCqstats,
+                                 in_selgauges = gaugestats_format,
+                                 binarg = c(1, 10, 100, 1000, 10000, 1000000)
+  ),
+
+  predvars = target(
+    selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
+                          in_gaugestats = gaugestats_format),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
+
+
+  measures = target(list(classif = msr("classif.bacc"),
+                         regr = msr("regr.mae"))
+  ),
+
+  #-------------------- SET-UP TASKS -------------------------------------
+  gauges_div = target(
+    gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
+                        (dis_m3_pyr < discharge_interval[2]),]
+    ,
+    transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
+                    .names = c('gaugestats_format_u10',
+                               'gaugestats_format_o1')
+    ),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
+
+  tasks = target(
+    create_tasks(in_gaugestats = in_gauges,
+                 in_predvars = predvars,
+                 id_suffix = in_id,
+                 include_discharge = map_includedis),
+    transform = map(
+      in_gauges = c(gaugestats_format_u10,
+                    gaugestats_format_o1),
+      in_id = c('_u10', '_o1'),
+      map_includedis = c(TRUE, TRUE),
+      .names = c('tasks_u10', 'tasks_o1'),
+      tag_in = task,
+      tag_out = size
+    ),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+  )
 )
 
 
@@ -235,18 +241,6 @@ plan_runmodels <- drake_plan(
 
   selected_learner = target("oversample.classif.ranger"),
 
-  resamplingset_featsel = target(
-    set_cvresampling(rsmp_id = in_strategy,
-                     in_task = tasks$classif,
-                     outsamp_nrep = in_outrep,
-                     outsamp_nfolds = in_outfolds),
-    transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
-                    in_outrep = c(2, 2),
-                    in_outfolds = c(3, 10),
-                    .names = c('featsel_cv', 'featsel_spcv')),
-    trigger  = trigger(mode = "condition", condition =TRUE)
-  ),
-
   tasks_featsel = target(
     select_features(
       in_bm = rfbm_classif,
@@ -257,6 +251,18 @@ plan_runmodels <- drake_plan(
     trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
+  
+  resamplingset_featsel = target(
+    set_cvresampling(rsmp_id = in_strategy,
+                     in_task = tasks$classif,
+                     outsamp_nrep = in_outrep,
+                     outsamp_nfolds = in_outfolds),
+    transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
+                    in_outrep = c(2, 1),
+                    in_outfolds = c(3, 20),
+                    .names = c('featsel_cv', 'featsel_spcv')),
+    trigger  = trigger(mode = "condition", condition =TRUE)
+  ),
 
   rfresampled_featsel = target(
     dynamic_resamplebm(in_task = in_taskfeatsel,
@@ -292,27 +298,27 @@ plan_runmodels <- drake_plan(
     trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  # interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
-  #
-  # # Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
-  # rftuned = target(
-  #   selecttrain_rf(in_rf = res_featsel_cv,
-  #                  in_learnerid = selected_learner,
-  #                  in_taskid = "inter_class_featsel",
-  #                  insamp_nfolds = 4,
-  #                  insamp_nevals = 100),
-  #   trigger  = trigger(mode = "condition", condition =FALSE)
-  # ),
-  #
+  interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
+
+  # Assertion on 'uhash' failed: Must be element of set {'f00f1b58-0316-4828-814f-f30310b47761','1b8bb7dc-69a0-49a2-af2e-f377fb162a5a'}, but is not atomic scalar.
+  rftuned = target(
+    selecttrain_rf(in_rf = res_featsel_cv,
+                   in_learnerid = selected_learner,
+                   in_taskid = "inter_class_featsel",
+                   insamp_nfolds = 4,
+                   insamp_nevals = 100),
+    trigger  = trigger(mode = "condition", condition =FALSE)
+  ),
+
   # vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
   #                    varnum=20, spatial_rsp = FALSE),
-  #
+  # 
   # pd_plot = ggpartialdep(in_rftuned=rftuned,
   #                        in_predvars=predvars,
   #                        colnums=1:27,
   #                        nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
   #                        spatial_rsp = FALSE),
-  #
+  # 
   # table_allbm = target(
   #   tabulate_benchmarks(in_bm, in_bmid),
   #   transform = map(
@@ -323,16 +329,15 @@ plan_runmodels <- drake_plan(
   #     in_bmid = list('classif1', 'regr1', 'classif2'),
   #     .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
   # ),
-  #
-  # ######################### REPLACE WITH SPCV
-  # bin_rftunedmisclass = bin_misclass(in_rftuned = rftuned,
-  #                                    in_gaugestats = gaugestats_format,
-  #                                    binvar = 'dis_m3_pyr',
-  #                                    binfunc = 'manual',
-  #                                    binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-  #                                    interthresh=interthresh,
-  #                                    spatial_rsp=FALSE
-  # ),
+  # 
+  bin_rftunedmisclass = bin_misclass(in_resampleresult = res_featsel_spcv,
+                                     in_gaugestats = gaugestats_format,
+                                     binvar = 'dis_m3_pyr',
+                                     binfunc = 'manual',
+                                     binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+                                     interthresh=interthresh,
+                                     spatial_rsp=TRUE
+  ),
   #
   # misclass_format = target(
   #   formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
@@ -354,11 +359,11 @@ plan_runmodels <- drake_plan(
   # )
   # ,
   #
-  # gpredsdt = make_gaugepreds(in_rftuned = rftuned,
-  #                            in_res_spcv = res_featsel_spcv,
-  #                            in_gaugestats = gaugestats_format,
-  #                            in_predvars = predvars,
-  #                            interthresh = interthresh)
+  gpredsdt = make_gaugepreds(in_rftuned = rftuned,
+                             in_res_spcv = res_featsel_spcv,
+                             in_gaugestats = gaugestats_format,
+                             in_predvars = predvars,
+                             interthresh = interthresh)
 )
 
 ########################### PLAN_GETOUTPUTS ####################################

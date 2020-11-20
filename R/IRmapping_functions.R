@@ -4048,12 +4048,12 @@ make_gaugepreds <- function(in_rftuned, in_res_spcv, in_gaugestats,
     setorder(row_id)
 
   #Get average predictions for oversampled rows and across repetitions - spatial CV
-  # rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
-  # gpreds_CV_sp <-  rsmp_res_sp$prediction()$set_threshold(1-interthresh) %>%
-  #   as.data.table %>%
-  #   .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
-  #   .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
-  #   setorder(row_id)
+  rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
+  gpreds_CV_sp <-  in_res_spcv$prediction()$set_threshold(1-interthresh) %>%
+    as.data.table %>%
+    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+    .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
+    setorder(row_id)
 
   #Format gauge data.table prior to merging
   datsel <- na.omit(in_gaugestats, c('intermittent_o1800',
@@ -4062,8 +4062,8 @@ make_gaugepreds <- function(in_rftuned, in_res_spcv, in_gaugestats,
   #Merge all predictions
   datsel[, `:=`(
     IRpredprob_full = gpreds_full$prob[,2],
-    # IRpredprob_CVsp = gpreds_CV_sp$prob.1,
-    # IRpredcat_CVsp = gpreds_CV_sp$response,
+    IRpredprob_CVsp = gpreds_CV_sp$prob.1,
+    IRpredcat_CVsp = gpreds_CV_sp$response,
     IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
     spfold_unique =  spcv_clustersformat$spfold_unique
   )] %>%
@@ -4087,7 +4087,8 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
   if (in_gpredsdt[duplicated(GAUGE_NO), .N] > 0 ) {
     out_gpredsdt <- in_gpredsdt[, `:=`(
       IRpredprob_full=mean(IRpredprob_full, na.rm=T),
-      IRpredprob_CVnosp=mean(IRpredprob_CVnosp, na.rm=T)
+      IRpredprob_CVnosp=mean(IRpredprob_CVnosp, na.rm=T),
+      IRpredprob_CVsp=mean(IRpredprob_CVsp, na.rm=T)
     ),
     by=.(GAUGE_NO)] %>% #Compute mean predicted probability if overlapping models
       .[!duplicated(GAUGE_NO),]     #Remove duplicates (if overlapping model)
@@ -4099,9 +4100,13 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
                                               '1', '0'),
                      IRpredcat_CVnosp =fifelse(IRpredprob_CVnosp >= interthresh,
                                               '1', '0'),
+                     IRpredcat_CVsp =fifelse(IRpredprob_CVsp >= interthresh,
+                                               '1', '0'),
                      preduncert_full = IRpredprob_full -
                        as.numeric(as.character(intermittent_o1800)),
                      preduncert_CVnosp = IRpredprob_CVnosp -
+                       as.numeric(as.character(intermittent_o1800)),
+                     preduncert_CVsp = IRpredprob_CVsp -
                        as.numeric(as.character(intermittent_o1800))
   )]
 
@@ -4352,20 +4357,17 @@ analyze_benchmark <- function(in_bm, in_measure) {
 }
 
 #------ bin_misclass --------------------------------
-bin_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
+bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                           in_gaugestats, binvar, binfunc, binarg,
                           interthresh=0.5, spatial_rsp=FALSE) {
   #Get misclassification error, sensitivity, and specificity for different classification thresholds
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
-  if (!is.null(in_rftuned)) {
-    if (inherits(in_rftuned, 'list')) {
-      rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-    }
-    else if (inherits(in_rftuned, 'ResampleResult')) {
-      rsmp_res <- in_rftuned
+  if (!is.null(in_resampleresult)) {
+    if (inherits(in_resampleresult, 'list')) {
+      in_resampleresult <- get_outerrsmp(in_resampleresult, spatial_rsp=spatial_rsp)
     }
 
-    in_predictions <- rsmp_res$prediction() %>%
+    in_predictions <- in_resampleresult$prediction() %>%
       as.data.table
 
     #Get average predicted probability and response across CV repeats
@@ -4379,7 +4381,7 @@ bin_misclass <-  function(in_predictions=NULL, in_rftuned=NULL,
                          bintrans=NULL, na.rm=FALSE) %>%
       .[, row_id := .I]
 
-  } else if (is.null(in_rftuned) & !is.null(in_predictions)) {
+  } else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
     #Get bins
     bin_gauges <- bin_dt(in_dt = in_predictions, binvar = 'dis_m3_pyr',
                          binfunc = 'manual', binarg=binarg,
