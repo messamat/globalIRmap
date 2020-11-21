@@ -4240,7 +4240,7 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
       print(clz)
       tic()
       in_network[netnoNArows & clz_cl_cmj == clz,
-                  pred := in_rftuned$rf_inner$predict_newdata(
+                 pred := in_rftuned$rf_inner$predict_newdata(
                    as.data.frame(.SD))$prob[,2],]
       toc()
     }
@@ -4273,7 +4273,7 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
       .[, predcat := fifelse(pred >= interthresh, '1', '0')]
   }
 
-  setnames(networkpreds, old=c('new', 'newcat'),
+  setnames(networkpreds, old=c('pred', 'predcat'),
            new=c(predcol, paste0(predcol, 'cat'))
            )
 
