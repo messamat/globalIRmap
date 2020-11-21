@@ -4475,15 +4475,22 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                          bintrans=NULL, na.rm=FALSE)%>%
       .[, row_id := .I]
 
-  } else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
+  }
+  else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
     #Get bins
     bin_gauges <- bin_dt(in_dt = in_predictions, binvar = 'dis_m3_pyr',
                          binfunc = 'manual', binarg=binarg,
                          bintrans=NULL, na.rm=FALSE) %>%
       .[, row_id := .I]
 
+    if (spatial_rsp) {
+      rspcol <- 'IRpredcat_CVsp'
+    } else {
+      rspcol <- 'IRpredcat_CVnosp'
+    }
+
     predsformat <- in_predictions[, `:=`(truth = intermittent_o1800,
-                                         response = IRpredcat_CVnosp,
+                                         response = get(rspcol),
                                          row_id = .I)]
   }
 
@@ -4691,16 +4698,24 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
-                       interthresh = 0.5, yearthresh, in_learnerid = NULL) {
+                       interthresh = 0.5, yearthresh) {
   #Plot numeric variables
   in_gpredsdt[, DApercsdiff := abs(
     (area_correct-UPLAND_SKM)/mean(c(area_correct, UPLAND_SKM))), by=GAUGE_NO]
+
+  if (spatial_rsp) {
+    predcol <- 'IRpredprob_CVsp'
+    uncertcol <- 'preduncert_CVsp'
+  } else {
+    predcol <- 'IRpredprob_CVnosp'
+    uncertcol <- 'preduncert_CVnosp'
+  }
 
   predmelt_num <- in_gpredsdt[
     , which(as.vector(unlist(lapply(in_gpredsdt, is.numeric)))), with=F] %>%
     cbind(in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
     melt(id.vars=c('GAUGE_NO', 'intermittent_o1800',
-                   'IRpredprob_CVnosp', 'preduncert_CVnosp'))
+                   predcol, uncertcol))
 
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
@@ -4747,11 +4762,11 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
       scale_fill_manual(values=colorpal,
                         name='Predicted regime',
                         labels = c('Perennial', 'Intermittent')) +
-      geom_point(aes(x=value, y=preduncert_CVnosp, color=intermittent_o1800),
+      geom_point(aes(x=value, y=get(uncertcol), color=intermittent_o1800),
                  alpha = 1/8) +
       geom_hline(yintercept=0, alpha=1/2) +
       new_scale_fill() +
-      geom_smooth(aes(x=value, y=preduncert_CVnosp, color=intermittent_o1800),
+      geom_smooth(aes(x=value, y=get(uncertcol), color=intermittent_o1800),
                   method='gam', formula = y ~ s(x, k=3)) +
       # annotate("text", x = Inf-5, y = 0.5, angle = 90,
       #          label = "Pred:Int, Obs:Per",
@@ -4798,10 +4813,10 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
 
 
   #Plot categorical variables
-  predmelt_cat <- in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800', 'preduncert_CVnosp',
+  predmelt_cat <- in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800', uncertcol,
                                   'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
     .[, `:=`(intermittent_o1800 = factor(intermittent_o1800, levels=c('0','1')))] %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', 'preduncert_CVnosp'))
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', uncertcol))
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
 
@@ -4815,7 +4830,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                       name='Predicted regime',
                       labels = c('Perennial', 'Intermittent')) +
     new_scale_fill() +
-    geom_boxplot(aes(x=as.factor(value), y=preduncert_CVnosp,
+    geom_boxplot(aes(x=as.factor(value), y=get(uncertcol),
                      fill=intermittent_o1800, color=intermittent_o1800),
                  alpha=0.75) +
     facet_wrap(~variable, scales='free', labeller=label_value) +
@@ -4947,15 +4962,17 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
 
 #------ map_BACC ------
 map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
-                          in_rivernetwork, #################################### NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
                           inp_basin,
-                          outp_basinerror) {
+                          outp_basinerror,
+                          spatial_rsp) {
   bas03 <- st_read(dsn = dirname(inp_basin),
                    layer = basename(inp_basin))
 
-  gnetjoin <- merge(in_gaugepred,
-                    in_rivernetwork[,.(HYRIV_ID, HYBAS_ID03)],
-                    by='HYRIV_ID', all.x=T, all.y=F)
+  if (spatial_rsp) {
+    predcol <- 'IRpredprob_CVsp'
+  } else {
+    predcol <- 'IRpredprob_CVnosp'
+  }
 
   classcol='intermittent_o1800'
   dat <- in_gaugepred[, .N, by=classcol]%>%
@@ -4968,12 +4985,12 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                                      minoratio$ratio, 1)]
 
   basbacc <- gnetjoin[, list(
-    basbacc =  sum((intermittent_o1800==IRpredcat_CVnosp) *
+    basbacc =  sum((intermittent_o1800==get(predcol)) *
                      classweights) / sum(classweights),
-    acc = sum(intermittent_o1800==IRpredcat_CVnosp)/.N,
+    acc = sum(intermittent_o1800==get(predcol))/.N,
     gnum = .N,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
-    predbias = (sum(IRpredcat_CVnosp==1)/.N) - (sum(intermittent_o1800=='1')/.N)
+    predbias = (sum(get(predcol)==1)/.N) - (sum(intermittent_o1800=='1')/.N)
   ), by=HYBAS_ID03]
 
 

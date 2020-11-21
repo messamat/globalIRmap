@@ -234,7 +234,7 @@ plan_runmodels <- drake_plan(
     combine_bm(in_resampleresults = readd(rfresampled_classif,
                                           subtarget_list = TRUE),
                write_qs = T, inp_resdir = path_resdir),
-    trigger  = trigger(mode = "condition", condition =TRUE)
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   # bm_checked = target(
@@ -253,7 +253,7 @@ plan_runmodels <- drake_plan(
       in_task = tasks$classif,
       pcutoff = 0.05
     ),
-    trigger  = trigger(mode = "condition", condition =TRUE)
+    trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -350,14 +350,14 @@ plan_runmodels <- drake_plan(
         c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
       .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2')),
-    trigger = trigger(condition=FALSE)
+    trigger = trigger(mode = "condition", condition =FALSE)
   ),
 
   misclass_plot = target(
     ggmisclass_bm(list(misclass_classif1,
                        misclass_regr1,
                        misclass_classif2)),
-    trigger = trigger(condition=FALSE)
+    trigger = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -367,7 +367,7 @@ plan_runmodels <- drake_plan(
                     in_gaugestats = gaugestats_format,
                     in_predvars = predvars,
                     interthresh = interthresh),
-    trigger = trigger(condition=FALSE)
+    trigger = trigger(mode = "condition", condition =FALSE)
   )
 )
 
@@ -459,21 +459,22 @@ plan_getoutputs <- drake_plan(
                                    binvar = 'dis_m3_pyr',
                                    binfunc = 'manual',
                                    binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-                                   interthresh=0.5
+                                   interthresh=0.5,
+                                   spatial = TRUE
   ),
 
   gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
                              in_predvars = predvars,
-                             spatial_rsp = FALSE,
+                             spatial_rsp = TRUE,
                              yearthresh = 1800),
 
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
                           outp_riveratlaspred = rfpreds_network),
 
   basinBACC = map_basinBACC(in_gaugepred = gpredsdt,
-                            in_rivernetwork = rivernetwork, # NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
                             inp_basin = path_bas03,
-                            outp_basinerror = outpath_bas03error
+                            outp_basinerror = outpath_bas03error,
+                            spatial_rsp = TRUE
   )
   ,
 
