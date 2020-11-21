@@ -28,7 +28,6 @@ modify_arg <- function(arg, in_regex, in_suffix, verbose = FALSE) {
   }
 }
 
-
 #Modify all arguments within a call.
 #call: call whose argument values must be modified
 #in_regex: regular expression to recognize target names within argument values
@@ -93,15 +92,19 @@ branch_plan <- function(plan, branch_suffix, external_arguments_to_modify=NULL, 
   )
 
   #Add suffix to all target names within dynamic grouping variables
-  plan_modif$dynamic <- lapply(
-    plan_modif$dynamic, function(command) {
-      #print(command)
-      modify_call_args(call=command,
-                       in_regex = target_regex,
-                       in_suffix = branch_suffix,
-                       verbose = verbose)
-    }
-  )
+  if ('dynamic' %in% names(plan_modif)) {
+    plan_modif$dynamic <- lapply(
+      plan_modif$dynamic, function(command) {
+        #print(command)
+        modify_call_args(call=command,
+                         in_regex = target_regex,
+                         in_suffix = branch_suffix,
+                         verbose = verbose)
+      }
+    )
+
+  }
+
 
   return(plan_modif)
 }

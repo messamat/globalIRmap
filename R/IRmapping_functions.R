@@ -1370,6 +1370,24 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
   return(data.table(bacc=bacc, threshold_class=threshold_class))
 }
 
+
+#------ rsmp_sen ---------
+rsmp_sen <- function(bmres, rsmp_i) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  sen <- Metrics::recall(rsmp_pred$truth, rsmp_pred$response)
+  return(sen)
+}
+
+#------ rsmp_spe ---------
+rsmp_sen <- function(bmres, rsmp_i) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  spe <- Metrics::recall(1-as.numeric(as.character(rsmp_pred$truth)),
+                         1-as.numeric(as.character(rsmp_pred$response)))
+  return(sen)
+}
+
 #------ bm_paramstime ----------------
 bm_paramstime <- function(bmres) {
 
@@ -1513,7 +1531,7 @@ bm_paramstime <- function(bmres) {
 }
 
 #------ bm_msrtab ----------------
-bm_msrtab <- function(bmres) {
+bm_msrtab <- function(bmres, interthresh=NULL) {
   print('Getting bbrier')
   bbrier_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(i)
@@ -1528,6 +1546,20 @@ bm_msrtab <- function(bmres) {
   }) %>%
     unlist
 
+  print('Getting sensitivity')
+  auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    print(i)
+    rsmp_sen(bmres=bmres, rsmp_i=i)
+  }) %>%
+    unlist
+
+  print('Getting specificity')
+  auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    print(i)
+    rsmp_spe(bmres=bmres, rsmp_i=i)
+  }) %>%
+    unlist
+
   print('Getting smp design')
   outer_smp <- lapply(bmres$resamplings$resampling, function(rsmp_design) {
     as.data.table(rsmp_design$param_set$get_values()) %>%
@@ -1539,21 +1571,30 @@ bm_msrtab <- function(bmres) {
   print('Getting bacc')
   bacc_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(paste0('For fold #', i))
-    baccthresh <- ldply(seq(0.43,0.55,0.01), function(threshold_class) {
-      print(threshold_class)
-      rsmp_bacc(bmres, rsmp_i=i, threshold_class=threshold_class)}) %>%
-      setorder(bacc) %>%
-      setDT %>%
-      .[, .SD[.N, .(bacc, threshold_class)]]
+    if (is.null(interthresh)) {
+      ldply(seq(0.43,0.55,0.01), function(threshold_class) {
+        print(threshold_class)
+        rsmp_bacc(bmres, rsmp_i=i, threshold_class=threshold_class)}) %>%
+        setorder(bacc) %>%
+        setDT %>%
+        .[, .SD[.N, .(bacc, threshold_class)]]
+    } else {
+      rsmp_bacc(bmres, rsmp_i=i, threshold_class=interthresh)
+    }
   }) %>%
     rbindlist
+
+  print('Getting sensitivity')
+
 
   print('Getting inner sampling params, general params, and time &  add to rest')
   moddt <- bm_paramstime(bmres) %>%
     cbind(., outer_smp) %>%
     cbind(., bacc_vec) %>%
     .[,`:=`(bbrier = bbrier_vec,
-            auc = auc_vec)]
+            auc = auc_vec,
+            sen = sen_vec,
+            spe = spe_vec)]
 
   return(moddt)
 }
@@ -3779,6 +3820,7 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                                    measure = in_measure,
                                    search_space = regex_tuneset(in_learner),
                                    terminator = evalsn,
+                                   store_tuning_instance = FALSE,
                                    tuner =  tnr("random_search",
                                                 batch_size = insamp_nbatch)) #batch_size determines level of parallelism
     } else{
@@ -3794,6 +3836,7 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                                  measure = in_measure,
                                  search_space = regex_tuneset(in_learner),
                                  terminator = evalsn,
+                                 store_tuning_instance = FALSE,
                                  tuner =  tnr("random_search",
                                               batch_size = insamp_nbatch))
   }
@@ -3941,18 +3984,23 @@ select_features <- function(in_bm, in_lrnid, in_task, pcutoff) {
 }
 
 #------ selecttrain_rf -----------------
-selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
+selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
-  #Prepare autotuner for full training
+
+  outlist <- list()
+
+  ######### Prepare autotuner for full training ####################
+  # If a ResampleResult was provided
   if (inherits(in_rf, 'ResampleResult')) {
     in_bmsel <- in_rf$clone()
-    lrn_autotuner <- in_bmsel$learners[[1]]
+    lrn_autotuner <- in_bmsel$learner
     in_task <- in_bmsel$task
-    outer_resampling_output <- in_rf
+    outlist[['rf_outer']] <- in_rf
 
-  } else {
+  # If a BenchmarkResult was provided
+  } else if (inherits(in_rf, 'BenchmarkResult')) {
     in_bmsel <- in_rf$clone()$filter(learner_ids = in_learnerid,
-                                     task_id = in_taskid)
+                                     task_id = in_task)
 
     lrn_autotuner <- in_bmsel$clone()$learners$learner[[1]]
     in_task <-in_bmsel$tasks$task[[1]]
@@ -3960,12 +4008,14 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
     #Return outer sampling object for selected model (or list of outer sampling objects)
     uhashes <- unique(as.data.table(in_bmsel)$uhash)
     if (length(uhashes) == 1) {
-      outer_resampling_output <- in_bmsel$resample_result(uhash=uhashes)
+      outlist[['rf_outer']] <- in_bmsel$resample_result(uhash=uhashes)
     } else {
-      outer_resampling_output <- lapply(uhashes, function(x) {
+      outlist[['rf_outer']] <- lapply(uhashes, function(x) {
         in_bmsel$resample_result(uhash=x)
       })
     }
+  } else if (inherits(in_rf, 'AutoTuner')) {
+    lrn_autotuner <- in_rf
   }
 
   if (!is.null(insamp_nfolds)) {
@@ -3976,19 +4026,45 @@ selecttrain_rf <- function(in_rf, in_learnerid, in_taskid = NULL,
     lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
   }
 
-  #Train learners
+  ######### Train it ####################
   lrn_autotuner$param_set$values = mlr3misc::insert_named(
     lrn_autotuner$param_set$values,
     list(classif.ranger.importance = 'permutation')
   )
   lrn_autotuner$train(in_task)
 
-  return(list(rf_outer = outer_resampling_output, #Resampling results
-              rf_inner = lrn_autotuner, #Core learner (with hyperparameter tuning)
-              task = in_task)) #Task
+  outlist[['task']] <- in_task
+  outlist[['rf_inner']] <- lrn_autotuner
+
+  return(outlist)
 }
 
 
+
+#------ change_taskbackend -----------------------------------
+change_tasktarget <- function(in_task, in_gaugestats, newmdurthresh) {
+  in_gaugestats_new <- copy(in_gaugestats)
+  in_gaugestats_new[, intermittent_o1800 := factor(
+    as.numeric(mDur_o1800 >= newmdurthresh),
+    levels=c('0', '1'))]
+  in_task_new <- in_task$clone()
+
+  in_task_new$backend <-  as_data_backend(
+    in_gaugestats_new[,
+                         c(names(in_task_new$data()),in_task$coordinate_names),
+                         with=F])
+  return(in_task_new)
+}
+
+#------ change_oversamp ----------------------
+change_oversamp <- function(in_oversamprf, in_task) {
+  oversamprf <- in_oversamprf$clone()
+  oversamprf$param_set$values$oversample.ratio <- get_oversamp_ratio(in_task)$ratio
+  return(oversamprf)
+}
+
+
+##### --------------------- Predictions ---------------------
 #------ rformat_network ------------------
 rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
@@ -4027,48 +4103,52 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
 }
 
 #------ make_gaugepreds -------------
-make_gaugepreds <- function(in_rftuned, in_res_spcv, in_gaugestats,
-                            in_predvars, interthresh) {
+make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
+                            in_predvars, interthresh, simple = FALSE) {
+
   #Get fully trained predictions
   gpreds_full <- in_rftuned$rf_inner$predict(in_rftuned$task)
-
-  #Get unique ID for each spatial fold-repetition combination
-  spcv_clusters <- in_res_spcv$resampling$instance
-  spcv_clustersformat <- dcast(spcv_clusters, row_id~rep, value.var = 'fold') %>%
-    setnames(old=unique(spcv_clusters$rep)+1, paste0('fold', unique(spcv_clusters$rep))) %>%
-    .[, spfold_unique := do.call(paste0, .SD),
-      .SDcols = paste0('fold', unique(spcv_clusters$rep))] %>%
-    setorder(row_id)
-
-  #Get average predictions for oversampled rows and across repetitions - simple CV
-  rsmp_res_nosp <- get_outerrsmp(in_rftuned, spatial_rsp=FALSE)
-  gpreds_CV_nosp <-  rsmp_res_nosp$prediction() %>%
-    as.data.table %>%
-    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id]%>%
-    setorder(row_id)
-
-  #Get average predictions for oversampled rows and across repetitions - spatial CV
-  rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
-  gpreds_CV_sp <-  in_res_spcv$prediction()$set_threshold(1-interthresh) %>%
-    as.data.table %>%
-    .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
-    .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
-    setorder(row_id)
 
   #Format gauge data.table prior to merging
   datsel <- na.omit(in_gaugestats, c('intermittent_o1800',
                                      in_predvars$varcode, 'X', 'Y'))
 
-  #Merge all predictions
-  datsel[, `:=`(
-    IRpredprob_full = gpreds_full$prob[,2],
-    IRpredprob_CVsp = gpreds_CV_sp$prob.1,
-    IRpredcat_CVsp = gpreds_CV_sp$response,
-    IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
-    spfold_unique =  spcv_clustersformat$spfold_unique
-  )] %>%
-    setnames(old='spfold_unique', new=paste0(in_rftuned$task$id, '_spfold'))
+  datsel[, IRpredprob_full := gpreds_full$prob[,2]]
 
+  #If not simple (include CV predictions)
+  if (!simple) {
+    #Get unique ID for each spatial fold-repetition combination
+    spcv_clusters <- in_res_spcv$resampling$instance
+    spcv_clustersformat <- dcast(spcv_clusters, row_id~rep, value.var = 'fold') %>%
+      setnames(old=unique(spcv_clusters$rep)+1, paste0('fold', unique(spcv_clusters$rep))) %>%
+      .[, spfold_unique := do.call(paste0, .SD),
+        .SDcols = paste0('fold', unique(spcv_clusters$rep))] %>%
+      setorder(row_id)
+
+    #Get average predictions for oversampled rows and across repetitions - simple CV
+    rsmp_res_nosp <- get_outerrsmp(in_rftuned, spatial_rsp=FALSE)
+    gpreds_CV_nosp <-  rsmp_res_nosp$prediction() %>%
+      as.data.table %>%
+      .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id]%>%
+      setorder(row_id)
+
+    #Get average predictions for oversampled rows and across repetitions - spatial CV
+    rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
+    gpreds_CV_sp <-  in_res_spcv$prediction()$set_threshold(1-interthresh) %>%
+      as.data.table %>%
+      .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+      .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
+      setorder(row_id)
+
+    #Merge all predictions
+    datsel[, `:=`(
+      IRpredprob_CVsp = gpreds_CV_sp$prob.1,
+      IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
+      spfold_unique =  spcv_clustersformat$spfold_unique
+    )] %>%
+      setnames(old='spfold_unique', new=paste0(in_rftuned$task$id, '_spfold'))
+
+  }
   return(datsel)
 }
 
@@ -4135,9 +4215,13 @@ write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
 }
 
 #------ write_netpreds -------------------
-write_netpreds <- function(in_network, in_rftuned, in_predvars,
+write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
                            discharge_interval = c(-Inf, Inf),
                            interthresh = 0.5, outp_riveratlaspred) {
+
+  if (is.character(in_network)) {
+    in_network <- fread(in_network)
+  }
 
   write_netpred_util <- function(in_network, in_rftuned, in_predvars,
                                  discharge_interval, interthresh) {
@@ -4156,16 +4240,16 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars,
       print(clz)
       tic()
       in_network[netnoNArows & clz_cl_cmj == clz,
-                 predbasic800 := in_rftuned$rf_inner$predict_newdata(
+                  pred := in_rftuned$rf_inner$predict_newdata(
                    as.data.frame(.SD))$prob[,2],]
       toc()
     }
 
     #Label each reach categorically based on threshold
-    in_network[, predbasic800cat := fifelse(predbasic800>=interthresh, 1, 0)]
+    in_network[, predcat := fifelse(pred>=interthresh, 1, 0)]
 
     return(in_network[, c('HYRIV_ID', 'HYBAS_L12',
-                          'predbasic800', 'predbasic800cat'), with=F])
+                          'pred', 'predcat'), with=F])
   }
 
 
@@ -4183,11 +4267,15 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars,
     rbindlist
 
   if (networkpreds[duplicated(HYRIV_ID), .N] > 0 ) {
-    networkpreds <- networkpreds[, predbasic800 := mean(predbasic800, na.rm=T),
+    networkpreds <- networkpreds[, pred := mean(pred, na.rm=T),
                                  by=.(HYRIV_ID)] %>% #Compute mean predicted probability if overlapping models
       .[!duplicated(HYRIV_ID),] %>%     #Remove duplicates (if overlapping model)
-      .[, predbasic800cat := fifelse(predbasic800 >= interthresh, '1', '0')]
+      .[, predcat := fifelse(pred >= interthresh, '1', '0')]
   }
+
+  setnames(networkpreds, old=c('new', 'newcat'),
+           new=c(predcol, paste0(predcol, 'cat'))
+           )
 
   outp_riveratlaspred <- paste0(gsub('[.][a-z]*$', '', outp_riveratlaspred), '_',
                                 format(Sys.Date(), '%Y%m%d'), '.csv')
@@ -4358,7 +4446,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
 
 #------ bin_misclass --------------------------------
 bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
-                          in_gaugestats, binvar, binfunc, binarg,
+                          in_gaugestats=NULL, binvar, binfunc, binarg,
                           interthresh=0.5, spatial_rsp=FALSE) {
   #Get misclassification error, sensitivity, and specificity for different classification thresholds
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
@@ -4375,10 +4463,16 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                                   by=.(row_id, truth)] %>%
       .[, response := fifelse(prob.1 >= interthresh, 1, 0)]
 
+    #Get discharge data
+    rspdat <- in_resampleresult$task$data()
+    if (is.null(in_gaugestats) & (binvar %in% names(rspdat))) {
+     in_gaugestats <- rspdat
+    }
+
     #Get bins
     bin_gauges <- bin_dt(in_dt = in_gaugestats, binvar = 'dis_m3_pyr',
                          binfunc = 'manual', binarg=binarg,
-                         bintrans=NULL, na.rm=FALSE) %>%
+                         bintrans=NULL, na.rm=FALSE)%>%
       .[, row_id := .I]
 
   } else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
@@ -5372,7 +5466,7 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 }
 
 #------ tabulate_benchmarks ------------
-tabulate_benchmarks <- function(in_bm, in_bmid) {
+tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
 
   #If path, read qs
   if (inherits(in_bm, "character")) {
@@ -5380,7 +5474,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid) {
   }
 
   print('Getting table content...')
-  tbbm <- bm_msrtab(in_bm) %>%
+  tbbm <- bm_msrtab(in_bm, interthresh=interthresh) %>%
     format_modelcompdat(typecomp=in_bmid)
 
   metrics_dat <- data.table(selection=character(),

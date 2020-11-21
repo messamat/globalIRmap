@@ -3,13 +3,9 @@ source('R/planutil_functions.R')
 
 rootdir <- find_root(has_dir("src")) #Set root working directory
 
-#Quick plan
-#set mdurthresh
-
-
-########################### PLAN_PREPROCESS ####################################
+########################### plan_preprocess ####################################
 plan_preprocess <- drake_plan(
-  #-------------------- DEFINE INPUT AND OUTPUT FILES ##########################
+  #-------------------- Define input and output files ##########################
   #Note: for dependency tracking, drake only reads string literals inside file_in and file_out; hence the use of absolute paths
   #Tidy evaluation (!!) didn't work for some reason -- can look into it later
   path_resdir = file.path(!!rootdir, "results"),
@@ -43,9 +39,8 @@ plan_preprocess <- drake_plan(
 
   outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
 
-  #-------------------- PRE-ANALYSIS ------------------------------------------
+  #-------------------- Pre-analysis ------------------------------------------
   #monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
-
 
   gaugep = target(
     read_gaugep(inp_GRDCgaugep = path_GRDCgaugep,
@@ -70,17 +65,18 @@ plan_preprocess <- drake_plan(
     in_gaugep = gaugep,
     timestep = 'season'),
 
-  #------ get_gaugestats ----------
   GRDCqstats = rbindlist(future_map(GRDCgauged_filenames,
                                     comp_GRDCqstats,
                                     maxgap = 20,
                                     minyear = 1971,
                                     maxyear = 2000,
                                     verbose = FALSE,
-                                    .progress = TRUE))
+                                    .progress = TRUE)),
+
+  basemaps = get_basemapswintri()
 )
 
-########################### PLAN_SETUPDATA ####################################
+########################### plan_setupdata ####################################
 plan_setupdata <- drake_plan(
   GRDCgaugestats = future_map(GRDCgauged_filenames, #To map
                               comp_GRDCdurfreq, #Function to run on each file name
@@ -104,15 +100,15 @@ plan_setupdata <- drake_plan(
                                mdurthresh = 1,
                                .progress = TRUE),
 
-  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-                             yearthresh = 1800,
-                             inp_resdir = path_resdir,
-                             maxgap = 20),
-
-  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
-                           yearthresh = 1800,
-                           inp_resdir = path_resdir,
-                           maxgap = 20),
+  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+  #                            yearthresh = 1800,
+  #                            inp_resdir = path_resdir,
+  #                            maxgap = 20),
+  #
+  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+  #                          yearthresh = 1800,
+  #                          inp_resdir = path_resdir,
+  #                          maxgap = 20),
 
   gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
                                              in_GSIMgaugestats = GSIMgaugestats,
@@ -141,7 +137,15 @@ plan_setupdata <- drake_plan(
                          regr = msr("regr.mae"))
   ),
 
-  #-------------------- SET-UP TASKS -------------------------------------
+  rivernetwork = rformat_network(in_predvars = predvars,
+                                 #in_monthlydischarge = monthlydischarge,
+                                 inp_riveratlasmeta = path_riveratlas_meta,
+                                 inp_riveratlas = path_riveratlas,
+                                 inp_riveratlas2 = path_riveratlas2
+  )
+  ,
+
+  #-------------------- set-up tasks -------------------------------------
   gauges_div = target(
     gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
                         (dis_m3_pyr < discharge_interval[2]),]
@@ -174,7 +178,7 @@ plan_setupdata <- drake_plan(
 
 
 
-########################### PLAN_RUNMODELS #########################################
+########################### plan_runmodels  #########################################
 plan_runmodels <- drake_plan(
   baselearners = target(
     create_baselearners(tasks),
@@ -229,7 +233,8 @@ plan_runmodels <- drake_plan(
   rfbm_classif = target(
     combine_bm(in_resampleresults = readd(rfresampled_classif,
                                           subtarget_list = TRUE),
-               write_qs = T, inp_resdir = path_resdir)
+               write_qs = T, inp_resdir = path_resdir),
+    trigger  = trigger(mode = "condition", condition =TRUE)
   ),
 
   # bm_checked = target(
@@ -248,10 +253,10 @@ plan_runmodels <- drake_plan(
       in_task = tasks$classif,
       pcutoff = 0.05
     ),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    trigger  = trigger(mode = "condition", condition =TRUE)
   )
   ,
-  
+
   resamplingset_featsel = target(
     set_cvresampling(rsmp_id = in_strategy,
                      in_task = tasks$classif,
@@ -275,14 +280,14 @@ plan_runmodels <- drake_plan(
                      in_resampling = c(featsel_cv, featsel_spcv),
                      .names = c('res_all_cv', 'res_featsel_cv',
                                 'res_all_spcv', 'res_featsel_spcv')),
-    trigger  = trigger(mode = "condition", condition =TRUE)
+    trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   rfeval_featall = target(c(res_all_cv, res_all_spcv),
                           trigger  = trigger(mode = "condition", condition =FALSE)),
 
   rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
-                          trigger  = trigger(mode = "condition", condition =TRUE)
+                          trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -304,23 +309,21 @@ plan_runmodels <- drake_plan(
   rftuned = target(
     selecttrain_rf(in_rf = res_featsel_cv,
                    in_learnerid = selected_learner,
-                   in_taskid = "inter_class_featsel",
-                   insamp_nfolds = 4,
-                   insamp_nevals = 100),
+                   in_task = "inter_class_featsel"),
     trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   # vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
   #                    varnum=20, spatial_rsp = FALSE),
-  # 
+  #
   # pd_plot = ggpartialdep(in_rftuned=rftuned,
   #                        in_predvars=predvars,
   #                        colnums=1:27,
   #                        nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
   #                        spatial_rsp = FALSE),
-  # 
+  #
   # table_allbm = target(
-  #   tabulate_benchmarks(in_bm, in_bmid),
+  #   tabulate_benchmarks(in_bm, in_bmid, interthresh=0.5),
   #   transform = map(
   #     in_bm = list(
   #       rfbm_classif,
@@ -329,53 +332,67 @@ plan_runmodels <- drake_plan(
   #     in_bmid = list('classif1', 'regr1', 'classif2'),
   #     .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
   # ),
-  # 
-  bin_rftunedmisclass = bin_misclass(in_resampleresult = res_featsel_spcv,
-                                     in_gaugestats = gaugestats_format,
-                                     binvar = 'dis_m3_pyr',
-                                     binfunc = 'manual',
-                                     binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-                                     interthresh=interthresh,
-                                     spatial_rsp=TRUE
-  ),
   #
-  # misclass_format = target(
-  #   formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
-  #   transform = map(
-  #     in_bm = list(
-  #       rfbm_classif,
-  #       c(rfresampled_regr_res, rfresampled_regover_res),
-  #       c(rfeval_featall, rfeval_featsel)),
-  #     in_bmid = list('classif1', 'regr1', 'classif2'),
-  #     .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2')),
-  #   trigger = trigger(condition=FALSE)
+  # bin_rftunedmisclass = bin_misclass(in_resampleresult = res_featsel_spcv,
+  #                                    binvar = 'dis_m3_pyr',
+  #                                    binfunc = 'manual',
+  #                                    binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+  #                                    interthresh=interthresh,
+  #                                    spatial_rsp=TRUE
   # ),
-  #
-  # misclass_plot = target(
-  #   ggmisclass_bm(list(misclass_classif1,
-  #                      misclass_regr1,
-  #                      misclass_classif2)),
-  #   trigger = trigger(condition=FALSE)
-  # )
-  # ,
-  #
-  gpredsdt = make_gaugepreds(in_rftuned = rftuned,
-                             in_res_spcv = res_featsel_spcv,
-                             in_gaugestats = gaugestats_format,
-                             in_predvars = predvars,
-                             interthresh = interthresh)
-)
 
-########################### PLAN_GETOUTPUTS ####################################
-plan_getoutputs <- drake_plan(
-  rivernetwork = rformat_network(in_predvars = predvars,
-                                 #in_monthlydischarge = monthlydischarge,
-                                 inp_riveratlasmeta = path_riveratlas_meta,
-                                 inp_riveratlas = path_riveratlas,
-                                 inp_riveratlas2 = path_riveratlas2
+  misclass_format = target(
+    formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
+    transform = map(
+      in_bm = list(
+        rfbm_classif,
+        c(rfresampled_regr_res, rfresampled_regover_res),
+        c(rfeval_featall, rfeval_featsel)),
+      in_bmid = list('classif1', 'regr1', 'classif2'),
+      .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2')),
+    trigger = trigger(condition=FALSE)
+  ),
+
+  misclass_plot = target(
+    ggmisclass_bm(list(misclass_classif1,
+                       misclass_regr1,
+                       misclass_classif2)),
+    trigger = trigger(condition=FALSE)
   )
   ,
 
+  gpredsdt = target(
+    make_gaugepreds(in_rftuned = rftuned,
+                    in_res_spcv = res_featsel_spcv,
+                    in_gaugestats = gaugestats_format,
+                    in_predvars = predvars,
+                    interthresh = interthresh),
+    trigger = trigger(condition=FALSE)
+  )
+)
+
+########################### plan_runsimplemodels_10d ###########################
+plan_runsimplemodels_10d <- drake_plan(
+  tasks_featsel_mdur10 = change_tasktarget(in_task = tasks_featsel[[2]],
+                                           in_gaugestats = gaugestats_format,
+                                           newmdurthresh = 10),
+
+  autotunerdur10 = change_oversamp(in_oversamprf = rftuned$rf_inner,
+                                   in_task = tasks_featsel_mdur10),
+
+  rftuned_mdur10 = selecttrain_rf(in_rf = autotunerdur10,
+                                  in_task = tasks_featsel_mdur10,
+                                  insamp_nfolds =  2, insamp_nevals = 1),
+
+  gpredsdt_mdur10 = make_gaugepreds(in_rftuned = rftuned_mdur10,
+                                    in_gaugestats = gaugestats_format,
+                                    in_predvars = predvars,
+                                    interthresh = interthresh,
+                                    simple = TRUE)
+)
+
+########################### plan_getpreds #####################################
+plan_getpreds <- drake_plan(
   gpredsdt = bind_gaugepreds(list(gpredsdt_u10, gpredsdt_o1),
                              interthresh = 0.5
   )
@@ -390,13 +407,54 @@ plan_getoutputs <- drake_plan(
   rfpreds_network = write_netpreds(
     in_network = rivernetwork,
     in_rftuned = list(rftuned_u10, rftuned_o1),
+    predcol = 'predbasic800',
     discharge_interval = list(c(0, 10), c(1, Inf)),
     interthresh = list(interthresh_u10, interthresh_o1),
     in_predvars = predvars,
     outp_riveratlaspred = outpath_riveratlaspred
+  ),
+
+  gauges_plot = gggauges(in_gaugepred =rfpreds_gauges,
+                         in_basemaps = basemaps,
+                         binarg = c(30, 60, 100),
+                         binvar = 'totalYears_kept_o1800'
   )
   ,
 
+  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
+                             in_gaugepred = rfpreds_gauges,
+                             in_predvars = predvars)
+)
+
+########################### plan_getpreds_10d #####################################
+plan_getpreds_10d <- drake_plan(
+  gpredsdt_mdur10 = bind_gaugepreds(list(gpredsdt_mdur10_u10,
+                                         gpredsdt_mdur10_o1),
+                                    interthresh = 0.5
+  )
+  ,
+
+  rfpreds_gauges_mdur10 = write_gaugepreds(
+    in_gaugep = gaugep,
+    in_gpredsdt = gpredsdt_mdur10,
+    outp_gaugep = gsub('[.]gpkg',
+                       '_mdur10.gpkg',
+                       outpath_gaugep)
+  )
+  ,
+
+  rfpreds_network_mdur10 = write_netpreds(
+    in_network = rfpreds_network,
+    in_rftuned = list(rftuned_mdur10_u10, rftuned_mdur10_o1),
+    predcol = 'predbasic800_mdur10',
+    discharge_interval = list(c(0, 10), c(1, Inf)),
+    interthresh = list(interthresh_u10, interthresh_o1),
+    in_predvars = predvars,
+    outp_riveratlaspred = rfpreds_network
+  )
+)
+########################### plan_getoutputs #####################################
+plan_getoutputs <- drake_plan(
   bin_finalmisclass = bin_misclass(in_predictions = gpredsdt,
                                    binvar = 'dis_m3_pyr',
                                    binfunc = 'manual',
@@ -412,15 +470,6 @@ plan_getoutputs <- drake_plan(
   rivpred = netpredformat(in_rivernetwork = rivernetwork,
                           outp_riveratlaspred = rfpreds_network),
 
-  basemaps = get_basemapswintri(),
-
-  gauges_plot = gggauges(in_gaugepred =rfpreds_gauges,
-                         in_basemaps = basemaps,
-                         binarg = c(30, 60, 100),
-                         binvar = 'totalYears_kept_o1800'
-  )
-  ,
-
   basinBACC = map_basinBACC(in_gaugepred = gpredsdt,
                             in_rivernetwork = rivernetwork, # NEXT RUN - SHOULDN'T NEED THAT - COULD ADD HYBAS_ID03 DIRECTLY TO GAUGEP
                             inp_basin = path_bas03,
@@ -428,11 +477,7 @@ plan_getoutputs <- drake_plan(
   )
   ,
 
-  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
-                             in_gaugepred = rfpreds_gauges,
-                             in_predvars = predvars),
-
-  ####################### NOT SUPER USEFUL ##### maybe only to reply to reviewers around spatial auto-correlation
+  # NOT SUPER USEFUL - maybe only to reply to reviewers around spatial auto-correlation
   # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
   #                               in_gaugep = gaugep,
   #                               in_gaugestats = gaugestats_format,
@@ -463,8 +508,10 @@ plan_getoutputs <- drake_plan(
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
   )
-  ,
+)
 
+########################### plan_compareresults ################################
+plan_compareresults <- drake_plan(
   fr_plot = compare_fr(inp_frdir = path_frresdir,
                        in_rivpred = rivpred,
                        binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000)
@@ -496,24 +543,56 @@ plan_getoutputs <- drake_plan(
 
 
 ########################### BIND AND BRANCH PLANS ##############################
-planbranches <- lapply(
+plan_runmodels_branches_default <- lapply(
   c('_u10', '_o1'), function(suffix) {
     return(
       branch_plan(
         plan = plan_runmodels,
         branch_suffix = suffix,
-        external_arguments_to_modif = c('tasks', 'gaugestats_format'),
+        external_arguments_to_modify = c('tasks', 'gaugestats_format'),
         verbose = FALSE)
     )
   }
 ) %>%
   do.call(bind_plans, .)
 
+plan_runsimplemodels_branches_10d <- lapply(
+  c('_u10', '_o1'), function(suffix) {
+    return(
+      branch_plan(
+        plan = plan_runsimplemodels_10d,
+        branch_suffix = suffix,
+        external_arguments_to_modify = c('tasks_featsel',
+                                        'gaugestats_format',
+                                        'rftuned', 'interthresh'),
+        verbose = FALSE)
+    )
+  }
+) %>%
+  do.call(bind_plans, .)
 
-plan <- bind_plans(plan_preprocess
-                   ,
-                   planbranches
-                   #,
-                   #plan_getoutputs
+plan_getoutputs_10d <- branch_plan(
+  plan = plan_getoutputs,
+  branch_suffix = '_mdur10',
+  external_arguments_to_modify = c('gpredsdt',
+                                   'rfpreds_gauges',
+                                   'rfpreds_network'),
+  verbose = FALSE) %>%
+  .[
+    substr(.$target, 1, 12) == 'globaltables',] %>%
+  mutate(command = lapply(command, function(call) {
+    rlang::call_modify(call, valuevar = "predbasic800cat_mdur10")
+  })
+  )
+
+plan <- bind_plans(plan_preprocess,
+                   plan_setupdata,
+                   plan_runmodels_branches_default,
+                   plan_runsimplemodels_branches_10d,
+                   plan_getpreds,
+                   plan_getpreds_10d,
+                   #plan_getoutputs,
+                   #plan_getoutputs_10d,
+                   #plan_compareresults
 )
 
