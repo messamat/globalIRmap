@@ -366,25 +366,24 @@ plan_runmodels <- drake_plan(
                     in_res_spcv = res_featsel_spcv,
                     in_gaugestats = gaugestats_format,
                     in_predvars = predvars,
-                    interthresh = interthresh),
-    trigger = trigger(mode = "condition", condition =FALSE)
+                    interthresh = interthresh)
   )
 )
 
-########################### plan_runsimplemodels_10d ###########################
-plan_runsimplemodels_10d <- drake_plan(
-  tasks_featsel_mdur10 = change_tasktarget(in_task = tasks_featsel[[2]],
+########################### plan_runsimplemodels_30d ###########################
+plan_runsimplemodels_30d <- drake_plan(
+  tasks_featsel_mdur30 = change_tasktarget(in_task = tasks_featsel[[2]],
                                            in_gaugestats = gaugestats_format,
-                                           newmdurthresh = 10),
+                                           newmdurthresh = 30),
 
   autotunerdur10 = change_oversamp(in_oversamprf = rftuned$rf_inner,
-                                   in_task = tasks_featsel_mdur10),
+                                   in_task = tasks_featsel_mdur30),
 
-  rftuned_mdur10 = selecttrain_rf(in_rf = autotunerdur10,
-                                  in_task = tasks_featsel_mdur10,
-                                  insamp_nfolds =  2, insamp_nevals = 1),
+  rftuned_mdur30 = selecttrain_rf(in_rf = autotunerdur10,
+                                  in_task = tasks_featsel_mdur30,
+                                  insamp_nfolds =  4, insamp_nevals = 100),
 
-  gpredsdt_mdur10 = make_gaugepreds(in_rftuned = rftuned_mdur10,
+  gpredsdt_mdur30 = make_gaugepreds(in_rftuned = rftuned_mdur30,
                                     in_gaugestats = gaugestats_format,
                                     in_predvars = predvars,
                                     interthresh = interthresh,
@@ -414,10 +413,13 @@ plan_getpreds <- drake_plan(
     outp_riveratlaspred = outpath_riveratlaspred
   ),
 
-  gauges_plot = gggauges(in_gaugepred =rfpreds_gauges,
-                         in_basemaps = basemaps,
-                         binarg = c(30, 60, 100),
-                         binvar = 'totalYears_kept_o1800'
+  gauges_plot = target(
+    gggauges(in_gaugepred =rfpreds_gauges,
+             in_basemaps = basemaps,
+             binarg = c(30, 60, 100),
+             binvar = 'totalYears_kept_o1800'
+    ),
+    trigger = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -426,31 +428,33 @@ plan_getpreds <- drake_plan(
                              in_predvars = predvars)
 )
 
-########################### plan_getpreds_10d #####################################
-plan_getpreds_10d <- drake_plan(
-  gpredsdt_mdur10 = bind_gaugepreds(list(gpredsdt_mdur10_u10,
-                                         gpredsdt_mdur10_o1),
+########################### plan_getpreds_30d #####################################
+plan_getpreds_30d <- drake_plan(
+  gpredsdt_mdur30 = bind_gaugepreds(list(gpredsdt_mdur30_u10,
+                                         gpredsdt_mdur30_o1),
                                     interthresh = 0.5
   )
   ,
 
-  rfpreds_gauges_mdur10 = write_gaugepreds(
+  rfpreds_gauges_mdur30 = write_gaugepreds(
     in_gaugep = gaugep,
-    in_gpredsdt = gpredsdt_mdur10,
+    in_gpredsdt = gpredsdt_mdur30,
     outp_gaugep = gsub('[.]gpkg',
-                       '_mdur10.gpkg',
+                       '_mdur30.gpkg',
                        outpath_gaugep)
   )
   ,
 
-  rfpreds_network_mdur10 = write_netpreds(
-    in_network = rfpreds_network,
-    in_rftuned = list(rftuned_mdur10_u10, rftuned_mdur10_o1),
-    predcol = 'predbasic800_mdur10',
+  rfpreds_network_mdur30 = write_netpreds(
+    in_network = rivernetwork,
+    in_rftuned = list(rftuned_mdur30_u10, rftuned_mdur30_o1),
+    predcol = 'predbasic800_mdur30',
     discharge_interval = list(c(0, 10), c(1, Inf)),
     interthresh = list(interthresh_u10, interthresh_o1),
     in_predvars = predvars,
-    outp_riveratlaspred = rfpreds_network
+    outp_riveratlaspred = gsub('[.]csv',
+                               '_mdur30.csv',
+                               outpath_riveratlaspred)
   )
 )
 ########################### plan_getoutputs #####################################
@@ -501,7 +505,7 @@ plan_getoutputs <- drake_plan(
                            valuevar = 'predbasic800cat',
                            valuevarsub = 1,
                            binfunc = 'manual',
-                           binarg = c(1, 10, 100, 1000, 10000),
+                           binarg = c(1, 10, 100, 1000, 10000, 1000000),
                            na.rm=T,
                            tidy = FALSE,
                            nolake = TRUE,
@@ -557,11 +561,11 @@ plan_runmodels_branches_default <- lapply(
 ) %>%
   do.call(bind_plans, .)
 
-plan_runsimplemodels_branches_10d <- lapply(
+plan_runsimplemodels_branches_30d <- lapply(
   c('_u10', '_o1'), function(suffix) {
     return(
       branch_plan(
-        plan = plan_runsimplemodels_10d,
+        plan = plan_runsimplemodels_30d,
         branch_suffix = suffix,
         external_arguments_to_modify = c('tasks_featsel',
                                         'gaugestats_format',
@@ -572,9 +576,9 @@ plan_runsimplemodels_branches_10d <- lapply(
 ) %>%
   do.call(bind_plans, .)
 
-plan_getoutputs_10d <- branch_plan(
+plan_getoutputs_30d <- branch_plan(
   plan = plan_getoutputs,
-  branch_suffix = '_mdur10',
+  branch_suffix = '_mdur30',
   external_arguments_to_modify = c('gpredsdt',
                                    'rfpreds_gauges',
                                    'rfpreds_network'),
@@ -582,18 +586,18 @@ plan_getoutputs_10d <- branch_plan(
   .[
     substr(.$target, 1, 12) == 'globaltables',] %>%
   mutate(command = lapply(command, function(call) {
-    rlang::call_modify(call, valuevar = "predbasic800cat_mdur10")
+    rlang::call_modify(call, valuevar = "predbasic800_mdur30cat")
   })
   )
 
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,
                    plan_runmodels_branches_default,
-                   plan_runsimplemodels_branches_10d,
+                   plan_runsimplemodels_branches_30d,
                    plan_getpreds,
-                   plan_getpreds_10d,
+                   plan_getpreds_30d,
                    #plan_getoutputs,
-                   #plan_getoutputs_10d,
+                   plan_getoutputs_30d,
                    #plan_compareresults
 )
 

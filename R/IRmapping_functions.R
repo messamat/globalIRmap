@@ -4164,31 +4164,46 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
                             use.names = TRUE, fill = TRUE, idcol = "modelgroup")
   }
 
-  if (in_gpredsdt[duplicated(GAUGE_NO), .N] > 0 ) {
-    out_gpredsdt <- in_gpredsdt[, `:=`(
-      IRpredprob_full=mean(IRpredprob_full, na.rm=T),
-      IRpredprob_CVnosp=mean(IRpredprob_CVnosp, na.rm=T),
-      IRpredprob_CVsp=mean(IRpredprob_CVsp, na.rm=T)
-    ),
-    by=.(GAUGE_NO)] %>% #Compute mean predicted probability if overlapping models
-      .[!duplicated(GAUGE_NO),]     #Remove duplicates (if overlapping model)
-  } else {
-    out_gpredsdt <- in_gpredsdt
+
+  #Compute mean predicted probability if overlapping models
+  out_gpredsdt <- in_gpredsdt[, IRpredprob_full := mean(IRpredprob_full, na.rm=T),
+                              by=.(GAUGE_NO)]
+
+  if ('IRpredprob_CVnosp' %in% names(in_gpredsdt)) {
+    out_gpredsdt[, IRpredprob_CVnosp := mean(IRpredprob_CVnosp, na.rm=T),
+                    by=.(GAUGE_NO)]
   }
+
+  if ('IRpredprob_CVsp' %in% names(in_gpredsdt)) {
+    out_gpredsdt[, IRpredprob_CVsp := mean(IRpredprob_CVsp, na.rm=T),
+                 by=.(GAUGE_NO)]
+  }
+
+  out_gpredsdt <- out_gpredsdt[!duplicated(GAUGE_NO),]     #Remove duplicates (if overlapping model)
 
   out_gpredsdt[,`:=`(IRpredcat_full = fifelse(IRpredprob_full >= interthresh,
                                               '1', '0'),
-                     IRpredcat_CVnosp =fifelse(IRpredprob_CVnosp >= interthresh,
-                                              '1', '0'),
-                     IRpredcat_CVsp =fifelse(IRpredprob_CVsp >= interthresh,
-                                               '1', '0'),
                      preduncert_full = IRpredprob_full -
-                       as.numeric(as.character(intermittent_o1800)),
-                     preduncert_CVnosp = IRpredprob_CVnosp -
-                       as.numeric(as.character(intermittent_o1800)),
-                     preduncert_CVsp = IRpredprob_CVsp -
                        as.numeric(as.character(intermittent_o1800))
   )]
+
+  if ('IRpredprob_CVnosp' %in% names(out_gpredsdt)) {
+    out_gpredsdt[,`:=`(
+      IRpredcat_CVnosp =fifelse(IRpredprob_CVnosp >= interthresh,
+                                '1', '0'),
+      preduncert_CVnosp = IRpredprob_CVnosp -
+        as.numeric(as.character(intermittent_o1800))
+    )]
+  }
+
+  if ('IRpredprob_CVsp' %in% names(out_gpredsdt)) {
+    out_gpredsdt[,`:=`(
+      IRpredcat_CVsp =fifelse(IRpredprob_CVsp >= interthresh,
+                                '1', '0'),
+      preduncert_CVsp = IRpredprob_CVsp -
+        as.numeric(as.character(intermittent_o1800))
+    )]
+  }
 
   return(out_gpredsdt)
 }
