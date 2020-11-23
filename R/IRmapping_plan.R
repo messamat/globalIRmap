@@ -103,16 +103,17 @@ plan_setupdata <- drake_plan(
                                monthsel = NULL, #Other arguments in function
                                mdurthresh = 1,
                                .progress = TRUE),
-
-  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-                             yearthresh = 1800,
-                             inp_resdir = path_resdir,
-                             maxgap = 20),
-
-  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
-                           yearthresh = 1800,
-                           inp_resdir = path_resdir,
-                           maxgap = 20),
+  
+  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+  #                            yearthresh = 1800,
+  #                            inp_resdir = path_resdir,
+  #                            maxgap = 20),
+  
+  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+  #                       yearthresh = 1800,
+  #                       inp_resdir = path_resdir,
+  #                       maxgap = 20,
+  #                       showmissing = TRUE),
 
   gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
                                              in_GSIMgaugestats = GSIMgaugestats,
@@ -259,7 +260,7 @@ plan_runmodels <- drake_plan(
                      outsamp_nfolds = in_outfolds),
     transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
                     in_outrep = c(2, 1),
-                    in_outfolds = c(3, 20),
+                    in_outfolds = c(3, 30),
                     .names = c('featsel_cv', 'featsel_spcv')),
     trigger  = trigger(mode = "condition", condition =TRUE)
   ),
@@ -510,10 +511,9 @@ planbranches <- lapply(
   do.call(bind_plans, .)
 
 
-plan <- bind_plans(plan_preprocess
-                   ,
-                   planbranches
-                   #,
-                   #plan_getoutputs
+plan <- bind_plans(plan_preprocess,
+                   plan_setupdata,
+                   planbranches,
+                   plan_getoutputs
 )
 
