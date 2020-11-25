@@ -4117,14 +4117,6 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
 
   #If not simple (include CV predictions)
   if (!simple) {
-    #Get unique ID for each spatial fold-repetition combination
-    spcv_clusters <- in_res_spcv$resampling$instance
-    spcv_clustersformat <- dcast(spcv_clusters, row_id~rep, value.var = 'fold') %>%
-      setnames(old=unique(spcv_clusters$rep)+1, paste0('fold', unique(spcv_clusters$rep))) %>%
-      .[, spfold_unique := do.call(paste0, .SD),
-        .SDcols = paste0('fold', unique(spcv_clusters$rep))] %>%
-      setorder(row_id)
-
     #Get average predictions for oversampled rows and across repetitions - simple CV
     rsmp_res_nosp <- get_outerrsmp(in_rftuned, spatial_rsp=FALSE)
     gpreds_CV_nosp <-  rsmp_res_nosp$prediction() %>%
@@ -4132,22 +4124,31 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
       .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id]%>%
       setorder(row_id)
 
-    #Get average predictions for oversampled rows and across repetitions - spatial CV
-    rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
-    gpreds_CV_sp <-  in_res_spcv$prediction()$set_threshold(1-interthresh) %>%
-      as.data.table %>%
-      .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
-      .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
-      setorder(row_id)
+    datsel[, IRpredprob_CVnosp := gpreds_CV_nosp$prob.1]
 
-    #Merge all predictions
-    datsel[, `:=`(
-      IRpredprob_CVsp = gpreds_CV_sp$prob.1,
-      IRpredprob_CVnosp = gpreds_CV_nosp$prob.1,
-      spfold_unique =  spcv_clustersformat$spfold_unique
-    )] %>%
-      setnames(old='spfold_unique', new=paste0(in_rftuned$task$id, '_spfold'))
+    if (!is.null(in_res_spcv)) {
+      #Get unique ID for each spatial fold-repetition combination
+      spcv_clusters <- in_res_spcv$resampling$instance
+      spcv_clustersformat <- dcast(spcv_clusters, row_id~rep, value.var = 'fold') %>%
+        setnames(old=unique(spcv_clusters$rep)+1, paste0('fold', unique(spcv_clusters$rep))) %>%
+        .[, spfold_unique := do.call(paste0, .SD),
+          .SDcols = paste0('fold', unique(spcv_clusters$rep))] %>%
+        setorder(row_id)
 
+      #Get average predictions for oversampled rows and across repetitions - spatial CV
+      rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
+      gpreds_CV_sp <-  in_res_spcv$prediction()$set_threshold(1-interthresh) %>%
+        as.data.table %>%
+        .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
+        .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
+        setorder(row_id)
+
+      datsel[, `:=`(
+        IRpredprob_CVsp = gpreds_CV_sp$prob.1,
+        spfold_unique =  spcv_clustersformat$spfold_unique
+      )] %>%
+        setnames(old='spfold_unique', new=paste0(in_rftuned$task$id, '_spfold'))
+    }
   }
   return(datsel)
 }
@@ -4463,6 +4464,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
 bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                           in_gaugestats=NULL, binvar, binfunc, binarg,
                           interthresh=0.5, spatial_rsp=FALSE) {
+
   #Get misclassification error, sensitivity, and specificity for different classification thresholds
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
   if (!is.null(in_resampleresult)) {
@@ -4718,10 +4720,11 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   in_gpredsdt[, DApercsdiff := abs(
     (area_correct-UPLAND_SKM)/mean(c(area_correct, UPLAND_SKM))), by=GAUGE_NO]
 
-  if (spatial_rsp) {
+  if (spatial_rsp & ('IRpredprob_CVsp' %in% names(in_gpredsdt))) {
     predcol <- 'IRpredprob_CVsp'
     uncertcol <- 'preduncert_CVsp'
   } else {
+    print('Either spatial_rsp==FALSE or did not find spatial column in input data.table')
     predcol <- 'IRpredprob_CVnosp'
     uncertcol <- 'preduncert_CVnosp'
   }
@@ -4996,10 +4999,10 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     setorder(N) %>%
     .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
 
-  gnetjoin[, classweights := fifelse(intermittent_o1800 == minoratio$minoclass,
-                                     minoratio$ratio, 1)]
+  in_gaugepred[, classweights := fifelse(intermittent_o1800 == minoratio$minoclass,
+                                         minoratio$ratio, 1)]
 
-  basbacc <- gnetjoin[, list(
+  basbacc <- in_gaugepred[, list(
     basbacc =  sum((intermittent_o1800==get(predcol)) *
                      classweights) / sum(classweights),
     acc = sum(intermittent_o1800==get(predcol))/.N,
@@ -5626,7 +5629,7 @@ tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
                                    binfunc=NULL, binarg=NULL, bintrans=NULL,
                                    na.rm=T, tidy=FALSE,
                                    nolake = TRUE,
-                                   nozerodis = FALSE) {
+                                   nozerodis = TRUE) {
 
   #Import global predictions
   if (is.character(outp_riveratlaspred)) {
@@ -5649,6 +5652,9 @@ tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
     riveratlas <- riveratlas[dis_m3_pyr > 0,]
   }
 
+  print(paste0('Number of reaches: ', riveratlas[, .N]))
+  print(paste0('Total length: ', riveratlas[, sum(LENGTH_KM)]))
+  print(paste0('Average length: ', riveratlas[, mean(LENGTH_KM)]))
 
   #If global administrative boundaries were selected for idvar, get country names
   if ('gad_id_cmj' %in% incols) {
@@ -5741,7 +5747,7 @@ tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
   return(tidyperc_format)
 }
 #------ compare_fr --------------------------------------
-compare_fr <- function(inp_frdir, in_rivpred, binarg) {
+compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg) {
   in_netpath <- file.path(inp_frdir, 'network')
   in_baspath <- file.path(inp_frdir, 'hydrobasins12')
   valuevarsub <- "1"
@@ -5774,7 +5780,7 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'dis_m3_pyr',
-                                valuevar = 'predbasic800cat',
+                                valuevar = predcol,
                                 valuevarsub = valuevarsub,
                                 weightvar = 'LENGTH_KM',
                                 binfunc = 'manual',
@@ -5789,15 +5795,17 @@ compare_fr <- function(inp_frdir, in_rivpred, binarg) {
   print(datmerge[, weighted.mean(perc, binsumlength), by=dat])
 
   return(
-    ggcompare(datmerge, binarg) + theme(axis.title.y = element_blank(),
-                                        axis.title.x = element_blank(),
-                                        legend.title = element_blank())
+    list(
+      plot = ggcompare(datmerge, binarg) + theme(axis.title.y = element_blank(),
+                                                 axis.title.x = element_blank(),
+                                                 legend.title = element_blank()),
+      data = datmerge
+    )
   )
 }
 
 #------ compare_us ----------------
-compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
-
+compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol, binarg) {
   in_netpath_hr <- file.path(inp_usdatdir,  'NHDhr_attris.csv')
   in_netpath_mr <- file.path(inp_usdatdir, 'NHDmr_attris.csv')
   in_baspath <- file.path(inp_usresdir, 'hydrobasins12')
@@ -5834,7 +5842,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
   #Get HydroSHEDS basins that overlap with selected NHD HUC8s
   bas <- st_read(dsn = dirname(in_baspath),
                  layer = basename(in_baspath)) %>%
-    .[, c('HYBAS_ID', 'HUC8'), with=F]
+    .[, c('HYBAS_ID', 'HUC8', 'UP_AREA'), with=F]
 
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
   rivpredbas <- merge(in_rivpred, bas,
@@ -5905,7 +5913,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
 
   print(paste0(
     'Total estimated prevalence in HydroSHEDS: ',
-    rivpredsubmr[predbasic800cat==1, sum(LENGTH_KM)]/
+    rivpredsubmr[get(predcol)==1, sum(LENGTH_KM)]/
       rivpredsubmr[, sum(LENGTH_KM)]
   ))
 
@@ -5953,7 +5961,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
   tidyperc_rivHUC  <- rivpredsubmr[
     , formathistab(in_dt = .SD,
                    castvar = 'dis_m3_pyr',
-                   valuevar = 'predbasic800cat',
+                   valuevar = eval(predcol),
                    valuevarsub = valuevarsub,
                    weightvar = 'LENGTH_KM',
                    binfunc = 'manual',
@@ -5976,12 +5984,32 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
   #   facet_wrap(~binformat)
 
   tidyperc_hucbind <- rbind(tidyperc_nhdHUC, tidyperc_rivHUC) %>%
-    merge(hucmajcl, by='HUC8', all.x=T)
-
+    merge(hucmajcl, by='HUC8', all.x=T) %>%
+    merge(as.data.table(bas)[, list(UP_AREA=sum(UP_AREA)), by='HUC8'],
+          by='HUC8', all.y=F) %>%
+    .[, binsumdens := binsumlength/UP_AREA]
   clhucbox <- ggplot(tidyperc_hucbind, aes(x=factor(majcl), y=perc, fill=dat)) +
     geom_boxplot() +
     facet_wrap(~binformat)
 
+  #Check what difference is due to differences in drainage density
+  # compare_dens <- dcast(tidyperc_hucbind, HUC8+bin~dat,
+  #                       value.var=c('binsumdens', 'perc', 'binsumlength')
+  # )
+  # compcols <- names(compare_dens[
+  #   , which(as.vector(unlist(lapply(compare_dens, is.numeric)))), with=F])
+  # compare_dens[, (compcols) := lapply(.SD, function(x)
+  #   {fifelse(is.na(x), 0, x)}), .SDcols=compcols] %>%
+  #   .[,`:=`(densdiff = (`binsumdens_Global predictions` - `binsumdens_U.S. NHD`)/
+  #             ((`binsumdens_Global predictions` + `binsumdens_U.S. NHD`)/2),
+  #           percdiff = (`perc_Global predictions` - `perc_U.S. NHD`)/
+  #             ((`perc_Global predictions` + `perc_U.S. NHD`)/2))]
+  #
+  # ggplot(compare_dens, aes(x=percdiff, y=densdiff)) +
+  #   geom_point() +
+  #   geom_smooth() +
+  #   facet_wrap(~bin, scales='free')
+  #
 
   # --------------------- Compute national hist. comparison ----------------------------------
   #Compute bin statistics ncluding "artificial flow path"
@@ -6012,7 +6040,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
   #Compute bin statistics for river networks
   tidyperc_riv  <- formathistab(in_dt = rivpredsubmr,
                                 castvar = 'dis_m3_pyr',
-                                valuevar = 'predbasic800cat',
+                                valuevar = eval(predcol),
                                 valuevarsub = valuevarsub,
                                 weightvar = 'LENGTH_KM',
                                 binfunc = 'manual',
@@ -6032,17 +6060,20 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, binarg) {
 
   #Create plot
   return(
-    ggcompare(datmerge_all, binarg=binarg) +
+    list(
+    plot = ggcompare(datmerge_all, binarg=binarg) +
       geom_bar(data=datmerge_noartificial, alpha=0.5,
                stat='identity', pattern = 'stripe', position='dodge') +
       theme(axis.title.y = element_blank(),
-            legend.title = element_blank())
+            legend.title = element_blank()),
+    data = datmerge_all
+    )
   )
 }
 
 
 #------ qc_pnw ------------
-qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
+qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol, interthresh=0.5) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
 
@@ -6050,10 +6081,12 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
 
   #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
   refpts <- st_read(dsn=dirname(in_refpts),
-                    layer=basename(in_refpts)
-                    ) %>%
+                    layer=basename(in_refpts),
+                    drivers = 'OpenFileGDB') %>%
     setDT %>%
     setkey('OBJECTID')
+
+  file.exists(dirname(in_refpts))
 
   #All observations (excluding those that were not kept by PROSPER (aside from more recent osb, see python code for details)
   #with duplicate records for single locations (multiple observations for different dates)
@@ -6078,27 +6111,32 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
     .[!duplicated(dupligroup),]
 
   #Merge points with rivernetwork by HYRIV_ID
+  probcol <- substr(predcol, 1, nchar(predcol)-3)
+
   refpts_join <- merge(refpts_stats,
-                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, predbasic800,
-                                      predbasic800cat)],
+                       in_rivpred[, c('HYRIV_ID', 'HYBAS_L12', probcol, predcol),
+                                  with = F],
                        by='HYRIV_ID', all.y=F) %>%
     .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
 
 
   #Consider that if one location is non-perennial, that reach is not perennial
   refpts_reach <- refpts_join[
-    , refinter_reach := as.numeric(any(refinter == 1)), by=HYRIV_ID] %>%
+    , `:=`(refinter_reach = as.numeric(any(refinter == 1)),
+           nobs_reach = sum(nobs)
+           ), by=HYRIV_ID] %>%
     setorder(HYRIV_ID, -refinter) %>%
     .[!duplicated(HYRIV_ID),] %>%
-    .[, IPR := predbasic800 - refinter] #Compute prediction error
+    .[, IPR := get(probcol) - refinter] #Compute prediction error
 
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
-                     response = factor(predbasic800cat,levels=c('0','1'))
+                     response = factor(get(predcol),levels=c('0','1'))
   )]
+
   pnw_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
-    auc = mlr3measures::auc(truth, predbasic800, positive='1'),
+    auc = mlr3measures::auc(truth, get(probcol), positive='1'),
     ce = mlr3measures::ce(truth, response),
     sen = mlr3measures::sensitivity(truth, response, positive='1'),
     spe = mlr3measures::specificity(truth, response, positive='1')
@@ -6127,7 +6165,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
     refpts_reach[,-c('Shape','i.Shape'), with=F],
     by='OBJECTID', all.x=F, all.y=T) %>%
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
-                   "predbasic800cat", "predbasic800"),
+                   predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp")) %>%
     setnames(new=unlist(lapply(names(.), function(x) gsub('[.]','_', x))))
 
@@ -6200,7 +6238,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, interthresh=0.5) {
 
 #------ qc_onde ------
 qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
-                    in_rivpred, interthresh=0.5) {
+                    in_rivpred, predcol, interthresh=0.5) {
   in_refpts <- file.path(inp_onderesdir, 'obs_finalwgs')
   in_fulldat <- file.path(inp_ondedatdir, 'onde_france_merge.csv')
 
@@ -6264,7 +6302,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     unique
 
   obsattri <- merge(obstats, uniquesites, by='CdSiteHydro') %>%
-    .[nobs > 20,]
+    .[nobs >= 20,]
 
   obsattri[, sum(nobs)]
 
@@ -6284,30 +6322,32 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
   )
 
   #Merge points with rivernetwork by HYRIV_ID
+  probcol <- substr(predcol, 1, nchar(predcol)-3)
   refpts_join <- merge(obsattri,
-                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, LENGTH_KM,
-                                      predbasic800, predbasic800cat, dis_m3_pyr)],
+                       in_rivpred[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM',
+                                      probcol, predcol, 'dis_m3_pyr'),
+                                  with=F],
                        by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
     merge(riveratlas, by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
-    .[, IPR := predbasic800 - refinter] #Compute prediction error
+    .[, IPR := get(predcol) - refinter] #Compute prediction error
 
   #Consider that if one location is non-perennial, that reach is not perennial
   refpts_reach <- refpts_join[
     , refinter_reach := as.numeric(any(refinter == 1)), by=HYRIVIDjoinedit] %>%
     setorder(HYRIVIDjoinedit, -refinter) %>%
     .[!duplicated(HYRIVIDjoinedit),] %>%
-    .[, IPR := predbasic800 - refinter] #Compute prediction error
+    .[, IPR := get(predcol) - refinter] #Compute prediction error
 
   refpts_reach[, .N]
   refpts_reach[, .N, by=refinter_reach]
 
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
-                     response = factor(predbasic800cat,levels=c('0','1'))
+                     response = factor(get(predcol),levels=c('0','1'))
                      )]
   onde_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
-    auc = mlr3measures::auc(truth, predbasic800, positive='1'),
+    auc = mlr3measures::auc(truth, get(probcol), positive='1'),
     ce = mlr3measures::ce(truth, response),
     sen = mlr3measures::sensitivity(truth, response, positive='1'),
     spe = mlr3measures::specificity(truth, response, positive='1')
@@ -6335,7 +6375,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                        refpts_join,
                        by.x = "F_CdSiteHydro_", by.y = 'CdSiteHydro') %>%
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
-                   "predbasic800cat", "predbasic800"),
+                   predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp"))
 
   write_sf(predtowrite, file.path(dirname(inp_onderesdir), 'ondeobs_IPR4.shp'))
