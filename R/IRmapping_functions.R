@@ -1375,18 +1375,18 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
 rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-  
+
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-  
+
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-  
+
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, 1, 0))]
-  
+
   sen <- Metrics::recall(as.numeric(as.character(rsmp_pred$truth)),
                          response)
 
@@ -1397,18 +1397,18 @@ rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
 rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-  
+
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-  
+
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-  
+
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, 1, 0))]
-  
+
   spe <- Metrics::recall(1-as.numeric(as.character(rsmp_pred$truth)),
                           1-response)
   return(spe)
@@ -4091,7 +4091,7 @@ change_oversamp <- function(in_oversamprf, in_task) {
 rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
   cols_toread <-  unique(
-    c("HYRIV_ID", "HYBAS_L12", "HYBAS_ID03", "LENGTH_KM",'INLAKEPERC',
+    c("HYRIV_ID", "HYBAS_L12", "PFAF_ID05", "LENGTH_KM",'INLAKEPERC',
       in_predvars[, varcode], 'pop_ct_csu', 'pop_ct_usu',
       'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'dor_pc_pva', 'ORD_STRA',
       #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
@@ -4332,7 +4332,8 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
 #------ netpredformat ------
 netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
   fread(file_in(outp_riveratlaspred))%>%
-    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM', 'dis_m3_pyr',
+    .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'PFAF_ID05',
+                          'LENGTH_KM', 'dis_m3_pyr',
                           'UPLAND_SKM', 'clz_cl_cmj'),
                       with=F], on='HYRIV_ID']
 }
@@ -5604,7 +5605,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
 }
 
 #------ compute_IRpop -------
-compite_IRpop <- function(in_rivpred, inp_linkpop) {
+compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
   linkpop = st_read(dsn=dirname(inp_linkpop),
                     layer=basename(inp_linkpop)
                     ) %>%
@@ -5613,8 +5614,37 @@ compite_IRpop <- function(in_rivpred, inp_linkpop) {
   linkpop[!is.na(VALUE) & is.na(dis_m3_pyr), .N]
   check <- linkpop[is.na(VALUE) & !is.na(dis_m3_pyr),]
 
-  return(linkpop[, sum(SUM*predbasic800cat, na.rm=T)/sum(SUM, na.rm=T)])
+  return(linkpop[, sum(SUM*get(valuevar), na.rm=T)/sum(SUM, na.rm=T)])
 }
+
+#------ extend_preds -------------------
+extend_preds <- function(in_rivpred, inp_netextend, predcol) {
+  nextend <- fread_cols(inp_netextend, c('PFAF_ID05', 'LENGTH_KM','INLAKEPERC'))
+
+  basinIR <- in_rivpred[(UPLAND_SKM < 20) & (dis_m3_pyr > 0) & (INLAKEPERC < 100),
+                        list(IRperc = sum(LENGTH_KM*predcol)/sum(LENGTH_KM),
+                             LENGTH_sum = sum(LENGTH_KM)
+                        ),
+                        by = PFAF_ID05]
+
+  extendIR <- nextend[(dis_m3_pyr > 0) & is.na(hylak_id),
+                      list(LENGTH_sumext = sum(LENGTH_KM)),
+                      by = PFAF_ID05] %>%
+    .[basinIR, on='PFAF_ID05'] %>%
+    .[, list(IRperc_extend = sum((LENGTH_sumext-LENGTH_sum)*IRperc)/
+               sum(LENGTH_sumext-LENGTH_sum),
+             totallength_extend = sum(LENGTH_sumext-LENGTH_sum))]
+
+  totalIR <- (
+    extendIR$IRperc_extend*extendIR$totallength_extend +
+      in_rivpred[(dis_m3_pyr > 0) & (INLAKEPERC < 100), sum(LENGTH_KM*predcol)]
+  )/
+    nextend[(dis_m3_pyr > 0) & is.na(hylak_id), sum(LENGTH_KM)]
+
+
+
+}
+
 
 #------ formatmisclass_bm -------------
 formatmisclass_bm <- function(in_bm, in_bmid) {

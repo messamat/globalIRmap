@@ -31,6 +31,7 @@ plan_preprocess <- drake_plan(
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
   path_linkpop = file.path(!!rootdir, 'data\\worldpop.gdb\\link_worldpop'),
+  path_netextend = file.path(!!rootdir, "data\\streamseg_o1skm.csv") ,
 
   outpath_gaugep = file_out(!!file.path(rootdir, 'results\\GRDCstations_predbasic800.gpkg')),
   outpath_riveratlaspred = file_out(!!file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv')),
@@ -536,7 +537,8 @@ plan_getoutputs <- drake_plan(
   ),
 
   IRpop = compute_IRpop(in_rivpred = rivpred,
-                        inp_linkpop = path_linkpop
+                        inp_linkpop = path_linkpop,
+                        valuevar = 'predbasic800cat'
                         )
 )
 
@@ -614,7 +616,7 @@ plan_getoutputs_30d <- branch_plan(
                                    'rfpreds_network'),
   verbose = FALSE) %>%
   as.data.table %>%
-  .[substr(target, 1, 12) == 'globaltables',
+  .[substr(target, 1, 12) %in% c('globaltables', 'IRpop_mdur30'),
     command :=
       lapply(command, function(call) {
         rlang::call_modify(.call=call,
@@ -646,7 +648,7 @@ plan <- bind_plans(plan_preprocess,
                    plan_getpreds_30d,
                    plan_getoutputs,
                    plan_getoutputs_30d,
-                   #plan_compareresults,
+                   plan_compareresults,
                    plan_compareresults_30d
 )
 
