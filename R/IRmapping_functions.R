@@ -4556,19 +4556,30 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
   varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res,
                                                 pvalue = FALSE) %>%
     merge(., in_predvars, by.x='varnames', by.y='varcode') %>%
-    .[, `:=`(varname = factor(varname, varname[order(-imp_wmean)]),
-             Category = factor(Category,
+    .[,`:=`(Keyscale = substr(varnames, nchar(varnames)-2, nchar(varnames)-2),
+            Keystat = substr(varnames, nchar(varnames)-1, nchar(varnames)))] %>%
+    .[, `:=`(Category = factor(Category,
                                levels = c('Climate', 'Hydrology', 'Landcover',
-                                 'Physiography', 'Soils & Geology'))
+                                 'Physiography', 'Soils & Geology')),
+             varname_format = paste(gsub('BIO[0-9]+\\s\\-\\s', '',
+                                         Attribute, perl=T),
+                                    Keyscale, Keystat, sep=', ')
              )] %>%
+    .[, varname_format := factor(varname_format,
+                                 varname_format[order(-imp_wmean)])
+      ] %>%
     setorder(-imp_wmean)
 
+loadd(predvars)
+gsub('BIO[0-9]+\\s\\-\\s', '', predvars$Attribute, perl=T)
+
+
   #Plot 'em
-  outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname, fill=Category)) +
+  outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname_format, fill=Category)) +
     geom_bar(aes(y=imp_wmean), stat = 'identity') +
     geom_errorbar(aes(ymin=imp_wmean-imp_wsd, ymax=imp_wmean+imp_wsd)) +
     scale_x_discrete(labels = function(x) {
-      stringr::str_wrap(tolower(x), width = 30)
+      stringr::str_wrap(tolower(x), width = 25)
     }) +
     scale_fill_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#d9d9d9'),
                       drop=FALSE) +
@@ -4585,6 +4596,10 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
 
   return(outp)
 }
+
+
+
+
 
 
 #------ ggpd_bivariate -----------------
@@ -4999,8 +5014,10 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     setorder(N) %>%
     .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
 
-  in_gaugepred[, classweights := fifelse(intermittent_o1800 == minoratio$minoclass,
-                                         minoratio$ratio, 1)]
+  in_gaugepred[, ':='(classweights = fifelse(intermittent_o1800 == minoratio$minoclass,
+                                             minoratio$ratio, 1),
+                      PFAF_ID03 = floor(PFAF_ID05/100)
+  )]
 
   basbacc <- in_gaugepred[, list(
     basbacc =  sum((intermittent_o1800==get(predcol)) *
@@ -5009,12 +5026,12 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     gnum = .N,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(get(predcol)==1)/.N) - (sum(intermittent_o1800=='1')/.N)
-  ), by=HYBAS_ID03]
+  ), by=PFAF_ID03]
 
 
   basbacc_format <- base::merge(
     bas03, basbacc,
-    by.x='HYBAS_ID', by.y='HYBAS_ID03',
+    by.x='PFAF_ID', by.y='PFAF_ID03',
     all.x.=T, all.y=T)
   basbacc_format$gdens <- with(basbacc_format, gnum/UP_AREA)
 
@@ -5561,6 +5578,19 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
   )]
 
   return(list(setup=setup_table, results=results_table))
+}
+
+#------ compute_IRpop -------
+compite_IRpop <- function(in_rivpred, inp_linkpop) {
+  linkpop = st_read(dsn=dirname(inp_linkpop),
+                    layer=basename(inp_linkpop)
+                    ) %>%
+    as.data.table %>%
+    merge(in_rivpred, by = 'HYRIV_ID', all.x=T, all.y=T)
+  linkpop[!is.na(VALUE) & is.na(dis_m3_pyr), .N]
+  check <- linkpop[is.na(VALUE) & !is.na(dis_m3_pyr),]
+
+  return(linkpop[, sum(SUM*predbasic800cat, na.rm=T)/sum(SUM, na.rm=T)])
 }
 
 #------ formatmisclass_bm -------------

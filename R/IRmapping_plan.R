@@ -30,6 +30,7 @@ plan_preprocess <- drake_plan(
   path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
+  path_linkpop = file.path(!!rootdir, 'data\\worldpop.gdb\\link_worldpop'),
 
   outpath_gaugep = file_out(!!file.path(rootdir, 'results\\GRDCstations_predbasic800.gpkg')),
   outpath_riveratlaspred = file_out(!!file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv')),
@@ -314,8 +315,8 @@ plan_runmodels <- drake_plan(
     trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  # vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
-  #                    varnum=20, spatial_rsp = FALSE),
+  vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
+                     varnum=20, spatial_rsp = FALSE),
   #
   # pd_plot = ggpartialdep(in_rftuned=rftuned,
   #                        in_predvars=predvars,
@@ -532,7 +533,11 @@ plan_getoutputs <- drake_plan(
                            nozerodis = TRUE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
-  )
+  ),
+
+  IRpop = compute_IRpop(in_rivpred = rivpred,
+                        inp_linkpop = path_linkpop
+                        )
 )
 
 ########################### plan_compareresults ################################
