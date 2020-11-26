@@ -1372,20 +1372,46 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
 
 
 #------ rsmp_sen ---------
-rsmp_sen <- function(bmres, rsmp_i) {
+rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-  sen <- Metrics::recall(rsmp_pred$truth, rsmp_pred$response)
+  
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    prob_resp <- rsmp_pred$prob[,'1']
+  }
+  
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    prob_resp <- rsmp_pred$response
+  }
+  
+  response <- as.data.table(prob_resp)[
+    , c(fifelse(prob_resp>=threshold_class, 1, 0))]
+  
+  sen <- Metrics::recall(as.numeric(as.character(rsmp_pred$truth)),
+                         response)
+
   return(sen)
 }
 
 #------ rsmp_spe ---------
-rsmp_sen <- function(bmres, rsmp_i) {
+rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
+  
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    prob_resp <- rsmp_pred$prob[,'1']
+  }
+  
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    prob_resp <- rsmp_pred$response
+  }
+  
+  response <- as.data.table(prob_resp)[
+    , c(fifelse(prob_resp>=threshold_class, 1, 0))]
+  
   spe <- Metrics::recall(1-as.numeric(as.character(rsmp_pred$truth)),
-                         1-as.numeric(as.character(rsmp_pred$response)))
-  return(sen)
+                          1-response)
+  return(spe)
 }
 
 #------ bm_paramstime ----------------
@@ -1547,16 +1573,16 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
     unlist
 
   print('Getting sensitivity')
-  auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+  sen_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(i)
-    rsmp_sen(bmres=bmres, rsmp_i=i)
+    rsmp_sen(bmres=bmres, rsmp_i=i, threshold_class=interthresh)
   }) %>%
     unlist
 
   print('Getting specificity')
-  auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
+  spe_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(i)
-    rsmp_spe(bmres=bmres, rsmp_i=i)
+    rsmp_spe(bmres=bmres, rsmp_i=i, threshold_class=interthresh)
   }) %>%
     unlist
 
@@ -1583,9 +1609,6 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
     }
   }) %>%
     rbindlist
-
-  print('Getting sensitivity')
-
 
   print('Getting inner sampling params, general params, and time &  add to rest')
   moddt <- bm_paramstime(bmres) %>%
@@ -3820,7 +3843,6 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                                    measure = in_measure,
                                    search_space = regex_tuneset(in_learner),
                                    terminator = evalsn,
-                                   store_tuning_instance = FALSE,
                                    tuner =  tnr("random_search",
                                                 batch_size = insamp_nbatch)) #batch_size determines level of parallelism
     } else{
@@ -3836,11 +3858,11 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                                  measure = in_measure,
                                  search_space = regex_tuneset(in_learner),
                                  terminator = evalsn,
-                                 store_tuning_instance = FALSE,
                                  tuner =  tnr("random_search",
                                               batch_size = insamp_nbatch))
   }
 
+  learnertune$store_tuning_instance <- FALSE
   learnertune$id <- in_learner$id
 
   return(learnertune)
@@ -5574,6 +5596,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
                                    time_train=round(time_train),
                                    time_predict=round(time_predict),
                                    bacc=round(bacc, 3), threshold_class,
+                                   spe = round(spe, 3), sen = round(sen, 3),
                                    bbrier=round(bbrier, 3), auc=round(auc, 3)
   )]
 
