@@ -1820,7 +1820,7 @@ scientific_10 <- function(x) {
 }
 #------ ggcompare -------------------
 #Plot comparing intermittency prevalence and network length by drainage area for two datasets
-ggcompare <- function(datmerge, binarg) {
+ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
   x_tick <- c(0, unique(datmerge$bin)) + 0.5
   binarg_tick <- c(0, binarg)
   len <- length(x_tick)
@@ -1858,9 +1858,9 @@ ggcompare <- function(datmerge, binarg) {
           axis.ticks.x = element_line(color = c(rep(NA, len - 1), rep("black", len))))
 
 
-  xmin_inset <- datmerge[, 0.4*(max(bin)-min(bin))]
+  xmin_inset <- datmerge[, insetx*(max(bin)-min(bin))]
   xmax_inset <- datmerge[, 1*max(bin)]
-  ymin_inset <- datmerge[,round((0.8 * max(perc, na.rm=T) - min(perc, na.rm=T)) +
+  ymin_inset <- datmerge[,round((insety * max(perc, na.rm=T) - min(perc, na.rm=T)) +
                                   min(perc, na.rm=T))]
   plot_join <- plot_inter +
     annotation_custom(grob = ggplotGrob(plot_size),
@@ -5025,9 +5025,9 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                    layer = basename(inp_basin))
 
   if (spatial_rsp) {
-    predcol <- 'IRpredprob_CVsp'
+    predcol <- 'IRpredcat_CVsp'
   } else {
-    predcol <- 'IRpredprob_CVnosp'
+    predcol <- 'IRpredcat_CVnosp'
   }
 
   classcol='intermittent_o1800'
@@ -6154,6 +6154,70 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol, binarg) 
   )
 }
 
+
+#------ compare_au ----------------
+compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
+    in_netpath <- file.path(inp_auresdir, 'AHGFNetworkStream')
+    in_baspath <- file.path(inp_auresdir, 'hydrobasins12')
+    valuevarsub <- "1"
+
+    #Get Australian network
+    refnet <- st_read(dsn = dirname(in_netpath),
+                      layer = basename(in_netpath)
+    ) %>%
+      as.data.table %>%
+      .[UpstrDArea >=10^7,] %>%
+      refnet[, UpstrDArea := UpstrDArea/(10^6)]
+
+    #Get HydroSHEDS basins that overlap with selected NHD HUC8s
+    bas <- st_read(dsn = dirname(in_baspath),
+                   layer = basename(in_baspath)) %>%
+      .[, c('HYBAS_ID'), with=F]
+
+    #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
+    rivpredbas <- merge(in_rivpred, bas,
+                        by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
+    rivpredsub <- rivpredbas[dis_m3_pyr > 0 & UPLAND_SKM >= 10,] #Remove segments with 0 discharge
+
+    binlabels <- label_manualbins(binarg=binarg,
+                                  minval=10)
+
+    tidyperc_au <- formathistab(in_dt = refnet,
+                                castvar = "UpstrDArea",
+                                valuevar = "Perennial",
+                                valuevarsub = "Non Perennial",
+                                weightvar = "GeodesLen",
+                                binfunc = 'manual',
+                                binarg =  binarg,
+                                binlabels = binlabels,
+                                datname = 'Geofabric') %>%
+      .[, binsumlength := binsumlength/1000]
+
+    tidyperc_riv  <- formathistab(in_dt = rivpredsub,
+                                  castvar = 'UPLAND_SKM',
+                                  valuevar = predcol,
+                                  valuevarsub = "1",
+                                  weightvar = 'LENGTH_KM',
+                                  binfunc = 'manual',
+                                  binarg =  binarg,
+                                  binlabels = binlabels,
+                                  datname = 'Global')
+
+    datmerge <- rbind(tidyperc_au, tidyperc_riv) %>%
+      .[, dat:=factor(dat, levels=c('Global', 'Geofabric'))] %>%
+      setorder(bin) %>%
+      .[, binformat := factor(binformat, levels=unique(binformat))]
+    print('Percentage intermittence for Australia')
+    print(datmerge[, weighted.mean(perc, binsumlength), by=dat])
+
+    return(
+      list(
+        plot = ggcompare(datmerge, binarg, insetx = 0.9, insety = 0.97),
+        data = datmerge
+      )
+    )
+
+}
 
 #------ qc_pnw ------------
 qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol, interthresh=0.5) {

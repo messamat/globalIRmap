@@ -562,6 +562,11 @@ plan_compareresults <- drake_plan(
                        #        2000,5000,10000,100000,2000000, 3200000)
   ),
 
+  au_plot = compare_au(inp_auresdir = inp_auresdir,
+                       in_rivpred = rivpred,
+                       predcol = 'predbasic800cat',
+                       binarg = c(10, 100, 10^3, 10^4, 10^5, 10^6, 10^7)),
+
   pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,
                     in_rivpred = rivpred,
                     predcol = 'predbasic800cat',
