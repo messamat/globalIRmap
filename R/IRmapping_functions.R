@@ -4999,28 +4999,34 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
 
 #------ map_BACC ------
 map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
+                          in_rivernetwork,
                           inp_basin,
                           outp_basinerror,
                           spatial_rsp) {
   bas03 <- st_read(dsn = dirname(inp_basin),
                    layer = basename(inp_basin))
-
+  
   if (spatial_rsp) {
     predcol <- 'IRpredprob_CVsp'
   } else {
     predcol <- 'IRpredprob_CVnosp'
   }
-
+  
   classcol='intermittent_o1800'
   dat <- in_gaugepred[, .N, by=classcol]%>%
     setnames(old=classcol, new='classcol')
   minoratio <- dat %>%
     setorder(N) %>%
     .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
-
-  gnetjoin[, classweights := fifelse(intermittent_o1800 == minoratio$minoclass,
-                                     minoratio$ratio, 1)]
-
+  
+  in_gaugepred[, ':='(classweights = fifelse(intermittent_o1800 == minoratio$minoclass,
+                                             minoratio$ratio, 1)
+  )]
+  
+  gnetjoin <- merge(in_gaugepred,
+                    in_rivernetwork[,.(HYRIV_ID, HYBAS_ID03)],
+                    by='HYRIV_ID', all.x=T, all.y=F)
+  
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==get(predcol)) *
                      classweights) / sum(classweights),
@@ -5029,14 +5035,14 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(get(predcol)==1)/.N) - (sum(intermittent_o1800=='1')/.N)
   ), by=HYBAS_ID03]
-
-
+  
+  
   basbacc_format <- base::merge(
     bas03, basbacc,
     by.x='HYBAS_ID', by.y='HYBAS_ID03',
     all.x.=T, all.y=T)
   basbacc_format$gdens <- with(basbacc_format, gnum/UP_AREA)
-
+  
   st_write(obj=basbacc_format,
            dsn=outp_basinerror,
            driver = 'gpkg',
