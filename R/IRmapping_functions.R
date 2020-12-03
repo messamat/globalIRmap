@@ -4327,6 +4327,7 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
 #      rivpredpath =
 
 
+
 ##### -------------------- Diagnostics functions -------------------------------
 
 #------ netpredformat ------
@@ -4336,6 +4337,38 @@ netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
                           'LENGTH_KM', 'dis_m3_pyr',
                           'UPLAND_SKM', 'clz_cl_cmj'),
                       with=F], on='HYRIV_ID']
+}
+#------ test_powerlaw --------
+outp_riveratlaspred = readd(rfpreds_network)
+inp_riveratlas <- readd(path_riveratlas)
+idvars = 'clz_cl_cmj'
+
+fread(inp_riveratlas, nrows=1)
+
+test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
+  #Import global predictions
+  if (is.character(outp_riveratlaspred)) {
+    rivpred <- fread(outp_riveratlaspred)
+  }
+
+  #Columns to import from full network
+  incols <- c('HYRIV_ID', 'INLAKEPERC', 'PFAF_ID05',
+              'dis_m3_pyr', 'UPLAND_SKM',  idvars)
+  #Import global river network and join to predictions
+  riveratlas <- fread_cols(file_name=inp_riveratlas,
+                           cols_tokeep = incols) %>%
+    .[rivpred, on='HYRIV_ID']
+
+  #Visualize Complementary Cumulated Distribution Plot for the world
+  rivpl <- riveratlas[dis_m3_pyr >= 0.001, conpl$new(dis_m3_pyr)]
+  plot(rivpl)
+
+  #Visualize CCD plot by basin
+
+  moby = data(moby)
+  m_m = displ$new(moby)
+
+
 }
 
 #------ ggmisclass_single -----------------
@@ -4593,18 +4626,19 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
       ] %>%
     setorder(-imp_wmean)
 
-loadd(predvars)
-gsub('BIO[0-9]+\\s\\-\\s', '', predvars$Attribute, perl=T)
-
 
   #Plot 'em
-  outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname_format, fill=Category)) +
-    geom_bar(aes(y=imp_wmean), stat = 'identity') +
+  outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname_format,
+                                             color =Category, fill=Category)) +
+    geom_bar(aes(y=imp_wmean), stat = 'identity', alpha=0.7) +
     geom_errorbar(aes(ymin=imp_wmean-imp_wsd, ymax=imp_wmean+imp_wsd)) +
     scale_x_discrete(labels = function(x) {
-      stringr::str_wrap(tolower(x), width = 25)
-    }) +
+      stringr::str_wrap(tolower(x), width = 27)
+    },
+    limits=rev) +
     scale_fill_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#d9d9d9'),
+                      drop=FALSE) +
+    scale_color_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#d9d9d9'),
                       drop=FALSE) +
     theme_classic() +
     theme(axis.text.x = element_text(size=8),
@@ -4613,17 +4647,12 @@ gsub('BIO[0-9]+\\s\\-\\s', '', predvars$Attribute, perl=T)
           legend.title = element_text(size=14),
           legend.position = c(0.80, 0.5)
     ) +
-    scale_y_continuous(expand=c(0,0)) +
+    scale_y_continuous(expand=c(0,0), position = 'right') +
     coord_flip(ylim=c(0, min(varimp_basic[, max(imp_wmean+imp_wsd)+1], 100)),
                clip='off')
 
   return(outp)
 }
-
-
-
-
-
 
 #------ ggpd_bivariate -----------------
 ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
@@ -5703,7 +5732,8 @@ ggmisclass_bm <- function(in_threshdts) {
 #                                        na.rm=T,
 #                                        tidy = FALSE)
 
-tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
+tabulate_globalsummary <- function(outp_riveratlaspred,
+                                   inp_riveratlas,
                                    inp_riveratlas_legends,
                                    idvars,
                                    castvar, castvar_num=TRUE,
@@ -5728,7 +5758,7 @@ tabulate_globalsummary <- function(outp_riveratlaspred, inp_riveratlas,
 
   #Exclude either those that intersect lakes and/or those that have zero discharge
   if (nolake) {
-    riveratlas <- riveratlas[INLAKEPERC < 100,]
+    riveratlas <- riveratlas[INLAKEPERC < 1,]
   }
 
   if (nozerodis) {
@@ -6162,12 +6192,12 @@ compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
     valuevarsub <- "1"
 
     #Get Australian network
-    refnet <- st_read(dsn = dirname(in_netpath),
+    net <- st_read(dsn = dirname(in_netpath),
                       layer = basename(in_netpath)
     ) %>%
       as.data.table %>%
       .[UpstrDArea >=10^7,] %>%
-      refnet[, UpstrDArea := UpstrDArea/(10^6)]
+      .[, UpstrDArea := UpstrDArea/(10^6)]
 
     #Get HydroSHEDS basins that overlap with selected NHD HUC8s
     bas <- st_read(dsn = dirname(in_baspath),
@@ -6182,7 +6212,7 @@ compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
     binlabels <- label_manualbins(binarg=binarg,
                                   minval=10)
 
-    tidyperc_au <- formathistab(in_dt = refnet,
+    tidyperc_au <- formathistab(in_dt = net,
                                 castvar = "UpstrDArea",
                                 valuevar = "Perennial",
                                 valuevarsub = "Non Perennial",

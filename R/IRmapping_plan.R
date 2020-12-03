@@ -25,6 +25,7 @@ plan_preprocess <- drake_plan(
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
   path_usdatdir = file.path(rootdir, 'data\\Comparison_databases', 'US'),
   path_usresdir = file.path(path_compresdir, 'us.gdb'),
+  path_auresdir = file.path(path_compresdir, 'australia.gdb'),
   path_insitudatdir = file.path(rootdir, 'data\\Insitu_databases'),
   path_insituresdir = file.path(path_resdir, 'Insitu_databases'),
   path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
@@ -411,14 +412,18 @@ plan_getpreds <- drake_plan(
   )
   ,
 
-  rfpreds_network = write_netpreds(
-    in_network = rivernetwork,
-    in_rftuned = list(rftuned_u10, rftuned_o1),
-    predcol = 'predbasic800',
-    discharge_interval = list(c(0, 10), c(1, Inf)),
-    interthresh = list(interthresh_u10, interthresh_o1),
-    in_predvars = predvars,
-    outp_riveratlaspred = outpath_riveratlaspred
+  rfpreds_network = target(
+    write_netpreds(
+      in_network = rivernetwork,
+      in_rftuned = list(rftuned_u10, rftuned_o1),
+      predcol = 'predbasic800',
+      discharge_interval = list(c(0, 10), c(1, Inf)),
+      interthresh = list(interthresh_u10, interthresh_o1),
+      in_predvars = predvars,
+      outp_riveratlaspred = outpath_riveratlaspred
+    )
+   #  ,
+   # trigger = trigger(mode = "condition", condition =TRUE)
   ),
 
   gauges_plot = target(
@@ -464,7 +469,8 @@ plan_getpreds_30d <- drake_plan(
   )
   ,
 
-  rfpreds_network_mdur30 = write_netpreds(
+  rfpreds_network_mdur30 = target(
+    write_netpreds(
     in_network = rivernetwork,
     in_rftuned = list(rftuned_mdur30_u10, rftuned_mdur30_o1),
     predcol = 'predbasic800_mdur30',
@@ -474,6 +480,8 @@ plan_getpreds_30d <- drake_plan(
     outp_riveratlaspred = gsub('[.]csv',
                                '_mdur30.csv',
                                outpath_riveratlaspred)
+    ),
+    trigger = trigger(mode = "condition", condition =FALSE)
   ),
 
   bin_finalmisclass_mdur30 = bin_misclass(
@@ -492,8 +500,12 @@ plan_getoutputs <- drake_plan(
                              spatial_rsp = TRUE,
                              yearthresh = 1800),
 
-  rivpred = netpredformat(in_rivernetwork = rivernetwork,
-                          outp_riveratlaspred = rfpreds_network),
+  rivpred = target(
+    netpredformat(in_rivernetwork = rivernetwork,
+                  outp_riveratlaspred = rfpreds_network)
+    ,
+    trigger = trigger(mode = "condition", condition =FALSE)
+  ),
 
   # basinBACC = target(
   #   map_basinBACC(in_gaugepred = gpredsdt,
@@ -527,13 +539,15 @@ plan_getoutputs <- drake_plan(
                            valuevar = 'predbasic800cat',
                            valuevarsub = 1,
                            binfunc = 'manual',
-                           binarg = c(1, 10, 100, 1000, 10000, 1000000),
+                           binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
                            na.rm=T,
                            tidy = FALSE,
                            nolake = TRUE,
                            nozerodis = TRUE),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
+    ,
+    trigger = trigger(mode = "condition", condition =TRUE)
   ),
 
   IRpop = compute_IRpop(in_rivpred = rivpred,
@@ -562,7 +576,7 @@ plan_compareresults <- drake_plan(
                        #        2000,5000,10000,100000,2000000, 3200000)
   ),
 
-  au_plot = compare_au(inp_auresdir = inp_auresdir,
+  au_plot = compare_au(inp_auresdir = path_auresdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
                        binarg = c(10, 100, 10^3, 10^4, 10^5, 10^6, 10^7)),
@@ -652,8 +666,8 @@ plan <- bind_plans(plan_preprocess,
                    plan_getpreds,
                    plan_getpreds_30d,
                    plan_getoutputs,
-                   plan_getoutputs_30d,
+                   #plan_getoutputs_30d,
                    plan_compareresults,
-                   plan_compareresults_30d
+                   #plan_compareresults_30d
 )
 
