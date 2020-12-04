@@ -4359,7 +4359,10 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
                            cols_tokeep = incols) %>%
     .[rivpred, on='HYRIV_ID'] %>%
     setorder(dis_m3_pyr) %>%
-    .[INLAKEPERC < 1, ]
+    .[INLAKEPERC < 1, ] %>%
+    .[, PFAF_ID03 := floor(PFAF_ID05/100)]
+
+  #Use level 3 basins because otherwise, some level 5 basins have 0 streams with >= 0.1 m3/s discharge and can't be modeled
 
   #----------- Function to plot empirical CCDF ------------------------------------------
   plot_ccdf <- function(dt_format, minthresh=0.1, maxthresh=10000) {
@@ -4384,153 +4387,63 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
   }
 
   #----------- Visualize CCDF plot for the world ------------------------------
-  ccdf_datall  <- riveratlas[dis_m3_pyr >= 0.001, .N, by=dis_m3_pyr] %>%
-    setorder(-dis_m3_pyr) %>%
-    .[, cumN := cumsum(N)] %>%
-    .[, cumP := cumN/riveratlas[,.N]]
-
-  plot_ccdf(ccdf_datall)
+  # ccdf_datall  <- riveratlas[dis_m3_pyr >= 0.001, .N, by=dis_m3_pyr] %>%
+  #   setorder(-dis_m3_pyr) %>%
+  #   .[, cumN := cumsum(N)] %>%
+  #   .[, cumP := cumN/riveratlas[,.N]]
+  #
+  # plot_ccdf(ccdf_datall)
 
   #----------- Compute empirical cumulative distribution by basin --------------
-  #Compute cumulative distribution by number
-  ccdf_datbas05  <- riveratlas[dis_m3_pyr >= 0.001, .N,
-                               by=.(dis_m3_pyr, PFAF_ID05)] %>%
-    setorder(-dis_m3_pyr) %>%
-    .[, cumN := cumsum(N), by = PFAF_ID05] %>%
-    merge(riveratlas[,list(totalN = .N), by=PFAF_ID05], by='PFAF_ID05') %>%
-    .[, cumP := cumN/totalN] %>%
-    merge(cumL_bas05, by = c('PFAF_ID05', 'dis_m3_pyr'))
-
   #Compute cumulative length by discharge
-  cumL_bas05 <- riveratlas[dis_m3_pyr >= 0.001, list(suml = sum(LENGTH_KM)),
-                           by=.(dis_m3_pyr, PFAF_ID05)] %>%
+  cumL_bas03 <- riveratlas[dis_m3_pyr >= 0.001, list(suml = sum(LENGTH_KM)),
+                           by=.(dis_m3_pyr, PFAF_ID03)] %>%
     setorder(-dis_m3_pyr) %>%
-    .[, cumL := cumsum(suml), by = PFAF_ID05]
+    .[, cumL := cumsum(suml), by = PFAF_ID03]
 
-  #Look at distribution for a given basin
-  if (plot) {
-    #Of length
-    ggplot(ccdf_datbas05[(dis_m3_pyr >= 0.2) & (dis_m3_pyr < 10000) &
-                           (PFAF_ID05 == 62297),], aes(x=dis_m3_pyr, y=cumL)) +
-      geom_line() +
-      scale_x_log10() +
-      scale_y_log10()
+  #Compute cumulative distribution by number and merge to length
+  ccdf_datbas03  <- riveratlas[dis_m3_pyr >= 0.001, .N,
+                               by=.(dis_m3_pyr, PFAF_ID03)] %>%
+    setorder(-dis_m3_pyr) %>%
+    .[, cumN := cumsum(N), by = PFAF_ID03] %>%
+    merge(riveratlas[,list(totalN = .N), by=PFAF_ID03], by='PFAF_ID03') %>%
+    .[, cumP := cumN/totalN] %>%
+    merge(cumL_bas03, by = c('PFAF_ID03', 'dis_m3_pyr')) %>%
+    merge(ccdf_datbas03[(dis_m3_pyr >= 0.1), list(sumN_o01 = sum(N)),
+                        by=PFAF_ID03], by='PFAF_ID03') %>% #Number of unique discharge values >= 0.1 m3/s
+    .[!is.na(PFAF_ID03),]
 
-    #Plot CCDF
-    plot_ccdf(ccdf_datbas05[PFAF_ID05 == 62297,], maxthresh = 5000)
-  }
-
-
-  #----------- Fit distributions   ---------------------------------------------
-  #Test poweRlaw package on example basin
-  testdat <- riveratlas[(dis_m3_pyr >= 0.1) &
-                          (dis_m3_pyr < 10000) &
-                          (PFAF_ID05 == 62297),]
-
-  testcpl <- testdat[, conpl$new(dis_m3_pyr)]
-  #Set xmin
-  xminvec = seq(0.1, 2, 0.05)
-  testcpl$setXmin(max(0.1,
-                      testdat[, min(dis_m3_pyr)],
-                      estimate_xmin(testcpl, xmins = xminvec)$xmin))
-  #Estimate continuous power law distribution parameters (fit max likelihood)
-  test_est = estimate_pars(testcpl)
-  testcpl$setPars(test_est)
-
-  #Model with other distributions
-  testlnorm <- testdat[, conlnorm$new(dis_m3_pyr)]
-  testexp <- testdat[, conexp$new(dis_m3_pyr)]
-  testweibull <- testdat[, conweibull$new(dis_m3_pyr)]
-
-  testlnorm$setXmin(testcpl$xmin)
-  testexp$setXmin(testcpl$xmin)
-  testweibull$setXmin(testcpl$xmin)
-
-  test_lnormest = estimate_pars(testlnorm)
-  test_expest = estimate_pars(testexp)
-  test_weibullest = estimate_pars(testweibull)
-
-  testlnorm$setPars(test_lnormest)
-  testexp$setPars(test_expest)
-  testweibull$setPars(test_weibullest)
-
-  #Select distribution
-  sel_mod_util <- function(in_compcomb) {
-    xwin <- as.numeric(in_compcomb[1, 'pval']<0.05)
-
-    win <- in_compcomb[1, 2-xwin][[1]]
-    lose <- in_compcomb[1, xwin+1][[1]]
-
-    if (nrow(in_compcomb) > 1) {
-      sel_mod_util(in_compcomb = in_compcomb[!((in_compcomb$x %in% lose) |
-                                                 (in_compcomb$y %in% lose)),])
-    } else{
-      return(win)
-    }
-  }
-
-  sel_mod <- function(modlist) {
-    modcomb <- combn(modlist, 2)
-    compcomb <- mapply(function(x, y) {
-      pval <- compare_distributions(x, y)$p_one_sided
-      data.frame(x=class(x)[1], y=class(y)[1], pval)
-    }, modcomb[1,], modcomb[2,]) %>%
-      t %>%
-      as.data.frame
-
-    selmod_char <- sel_mod_util(in_compcomb=compcomb)
-    selmod_num <- which(unlist(lapply(modlist, function(x) class(x)==selmod_char)))
-
-    return(modlist[[selmod_num]])
-  }
-
-  mod <- sel_mod(modlist = c(testcpl, testlnorm, testexp, testweibull))
-
-  check <- dist_rand(mod, n=100000)
-
-
-  qplot(check) + scale_x_log10() + scale_y_log10()
-  ggplot(check2) + scale_x_log10() + scale_y_log10() +
-    geom_histogram(data=jitter(testcpl$dat, 0.05))
-  qplot() + scale_x_log10() + scale_y_log10()
-
-  ks.test(check, "plnorm",
-          mod$pars[1], mod$pars[2], alternative="two.sided")
-
-  ## Plot the data (from xmin)
-  plot.new()
-  ggplot(plotdat, aes(x, y)) +
-    geom_line() +
-    scale_x_log10() +
-    scale_y_log10() +
-    stat_smooth(method='gam', formula=y ~ s(x, k=6), color='orange') +
-    geom_line(data = lines(testcpl, col = 'blue'), color='green') +
-    geom_line(data = lines(testlnorm, col = 'blue'), color='red') +
-    geom_line(data = lines(testweibull, col = 'blue'), color='blue')
-
-  #Extremely slow, unfeasible for some reason
-  tic()
-  check <- bootstrap_p(mod, xmins=c(mod$xmin-0.01, mod$xmin),
-                       no_of_sims = 10, threads = 5)
-  toc()
-
-  #Check uncertainty in alpha with different xmin
-  parvar_xmin <- lapply(xminvec, function(xmin) {
-    testcpl$setXmin(xmin)
-    estimate_pars(testcpl)$pars
-  }) %>%
-    unlist() %>%
-    data.table(xmin=xminvec, alpha=.)
+  #Check distribution of cut-off values for discharge when computing ECDF GAM
+  qplot(ccdf_datbas03[!duplicated(PFAF_ID03) & sumN_o01 >= 20, dis95q]) + scale_x_log10()
 
   #----------- Fit GAM to cumL ~ dist_m3_pyr -----------------------------------
-  gamsubdat <- ccdf_datbas05[(dis_m3_pyr >= 0.1) &
-                               (dis_m3_pyr < 10000) &
-                               (PFAF_ID05 == 23221),]
+  ccdf_datbas03[!duplicated(PFAF_ID03) & sumN_o01 >= 20, .N]
+  length(unique(round(ccdf_datbas03$PFAF_ID03)))
+
+  #Only train GAM models for basins that have at least 20 unique discharge valuees >= 0.1
+  gambas <- ccdf_datbas03[
+    (dis_m3_pyr >= 0.1) & sumN_o01 >= 20,
+    list(mod = list(
+      mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
+                method = "REML",
+                data=.SD[dis_m3_pyr < quantile(dis_m3_pyr, 0.95),]))
+    ),
+    by = PFAF_ID03
+  ]
+
+  bla <- gambas[1, mod][[1]]
+  summary(bla)
+
+  #Test approach on a single basin
+  gamsubdat <- ccdf_datbas03[dis_m3_pyr >= 0.1 &
+                               (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)) &
+                               (PFAF_ID03 == 111),]
   gamfit <- mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
                      method = "REML",
                      data=gamsubdat)
-  preds <- data.frame(dis_m3_pyr=seq(0.01, 10000, 0.01))
-  preds$cumL <- 10^predict(gamfit, data.frame(dis_m3_pyr=seq(0.01, 10000, 0.01)))
+  summary(gamfit)
+  preds <- data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01))
+  preds$cumL <- 10^predict(gamfit, data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01)))
 
   ggplot(gamsubdat, aes(x=dis_m3_pyr, y=cumL)) +
     geom_step(size=2) +
@@ -4538,6 +4451,128 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
     scale_x_log10(limits=c(0.01, 10000)) +
     scale_y_log10()
     #geom_smooth(fullrange=T)
+
+
+  #For basins with less than 20 discharge size classes, use RiverATLAS data
+
+
+
+  # ##############################################################################
+  # # EXTRA STUFF NOT USED
+  # #Look at distribution for a given basin
+  # if (plot) {
+  #   #Of length
+  #   ggplot(ccdf_datbas05[(dis_m3_pyr >= 0.2) & (dis_m3_pyr < 10000) &
+  #                          (PFAF_ID05 == 62297),], aes(x=dis_m3_pyr, y=cumL)) +
+  #     geom_line() +
+  #     scale_x_log10() +
+  #     scale_y_log10()
+  #
+  #   #Plot CCDF
+  #   plot_ccdf(ccdf_datbas05[PFAF_ID05 == 62297,], maxthresh = 5000)
+  # }
+  #
+  #
+  # #----------- Fit distributions   ---------------------------------------------
+  # #Test poweRlaw package on example basin
+  # testdat <- riveratlas[(dis_m3_pyr >= 0.1) &
+  #                         (dis_m3_pyr < 10000) &
+  #                         (PFAF_ID05 == 62297),]
+  #
+  # testcpl <- testdat[, conpl$new(dis_m3_pyr)]
+  # #Set xmin
+  # xminvec = seq(0.1, 2, 0.05)
+  # testcpl$setXmin(max(0.1,
+  #                     testdat[, min(dis_m3_pyr)],
+  #                     estimate_xmin(testcpl, xmins = xminvec)$xmin))
+  # #Estimate continuous power law distribution parameters (fit max likelihood)
+  # test_est = estimate_pars(testcpl)
+  # testcpl$setPars(test_est)
+  #
+  # #Model with other distributions
+  # testlnorm <- testdat[, conlnorm$new(dis_m3_pyr)]
+  # testexp <- testdat[, conexp$new(dis_m3_pyr)]
+  # testweibull <- testdat[, conweibull$new(dis_m3_pyr)]
+  #
+  # testlnorm$setXmin(testcpl$xmin)
+  # testexp$setXmin(testcpl$xmin)
+  # testweibull$setXmin(testcpl$xmin)
+  #
+  # test_lnormest = estimate_pars(testlnorm)
+  # test_expest = estimate_pars(testexp)
+  # test_weibullest = estimate_pars(testweibull)
+  #
+  # testlnorm$setPars(test_lnormest)
+  # testexp$setPars(test_expest)
+  # testweibull$setPars(test_weibullest)
+  #
+  # #Select distribution
+  # sel_mod_util <- function(in_compcomb) {
+  #   xwin <- as.numeric(in_compcomb[1, 'pval']<0.05)
+  #
+  #   win <- in_compcomb[1, 2-xwin][[1]]
+  #   lose <- in_compcomb[1, xwin+1][[1]]
+  #
+  #   if (nrow(in_compcomb) > 1) {
+  #     sel_mod_util(in_compcomb = in_compcomb[!((in_compcomb$x %in% lose) |
+  #                                                (in_compcomb$y %in% lose)),])
+  #   } else{
+  #     return(win)
+  #   }
+  # }
+  #
+  # sel_mod <- function(modlist) {
+  #   modcomb <- combn(modlist, 2)
+  #   compcomb <- mapply(function(x, y) {
+  #     pval <- compare_distributions(x, y)$p_one_sided
+  #     data.frame(x=class(x)[1], y=class(y)[1], pval)
+  #   }, modcomb[1,], modcomb[2,]) %>%
+  #     t %>%
+  #     as.data.frame
+  #
+  #   selmod_char <- sel_mod_util(in_compcomb=compcomb)
+  #   selmod_num <- which(unlist(lapply(modlist, function(x) class(x)==selmod_char)))
+  #
+  #   return(modlist[[selmod_num]])
+  # }
+  #
+  # mod <- sel_mod(modlist = c(testcpl, testlnorm, testexp, testweibull))
+  #
+  # check <- dist_rand(mod, n=100000)
+  #
+  #
+  # qplot(check) + scale_x_log10() + scale_y_log10()
+  # ggplot(check2) + scale_x_log10() + scale_y_log10() +
+  #   geom_histogram(data=jitter(testcpl$dat, 0.05))
+  # qplot() + scale_x_log10() + scale_y_log10()
+  #
+  # ks.test(check, "plnorm",
+  #         mod$pars[1], mod$pars[2], alternative="two.sided")
+  #
+  # ## Plot the data (from xmin)
+  # plot.new()
+  # ggplot(plotdat, aes(x, y)) +
+  #   geom_line() +
+  #   scale_x_log10() +
+  #   scale_y_log10() +
+  #   stat_smooth(method='gam', formula=y ~ s(x, k=6), color='orange') +
+  #   geom_line(data = lines(testcpl, col = 'blue'), color='green') +
+  #   geom_line(data = lines(testlnorm, col = 'blue'), color='red') +
+  #   geom_line(data = lines(testweibull, col = 'blue'), color='blue')
+  #
+  # #Extremely slow, unfeasible for some reason
+  # tic()
+  # check <- bootstrap_p(mod, xmins=c(mod$xmin-0.01, mod$xmin),
+  #                      no_of_sims = 10, threads = 5)
+  # toc()
+  #
+  # #Check uncertainty in alpha with different xmin
+  # parvar_xmin <- lapply(xminvec, function(xmin) {
+  #   testcpl$setXmin(xmin)
+  #   estimate_pars(testcpl)$pars
+  # }) %>%
+  #   unlist() %>%
+  #   data.table(xmin=xminvec, alpha=.)
 }
 
 #------ ggmisclass_single -----------------
