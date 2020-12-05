@@ -149,6 +149,13 @@ plan_setupdata <- drake_plan(
   )
   ,
 
+  netlength_extra = extrapolate_networklength(
+    inp_riveratlas = path_riveratlas,
+    min_cutoff = 0.1,
+    dispred =  seq(0.01, 0.09, 0.01),
+    interactive = F
+  ),
+
   #-------------------- set-up tasks -------------------------------------
   gauges_div = target(
     gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
@@ -506,6 +513,8 @@ plan_getoutputs <- drake_plan(
     ,
     trigger = trigger(mode = "condition", condition =FALSE)
   ),
+
+  #IRES_extra <-
 
   # basinBACC = target(
   #   map_basinBACC(in_gaugepred = gpredsdt,

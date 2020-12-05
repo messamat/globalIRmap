@@ -4334,38 +4334,32 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
 netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
   fread(file_in(outp_riveratlaspred))%>%
     .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'PFAF_ID05',
-                          'LENGTH_KM', 'dis_m3_pyr',
+                          'LENGTH_KM', 'dis_m3_pyr', 'INLAKEPERC',
                           'UPLAND_SKM', 'clz_cl_cmj'),
                       with=F], on='HYRIV_ID']
 }
-#------ test_powerlaw --------
-outp_riveratlaspred = readd(rfpreds_network)
-inp_riveratlas <- readd(path_riveratlas)
-idvars = 'clz_cl_cmj'
+#------ extrapolate_networklength --------
+extrapolate_networklength <- function(inp_riveratlas,
+                                      min_cutoff = 0.1,
+                                      dispred = seq(0.01, 0.1, 0.01),
+                                      interactive = F) {
 
-test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
-  #CCDF: Complementary Cumulated Distribution Function
-
-  #Import global predictions
-  if (is.character(outp_riveratlaspred)) {
-    rivpred <- fread(outp_riveratlaspred)
-  }
+  #Glossary - CCDF: Complementary Cumulated Distribution Function
 
   #Columns to import from full network
   incols <- c('HYRIV_ID', 'INLAKEPERC', 'PFAF_ID05',
-              'dis_m3_pyr', 'LENGTH_KM',  idvars)
+              'dis_m3_pyr', 'LENGTH_KM')
   #Import global river network and join to predictions
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = incols) %>%
-    .[rivpred, on='HYRIV_ID'] %>%
     setorder(dis_m3_pyr) %>%
     .[INLAKEPERC < 1, ] %>%
     .[, PFAF_ID03 := floor(PFAF_ID05/100)]
 
-  #Use level 3 basins because otherwise, some level 5 basins have 0 streams with >= 0.1 m3/s discharge and can't be modeled
+  #Use level 3 basins because otherwise, too many level 5 basins don't have streams with >= 0.1 m3/s discharge and can't be modeled
 
   #----------- Function to plot empirical CCDF ------------------------------------------
-  plot_ccdf <- function(dt_format, minthresh=0.1, maxthresh=10000) {
+  plot_ccdf <- function(dt_format, minthresh, maxthresh) {
     ggplot(dt_format[(dis_m3_pyr >= minthresh) & (dis_m3_pyr < maxthresh)],
            aes(x = dis_m3_pyr, y = cumP)) +
       geom_step() +
@@ -4373,7 +4367,7 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
                 linetype='dashed') +
       geom_step(data=dt_format[(dis_m3_pyr >= maxthresh),],
                 linetype='dashed') +
-      geom_smooth(method='gam', color='red') +
+      geom_smooth(method='gam', color='red', fullrange = T) +
       scale_x_log10(name = bquote('Naturalized long-term mean annual discharge'~(m^3~s^-1)),
                     breaks = scales::trans_breaks("log10", function(x) 10^x),
                     labels = scales::trans_format("log10", scales::math_format(10^.x))
@@ -4387,42 +4381,79 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
   }
 
   #----------- Visualize CCDF plot for the world ------------------------------
-  # ccdf_datall  <- riveratlas[dis_m3_pyr >= 0.001, .N, by=dis_m3_pyr] %>%
-  #   setorder(-dis_m3_pyr) %>%
-  #   .[, cumN := cumsum(N)] %>%
-  #   .[, cumP := cumN/riveratlas[,.N]]
-  #
-  # plot_ccdf(ccdf_datall)
+  if (interactive) {
+    ccdf_datall  <- riveratlas[dis_m3_pyr >= 0.001, .N, by=dis_m3_pyr] %>%
+      setorder(-dis_m3_pyr) %>%
+      .[, cumN := cumsum(N)] %>%
+      .[, cumP := cumN/riveratlas[,.N]]
+
+    plot_ccdf(ccdf_datall, minthresh = min_cutoff, maxthresh = 10000)
+  }
+
 
   #----------- Compute empirical cumulative distribution by basin --------------
   #Compute cumulative length by discharge
-  cumL_bas03 <- riveratlas[dis_m3_pyr >= 0.001, list(suml = sum(LENGTH_KM)),
+  cumL_bas03 <- riveratlas[dis_m3_pyr > 0, list(suml = sum(LENGTH_KM)),
                            by=.(dis_m3_pyr, PFAF_ID03)] %>%
     setorder(-dis_m3_pyr) %>%
     .[, cumL := cumsum(suml), by = PFAF_ID03]
 
   #Compute cumulative distribution by number and merge to length
-  ccdf_datbas03  <- riveratlas[dis_m3_pyr >= 0.001, .N,
+  print('Compute empirical cumulative distribution')
+  ccdf_datbas03  <- riveratlas[dis_m3_pyr > 0, .N,
                                by=.(dis_m3_pyr, PFAF_ID03)] %>%
     setorder(-dis_m3_pyr) %>%
     .[, cumN := cumsum(N), by = PFAF_ID03] %>%
     merge(riveratlas[,list(totalN = .N), by=PFAF_ID03], by='PFAF_ID03') %>%
     .[, cumP := cumN/totalN] %>%
     merge(cumL_bas03, by = c('PFAF_ID03', 'dis_m3_pyr')) %>%
-    merge(ccdf_datbas03[(dis_m3_pyr >= 0.1), list(sumN_o01 = sum(N)),
-                        by=PFAF_ID03], by='PFAF_ID03') %>% #Number of unique discharge values >= 0.1 m3/s
+    merge(.[(dis_m3_pyr >= min_cutoff),
+            list(nuniquedis_o01 = length(unique(dis_m3_pyr))),
+            by=PFAF_ID03], by='PFAF_ID03') %>% #Number of unique discharge values >= 0.1 m3/s
     .[!is.na(PFAF_ID03),]
 
   #Check distribution of cut-off values for discharge when computing ECDF GAM
-  qplot(ccdf_datbas03[!duplicated(PFAF_ID03) & sumN_o01 >= 20, dis95q]) + scale_x_log10()
+  if (interactive) {
+    qplot(ccdf_datbas03[nuniquedis_o01 >= 20, quantile(dis_m3_pyr, 0.95),
+                        by=PFAF_ID03]$V1) + scale_x_log10()
+  }
 
   #----------- Fit GAM to cumL ~ dist_m3_pyr -----------------------------------
-  ccdf_datbas03[!duplicated(PFAF_ID03) & sumN_o01 >= 20, .N]
-  length(unique(round(ccdf_datbas03$PFAF_ID03)))
+  #Check how many basins drop off from the cut off criterion
+  if (interactive) {
+    ccdf_datbas03[!duplicated(PFAF_ID03) & nuniquedis_o01 >= 20, .N]
+    length(unique(round(ccdf_datbas03$PFAF_ID03)))
+  }
 
-  #Only train GAM models for basins that have at least 20 unique discharge valuees >= 0.1
+  #------Test approach on a single basin
+  fit_rivlengam <- function(dt_format, pfaf_id) {
+    gamsubdat <- dt_format[dis_m3_pyr >= min_cutoff & (PFAF_ID03 == pfaf_id),][
+      (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),]
+    gamfit <- mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
+                        method = "REML",
+                        data=gamsubdat)
+    print(summary(gamfit))
+    preds <- data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01))
+    preds$cumL <- 10^predict(gamfit, data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01)))
+
+    ggplot(gamsubdat, aes(x=dis_m3_pyr, y=cumL)) +
+      geom_step(size=1.5) +
+      geom_step(data=dt_format[(PFAF_ID03 == pfaf_id),],
+                size=1.5, alpha=1/3) +
+      geom_line(data=preds, color='red') +
+      scale_x_log10(name=bquote('Naturalized long-term mean annual discharge'~(m^3~s^-1)), limits=c(0.001, 10000)) +
+      scale_y_log10(name='Cumulative river length (km)') +
+      annotation_logticks() +
+      theme_classic()
+  }
+  if (interactive) {
+    fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id=271)
+  }
+
+  #-----Across all basins:
+  #Only train GAM models for basins that have at least 20 unique discharge values >= 0.1
   gambas <- ccdf_datbas03[
-    (dis_m3_pyr >= 0.1) & sumN_o01 >= 20,
+    (dis_m3_pyr >= min_cutoff) & nuniquedis_o01 >= 20,
     list(mod = list(
       mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
                 method = "REML",
@@ -4431,31 +4462,73 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
     by = PFAF_ID03
   ]
 
-  bla <- gambas[1, mod][[1]]
-  summary(bla)
+  #Check the distribution of adjusted R-squares across all basins
+  rsqdt <- gambas[, list(rsq_adj = summary(mod[[1]])$r.sq), by=PFAF_ID03]
+  ggplot(rsqdt, aes(x=rsq_adj)) + geom_histogram()
+  print(paste0(
+    "The mean the GAM models' adjusted-R squares across all global basins is ",
+    round(rsqdt[, mean(rsq_adj)], 4)
+  ))
 
-  #Test approach on a single basin
-  gamsubdat <- ccdf_datbas03[dis_m3_pyr >= 0.1 &
-                               (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)) &
-                               (PFAF_ID03 == 111),]
-  gamfit <- mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
-                     method = "REML",
-                     data=gamsubdat)
-  summary(gamfit)
-  preds <- data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01))
-  preds$cumL <- 10^predict(gamfit, data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01)))
+  #Fitting function
+  predict_baslen <- function(in_gambas, discheck) {
+    predcheck <- in_gambas[, 10^predict(mod[[1]], data.frame(dis_m3_pyr=discheck)),
+                           by=PFAF_ID03] %>%
+      setnames(old='V1', new='cumL_pred')
+  }
 
-  ggplot(gamsubdat, aes(x=dis_m3_pyr, y=cumL)) +
-    geom_step(size=2) +
-    geom_line(data=preds, color='red') +
-    scale_x_log10(limits=c(0.01, 10000)) +
-    scale_y_log10()
-    #geom_smooth(fullrange=T)
+  #Check fit
+  if (interactive) {
+    predcheck <- predict_baslen(in_gambas = gambas,
+                                discheck = 0.15) %>%
+      merge(ccdf_datbas03[dis_m3_pyr==discheck,], by='PFAF_ID03')
 
+    summary(lm(log10(cumL_pred)~log10(cumL), data=predcheck))
 
-  #For basins with less than 20 discharge size classes, use RiverATLAS data
+    ggplot(predcheck, aes(x=cumL_pred, y=cumL)) +
+      geom_point() +
+      scale_x_log10() +
+      scale_y_log10() +
+      geom_abline()
+  }
 
+  #----------- Compute predictions and return them -----------------------------
+  #For basins with less than 20 unique discharge values, use average global ratio of
+  #predicted cumulative length at 0.01 m3/s to that at minimum discharge over 0.1 m3/s
+  #available in that basin
+  print('Extrapolating total river length for small basins...')
+  ccdf_datbas03_smallbas <- ccdf_datbas03[dis_m3_pyr >= min_cutoff & nuniquedis_o01 < 20,]
 
+  pred_smallbas <- lapply(dispred, function(x) {
+    ccdf_datbas03_smallbas[
+      , list(cumL_pred = mean(
+        predict_baslen(in_gambas = gambas, discheck = x)$cumL_pred/
+          predict_baslen(in_gambas = gambas, discheck = min(dis_m3_pyr))$cumL_pred
+      ) * .SD[dis_m3_pyr == min(dis_m3_pyr), cumL]
+      ), by=PFAF_ID03] %>%
+      .[, dispred := x]
+  }) %>%
+    rbindlist
+
+  print('Extrapolating total river length for large basins...')
+  #Predict for basins with at least 20 unique discharge size classes
+  pred_largebas <-lapply(dispred, function(x) {
+    predict_baslen(in_gambas = gambas, discheck = x)%>%
+      .[, dispred := x]
+  }) %>%
+    rbindlist
+
+  #Merge predictions for small and large basins
+  pred_all <- rbind(pred_smallbas, pred_largebas) %>%
+    merge(riveratlas[dis_m3_pyr >= min_cutoff,
+                     list(cumL_cutoffref = sum(LENGTH_KM)), by=PFAF_ID03],
+          by='PFAF_ID03') %>%
+    .[, cumL_predextra := cumL_pred - cumL_cutoffref]
+
+  #Can check match with RiverATLAS for larger discharges
+  #sum(pred001_all$cumL_pred)/riveratlas[dis_m3_pyr >= 0.2, sum(LENGTH_KM)]
+
+  return(pred_all)
 
   # ##############################################################################
   # # EXTRA STUFF NOT USED
@@ -4475,14 +4548,14 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
   #
   # #----------- Fit distributions   ---------------------------------------------
   # #Test poweRlaw package on example basin
-  # testdat <- riveratlas[(dis_m3_pyr >= 0.1) &
+  # testdat <- riveratlas[(dis_m3_pyr >= min_cutoff) &
   #                         (dis_m3_pyr < 10000) &
   #                         (PFAF_ID05 == 62297),]
   #
   # testcpl <- testdat[, conpl$new(dis_m3_pyr)]
   # #Set xmin
   # xminvec = seq(0.1, 2, 0.05)
-  # testcpl$setXmin(max(0.1,
+  # testcpl$setXmin(max(min_cutoff,
   #                     testdat[, min(dis_m3_pyr)],
   #                     estimate_xmin(testcpl, xmins = xminvec)$xmin))
   # #Estimate continuous power law distribution parameters (fit max likelihood)
@@ -4575,8 +4648,204 @@ test_powerlaw <- function(outp_riveratlaspred, inp_riveratlas, idvars) {
   #   data.table(xmin=xminvec, alpha=.)
 }
 
-#------ ggmisclass_single -----------------
+#------ extrapolate_IRES -----------
+extrapolate_IRES <- function(in_rivpred = rivpred,
+                             in_extranet = netlength_extra,
+                             min_cutoff = 0.1,
+                             interactive = F) {
 
+  #Format rivp
+  binlog <- function(x) {
+    round(x/10^floor(log10(x)))*10^floor(log10(x))
+  }
+  netsub <- in_rivpred %>%
+    .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
+    .[, `:=`(PFAF_ID03 = floor(PFAF_ID05/100), #Get PFAF_ID for HydroBASINS level 3
+             dislogbin = binlog(dis_m3_pyr))] #Compute discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+
+  #-------- Compute prevalence of IRES (by length) by discharge bin
+  netsub_binir <- netsub[
+    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM),
+           Nreach = .N),
+    by = .(dislogbin)]
+
+  #-------- Compute prevalence of IRES by discharge bin AND BASIN
+  netsub_basbinir <- netsub[
+    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM),
+           Nreach = .N),
+    by = .(dislogbin, PFAF_ID03)]
+
+  #----------- Fit GAM to IRES prevalence ~ binned discharge  -----------------------------------
+  fit_basIRESgam <- function(dt, verbose=T, onlyextra=F) {
+    #Truncate data to fall between 0.001 and 0.999
+    dt_gamformat <- dt[, percinter_bin := fcase(percinter_bin == 0, 0.001,
+                                                percinter_bin == 1, 0.999,
+                                                default = percinter_bin),
+                       by = dislogbin]
+
+    preds <- data.frame(dislogbin=c(seq(0.01, 0.09, 0.01), unique(dt$dislogbin)))
+
+    if (dt_gamformat[, length(unique(percinter_bin)) > 1  &
+                     diff(range(percinter_bin)) > 0.01]
+    ) {
+      gamfit <- mgcv::gam(percinter_bin ~ s(log10(dislogbin), bs = "cs"),
+                          method = "REML", family= betar(),
+                          data=dt_gamformat)
+
+      if (verbose){
+        print(summary(gamfit))
+      }
+
+      preds$percinter_bin <- as.vector(predict(gamfit, preds, type='response'))
+    } else {
+      preds$percinter_bin <- max(dt_gamformat$percinter_bin)
+    }
+    setDT(preds)
+
+    preds[dislogbin < min(dt_gamformat$dislogbin),
+          percinter_bin_cutoff := max(c(percinter_bin,
+                                        dt_gamformat[dislogbin == min(dislogbin),
+                                                     percinter_bin])),
+          by=dislogbin]
+
+    if (onlyextra) {
+      preds <- preds[!is.na(percinter_bin_cutoff),]
+    }
+
+    return(preds)
+  }
+
+  plot_basIRESgam <- function(dt_format, pfaf_id=NULL) {
+
+    if (!is.null(pfaf_id)) {
+      gamsubdat <- dt_format[(PFAF_ID03 == pfaf_id),]
+    } else {
+      gamsubdat <- dt_format
+    }
+
+
+    tryCatch(
+      {
+        preds <- fit_basIRESgam(dt=gamsubdat)
+
+        ggplot(gamsubdat, aes(x=dislogbin, y=percinter_bin, group=1)) +
+          geom_step(size=1.5, stat='identity', alpha=1/3) +
+          geom_step(data=preds, color='red') +
+          geom_step(data=preds[dislogbin <= min(gamsubdat$dislogbin),],
+                    aes(y=percinter_bin_cutoff, group=1),color='blue') +
+          scale_x_log10(name=bquote(
+            'Binned naturalized long-term mean annual discharge'~(m^3~s^-1)),
+            limits=c(0.001, 10000)) +
+          scale_y_continuous(name='Prevalence of intermittence within bin (% of length)') +
+          annotation_logticks() +
+          theme_classic()
+      },  error=function(cond) {
+        message(cond)
+        ggplot(gamsubdat, aes(x=dislogbin, y=percinter_bin)) +
+          geom_bar(size=1.5, stat='identity', alpha=1/3) +
+          scale_x_log10(name=bquote(
+            'Binned naturalized long-term mean annual discharge'~(m^3~s^-1)),
+            limits=c(0.001, 10000)) +
+          scale_y_continuous(name='Prevalence of intermittence within bin (% of length)',
+                             limits=c(0,1), expand=c(0,0)) +
+          annotation_logticks() +
+          theme_classic()
+      }
+    )
+  }
+
+
+  if (interactive) {
+    #------ Test approach on the world in aggregate ---------
+    plot_basIRESgam(dt_format = netsub_binir)
+
+    #------Test approach on a single basin ------
+    check <- netsub_basbinir[, length(unique(percinter_bin)), by=PFAF_ID03] %>%
+      setorder(-V1)
+    check[V1>1,]
+    checkpfaf = 271
+    #netsub_binir[PFAF_ID03 == checkpfaf,]
+    plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id=checkpfaf)
+  }
+
+  #Estimate IRES prevalence for smallest log bins by basin using GAM model
+  gambasires_bin <- lapply(
+    netsub_basbinir[!is.na(PFAF_ID03), unique(PFAF_ID03)], function(pfaf_id) {
+      #print(pfaf_id)
+      fit_basIRESgam(dt=netsub_basbinir[PFAF_ID03 == pfaf_id,],
+                     verbose = F, onlyextra = T) %>%
+        .[, PFAF_ID03 := pfaf_id]
+    }) %>%
+    rbindlist
+
+  if (interactive) {
+    ggplot(gambasires_bin, aes(x=dislogbin, y=percinter_bin_cutoff, group=factor(PFAF_ID03))) +
+      geom_line(alpha=1/3, size=1) +
+      theme(legend.position = 'none')
+  }
+
+  #Compute IRES prevalence based on GAM output for log bins below minimum discharge cutoff
+  gambasires_bin_merge <- merge(gambasires_bin, in_extranet,
+                            by.x = c('PFAF_ID03', 'dislogbin'),
+                            by.y = c('PFAF_ID03', 'dispred'),
+                            all.x=T) %>%
+    setorder(PFAF_ID03, dislogbin)
+
+  gambasires_bin_merge[
+    , binL_pred := fifelse(
+      dislogbin < 0.09,
+      cumL_pred - data.table::shift(cumL_pred, n=1L, type='lead'),
+      cumL_pred - cumL_cutoffref)]
+
+  gambasires <- gambasires_bin_merge[
+    , list(percinter_gam_belowcutoff =
+             sum(percinter_bin*binL_pred)/sum(binL_pred)),
+    by = PFAF_ID03]
+
+  #Conservatively compute IRES prevalence assuming plateauing below minimum cutoff
+  #(based on last log bin
+  #e.g. for a cutoff of 0.1, use IRES prevalence from reaches with discharge [0.1,0.2) )
+  netsub_IRESconservative <- netsub[
+    dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,
+    list(percinter_ref_overcutoff = sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM),
+         percinter_ref_lastbin = .SD[dislogbin == min(dislogbin),
+                                     sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM)]
+    ),
+    by=PFAF_ID03]
+
+  #Merge conservative estimates with GAM estimates
+  netsub_IRES <- merge(netsub_IRESconservative, gambasires, by='PFAF_ID03')
+
+  #netsub[percinter>0 & percinter < 99, sum(cumL)]/netsub[, sum(cumL)]
+
+  extraIRES_pred <- merge(in_extranet[dispred == 0.01],
+                                  netsub_IRES, by='PFAF_ID03')
+
+  extraIRES_pred[
+    , `:=`(
+      percinter_all_conservative =
+        (cumL_predextra*percinter_ref_lastbin + cumL_cutoffref*percinter_ref_overcutoff)/
+        (cumL_predextra + cumL_cutoffref),
+      percinter_all_GAM =
+        (cumL_predextra*percinter_gam_belowcutoff + cumL_cutoffref*percinter_ref_overcutoff)/
+        (cumL_predextra + cumL_cutoffref)
+    )]
+
+
+  ggplot(extraIRES_pred, aes(x=percinter_ref_overcutoff)) +
+    geom_point(aes(y=percinter_all_conservative), color='black') +
+    geom_smooth(aes(y=percinter_all_conservative), color='black') +
+    geom_point(aes(y=percinter_all_GAM), color='red') +
+    geom_smooth(aes(y=percinter_all_GAM), color='red') +
+    geom_abline()
+
+  ################ INVESTIGATE WHY SOME RED ARE LOWER THAN THE BLAK ONES!!###############################
+  extraIRES_pred[, sum(percinter_all_conservative*cumL_pred)/sum(cumL_pred)]
+  extraIRES_pred[, sum(percinter_all_GAM*cumL_pred)/sum(cumL_pred)]
+}
+
+
+#------ ggmisclass_single -----------------
 ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
   #Get predicted probabilities of intermittency for each gauge
   # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
