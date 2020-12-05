@@ -4703,13 +4703,13 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     setDT(preds)
 
     preds[dislogbin < min(dt_gamformat$dislogbin),
-          percinter_bin_cutoff := max(c(percinter_bin,
+          percinter_bin_adjust := max(c(percinter_bin,
                                         dt_gamformat[dislogbin == min(dislogbin),
                                                      percinter_bin])),
           by=dislogbin]
 
     if (onlyextra) {
-      preds <- preds[!is.na(percinter_bin_cutoff),]
+      preds <- preds[!is.na(percinter_bin_adjust),]
     }
 
     return(preds)
@@ -4759,11 +4759,11 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     #------ Test approach on the world in aggregate ---------
     plot_basIRESgam(dt_format = netsub_binir)
 
-    #------Test approach on a single basin ------
+    #------ Test approach on a single basin ------
     check <- netsub_basbinir[, length(unique(percinter_bin)), by=PFAF_ID03] %>%
       setorder(-V1)
     check[V1>1,]
-    checkpfaf = 271
+    checkpfaf = 114
     #netsub_binir[PFAF_ID03 == checkpfaf,]
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id=checkpfaf)
   }
@@ -4799,7 +4799,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
 
   gambasires <- gambasires_bin_merge[
     , list(percinter_gam_belowcutoff =
-             sum(percinter_bin*binL_pred)/sum(binL_pred)),
+             sum(percinter_bin_adjust*binL_pred)/sum(binL_pred)),
     by = PFAF_ID03]
 
   #Conservatively compute IRES prevalence assuming plateauing below minimum cutoff
@@ -4830,6 +4830,9 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
         (cumL_predextra*percinter_gam_belowcutoff + cumL_cutoffref*percinter_ref_overcutoff)/
         (cumL_predextra + cumL_cutoffref)
     )]
+
+  check <- extraIRES_pred[(percinter_gam_belowcutoff < percinter_ref_lastbin) &
+                            (percinter_gam_belowcutoff < 0.99),]
 
 
   ggplot(extraIRES_pred, aes(x=percinter_ref_overcutoff)) +
