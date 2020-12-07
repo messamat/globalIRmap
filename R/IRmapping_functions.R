@@ -4661,7 +4661,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
   netsub <- in_rivpred %>%
     .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
     .[, `:=`(PFAF_ID03 = floor(PFAF_ID05/100), #Get PFAF_ID for HydroBASINS level 3
-             dislogbin = binlog(dis_m3_pyr))] #Compute discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+             dislogbin = binlog(dis_m3_pyr))] #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
 
   #-------- Compute prevalence of IRES (by length) by discharge bin
   netsub_binir <- netsub[
@@ -4715,6 +4715,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     return(preds)
   }
 
+  #----------- Plot GAM model  -----------------------------------
   plot_basIRESgam <- function(dt_format, pfaf_id=NULL) {
 
     if (!is.null(pfaf_id)) {
@@ -4768,6 +4769,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id=checkpfaf)
   }
 
+  #----------- Implement model across all basins  -----------------------------------
   #Estimate IRES prevalence for smallest log bins by basin using GAM model
   gambasires_bin <- lapply(
     netsub_basbinir[!is.na(PFAF_ID03), unique(PFAF_ID03)], function(pfaf_id) {
@@ -4821,6 +4823,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
   extraIRES_pred <- merge(in_extranet[dispred == 0.01],
                                   netsub_IRES, by='PFAF_ID03')
 
+  #----------- Compute global prevalence according to both methods  ------------
   extraIRES_pred[
     , `:=`(
       percinter_all_conservative =
@@ -4842,9 +4845,18 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     geom_smooth(aes(y=percinter_all_GAM), color='red') +
     geom_abline()
 
-  ################ INVESTIGATE WHY SOME RED ARE LOWER THAN THE BLAK ONES!!###############################
-  extraIRES_pred[, sum(percinter_all_conservative*cumL_pred)/sum(cumL_pred)]
-  extraIRES_pred[, sum(percinter_all_GAM*cumL_pred)/sum(cumL_pred)]
+
+  print(paste0(
+  'Assuming that rivers < 0.1 m3/s are as intermittent as those [0.1, 0.2), we predict that ',
+  round(100*extraIRES_pred[, sum(percinter_all_conservative*cumL_pred)/sum(cumL_pred)]),
+  '% of rivers >= 0.01 m3/s are intermittent'
+  ))
+
+  print(paste0(
+    'Statistically extrapolating the prevalence of intermittence in rivers < 0.1 m3/s, we predict that ',
+    round(100*extraIRES_pred[, sum(percinter_all_GAM*cumL_pred)/sum(cumL_pred)]),
+    '% of rivers >= 0.01 m3/s are intermittent'
+  ))
 }
 
 
