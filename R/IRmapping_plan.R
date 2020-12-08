@@ -514,7 +514,10 @@ plan_getoutputs <- drake_plan(
     trigger = trigger(mode = "condition", condition =FALSE)
   ),
 
-  #IRES_extra <-
+  IRESextra <- extrapolate_IRES(in_rivpred = rivpred,
+                                 in_extranet = netlength_extra,
+                                 min_cutoff = 0.1,
+                                 interactive = F),
 
   # basinBACC = target(
   #   map_basinBACC(in_gaugepred = gpredsdt,
@@ -558,6 +561,13 @@ plan_getoutputs <- drake_plan(
     ,
     trigger = trigger(mode = "condition", condition =TRUE)
   ),
+
+  globaltable_clzextend = extend_globalsummary_clz(
+    in_IRESextra = IRESextra,
+    in_globaltable = globaltables_clz_cl_cmj,
+    inp_riveratlas_legends = path_riveratlas_legends
+    ),
+
 
   IRpop = compute_IRpop(in_rivpred = rivpred,
                         inp_linkpop = path_linkpop,
