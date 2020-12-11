@@ -5007,9 +5007,10 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                    layer = basename(inp_basin))
   
   if (spatial_rsp) {
-    predcol <- 'IRpredprob_CVsp'
+    predcol <- 'IRpredcat_CVsp'
+    
   } else {
-    predcol <- 'IRpredprob_CVnosp'
+    predcol <- 'IRpredcat_CVnosp'
   }
   
   classcol='intermittent_o1800'
