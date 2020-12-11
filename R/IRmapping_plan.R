@@ -131,8 +131,9 @@ plan_setupdata <- drake_plan(
 
   predvars = target(
     selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
-                          in_gaugestats = gaugestats_format),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+                          in_gaugestats = gaugestats_format)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -164,8 +165,9 @@ plan_setupdata <- drake_plan(
     transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
                     .names = c('gaugestats_format_u10',
                                'gaugestats_format_o1')
-    ),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    )
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -182,8 +184,9 @@ plan_setupdata <- drake_plan(
       .names = c('tasks_u10', 'tasks_o1'),
       tag_in = task,
       tag_out = size
-    ),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    )
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   )
 )
 
@@ -193,14 +196,17 @@ plan_setupdata <- drake_plan(
 plan_runmodels <- drake_plan(
   baselearners = target(
     create_baselearners(tasks),
-    dynamic = map(tasks),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    dynamic = map(tasks)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
     )
   ,
 
   #Subdivide the baselearners dynamic targets
-  seplearners = target(readd(baselearners, subtarget_list = FALSE),
-                       trigger  = trigger(mode = "condition", condition =FALSE)),
+  seplearners = target(readd(baselearners, subtarget_list = FALSE)
+                       # ,
+                       # trigger  = trigger(mode = "condition", condition =FALSE)
+                       ),
 
   autotuningset = target(
     set_tuning(in_learner = seplearners,
@@ -209,8 +215,9 @@ plan_runmodels <- drake_plan(
                insamp_nfolds = 4, insamp_neval = 100,
                insamp_nbatch = parallel::detectCores(logical=FALSE)-2
     ),
-    dynamic = map(seplearners),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    dynamic = map(seplearners)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
@@ -224,8 +231,9 @@ plan_runmodels <- drake_plan(
                      in_resampling = resamplingset,
                      store_models = FALSE,
                      type = 'classif'),
-    dynamic = map(autotuningset),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    dynamic = map(autotuningset)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   rfresampled_regr = target(
@@ -236,24 +244,19 @@ plan_runmodels <- drake_plan(
                      type = 'regr'),
     transform = map(in_tsk = c(tasks$regr, tasks$regover),
                     in_lrn = c(autotuningset[[7]], autotuningset[[8]]),
-                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res')),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+                    .names = c('rfresampled_regr_res', 'rfresampled_regover_res'))
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
 
   ),
 
   rfbm_classif = target(
     combine_bm(in_resampleresults = readd(rfresampled_classif,
                                           subtarget_list = TRUE),
-               write_qs = T, inp_resdir = path_resdir),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+               write_qs = T, inp_resdir = path_resdir)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
-
-  # bm_checked = target(
-  #   analyze_benchmark(in_bm, in_measure = measures),
-  #   transform = map(in_bm = list(file_in(!!file.path(resdir,'rfbm_classif.qs')),
-  #                                c(rfresampled_regr_res, rfresampled_regover_res)))#,
-  #                 #in_measure = list(measures$classif, measures$regr))
-  # ),
 
   selected_learner = target("oversample.classif.ranger"),
 
@@ -263,8 +266,9 @@ plan_runmodels <- drake_plan(
       in_lrnid =  selected_learner,
       in_task = tasks$classif,
       pcutoff = 0.05
-    ),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+    )
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -276,8 +280,9 @@ plan_runmodels <- drake_plan(
     transform = map(in_strategy = c('repeated_cv', "repeated-spcv-coords"),
                     in_outrep = c(2, 1),
                     in_outfolds = c(3, 40),
-                    .names = c('featsel_cv', 'featsel_spcv')),
-    trigger  = trigger(mode = "condition", condition =TRUE)
+                    .names = c('featsel_cv', 'featsel_spcv'))
+    # ,
+    # trigger  = trigger(mode = "condition", condition =TRUE)
   ),
 
   rfresampled_featsel = target(
@@ -290,28 +295,31 @@ plan_runmodels <- drake_plan(
     transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
                      in_resampling = c(featsel_cv, featsel_spcv),
                      .names = c('res_all_cv', 'res_featsel_cv',
-                                'res_all_spcv', 'res_featsel_spcv')),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+                                'res_all_spcv', 'res_featsel_spcv'))
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  rfeval_featall = target(c(res_all_cv, res_all_spcv),
-                          trigger  = trigger(mode = "condition", condition =FALSE)),
+  rfeval_featall = target(c(res_all_cv, res_all_spcv)
+                          )
+  ,
 
   rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
-                          trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
   rfbm_featall= target(
     analyze_benchmark(in_bm = rfeval_featall,
-                      in_measure = measures),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+                      in_measure = measures)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   rfbm_featsel = target(
     analyze_benchmark(in_bm = rfeval_featsel,
-                      in_measure = measures),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+                      in_measure = measures)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   interthresh = target(0.5), #target(rfbm_featsel$interthresh_dt[learner == selected_learner, max(thresh)]),
@@ -320,37 +328,38 @@ plan_runmodels <- drake_plan(
   rftuned = target(
     selecttrain_rf(in_rf = res_featsel_cv,
                    in_learnerid = selected_learner,
-                   in_task = "inter_class_featsel"),
-    trigger  = trigger(mode = "condition", condition =FALSE)
+                   in_task = "inter_class_featsel")
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
-  #
-  # pd_plot = ggpartialdep(in_rftuned=rftuned,
-  #                        in_predvars=predvars,
-  #                        colnums=1:27,
-  #                        nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
-  #                        spatial_rsp = FALSE),
-  #
-  # table_allbm = target(
-  #   tabulate_benchmarks(in_bm, in_bmid, interthresh=0.5),
-  #   transform = map(
-  #     in_bm = list(
-  #       rfbm_classif,
-  #       c(rfresampled_regr_res, rfresampled_regover_res),
-  #       c(rfeval_featall, rfeval_featsel)),
-  #     in_bmid = list('classif1', 'regr1', 'classif2'),
-  #     .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
-  # ),
-  #
-  # bin_rftunedmisclass = bin_misclass(in_resampleresult = res_featsel_spcv,
-  #                                    binvar = 'dis_m3_pyr',
-  #                                    binfunc = 'manual',
-  #                                    binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-  #                                    interthresh=interthresh,
-  #                                    spatial_rsp=TRUE
-  # ),
+
+  pd_plot = ggpartialdep(in_rftuned=rftuned,
+                         in_predvars=predvars,
+                         colnums=1:27,
+                         nvariate=1,  nodupli = FALSE, ngrid = 20, parallel = F,
+                         spatial_rsp = FALSE),
+
+  table_allbm = target(
+    tabulate_benchmarks(in_bm, in_bmid, interthresh=0.5),
+    transform = map(
+      in_bm = list(
+        rfbm_classif,
+        c(rfresampled_regr_res, rfresampled_regover_res),
+        c(rfeval_featall, rfeval_featsel)),
+      in_bmid = list('classif1', 'regr1', 'classif2'),
+      .names = c('tablebm_classif1', 'tablebm_regr1', 'tablebm_classif2'))
+  ),
+
+  bin_rftunedmisclass = bin_misclass(in_resampleresult = res_featsel_spcv,
+                                     binvar = 'dis_m3_pyr',
+                                     binfunc = 'manual',
+                                     binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+                                     interthresh=interthresh,
+                                     spatial_rsp=TRUE
+  ),
 
   misclass_format = target(
     formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
@@ -360,15 +369,17 @@ plan_runmodels <- drake_plan(
         c(rfresampled_regr_res, rfresampled_regover_res),
         c(rfeval_featall, rfeval_featsel)),
       in_bmid = list('classif1', 'regr1', 'classif2'),
-      .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2')),
-    trigger = trigger(mode = "condition", condition =FALSE)
+      .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
   ),
 
   misclass_plot = target(
     ggmisclass_bm(list(misclass_classif1,
                        misclass_regr1,
-                       misclass_classif2)),
-    trigger = trigger(mode = "condition", condition =FALSE)
+                       misclass_classif2))
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -438,8 +449,9 @@ plan_getpreds <- drake_plan(
              in_basemaps = basemaps,
              binarg = c(30, 60, 100),
              binvar = 'totalYears_kept_o1800'
-    ),
-    trigger = trigger(mode = "condition", condition =FALSE)
+    )
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
   )
   ,
 
@@ -487,8 +499,9 @@ plan_getpreds_30d <- drake_plan(
     outp_riveratlaspred = gsub('[.]csv',
                                '_mdur30.csv',
                                outpath_riveratlaspred)
-    ),
-    trigger = trigger(mode = "condition", condition =FALSE)
+    )
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
   ),
 
   bin_finalmisclass_mdur30 = bin_misclass(
@@ -509,24 +522,25 @@ plan_getoutputs <- drake_plan(
 
   rivpred = target(
     netpredformat(in_rivernetwork = rivernetwork,
-                  outp_riveratlaspred = rfpreds_network)
-    ,
-    trigger = trigger(mode = "condition", condition =FALSE)
+                  outp_riveratlaspred = rfpreds_network_mdur30)
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
   ),
 
-  IRESextra <- extrapolate_IRES(in_rivpred = rivpred,
+  IRESextra = extrapolate_IRES(in_rivpred = rivpred,
                                  in_extranet = netlength_extra,
                                  min_cutoff = 0.1,
                                  interactive = F),
 
-  # basinBACC = target(
-  #   map_basinBACC(in_gaugepred = gpredsdt,
-  #                 inp_basin = path_bas03,
-  #                 outp_basinerror = outpath_bas03error,
-  #                 spatial_rsp = TRUE),
-  #   trigger = trigger(mode = "condition", condition =FALSE)
-  # )
-  # ,
+  basinBACC = target(
+    map_basinBACC(in_gaugepred = gpredsdt,
+                  inp_basin = path_bas03,
+                  outp_basinerror = outpath_bas03error,
+                  spatial_rsp = TRUE)
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
 
   # NOT SUPER USEFUL - maybe only to reply to reviewers around spatial auto-correlation
   # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
@@ -555,11 +569,11 @@ plan_getoutputs <- drake_plan(
                            na.rm=T,
                            tidy = FALSE,
                            nolake = TRUE,
-                           nozerodis = TRUE),
+                           mincutoff = 0.1),
     transform = map(in_idvars = c('gad_id_cmj', 'fmh_cl_cmj',
                                   'tbi_cl_cmj', 'clz_cl_cmj'))
-    ,
-    trigger = trigger(mode = "condition", condition =TRUE)
+    # ,
+    # trigger = trigger(mode = "condition", condition =TRUE)
   ),
 
   globaltable_clzextend = extend_globalsummary_clz(
@@ -580,19 +594,17 @@ plan_compareresults <- drake_plan(
   fr_plot = compare_fr(inp_frdir = path_frresdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
-                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000)
+                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000),
+                       mincutoff = 0.1
   )
   ,
-                       # binarg = c(10,20,50,100,200,500,1000,
-                       #            2000,5000,10000,50000,100000,150000)),
 
   us_plot = compare_us(inp_usresdir = path_usresdir,
                        inp_usdatdir = path_usdatdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
-                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000)
-                       #c(10,20,50,100,200,500,1000,
-                       #        2000,5000,10000,100000,2000000, 3200000)
+                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000),
+                       mincutoff = 0.1
   ),
 
   au_plot = compare_au(inp_auresdir = path_auresdir,
