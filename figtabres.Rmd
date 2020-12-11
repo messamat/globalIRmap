@@ -41,6 +41,9 @@ loadd(gpredsdt)
 <!-- gpredsdt[dis_m3_pyr < 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]] -->
 <!-- gpredsdt[dis_m3_pyr >= 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]] -->
 
+
+
+
 ```{r basic-map, echo = FALSE, fig.width = 7,  fig.height = 5, dpi=600}
 loadd(gauges_plot)
 print(gauges_plot)
@@ -115,6 +118,13 @@ print(misclass_plot_u10)
 loadd(misclass_plot_o1)
 print(misclass_plot_o1)
 
+
+gpredsdt[, mlr3measures::bacc(factor(as.character(intermittent_o1800),
+                                      levels=c('0', '1')),
+                               factor(IRpredcat_CVsp, levels=c('0','1')))]
+gpredsdt[, mlr3measures::bacc(factor(as.character(intermittent_o1800),
+                                      levels=c('0', '1')),
+                               factor(IRpredcat_CVnosp, levels=c('0','1')))]
 ```
 
 #Main text - Figure 2. Variable importance for top 20 variables
@@ -135,16 +145,15 @@ p_o1format <- vimp_plot_o1 +
     labels = function(x) {
       stringr::str_wrap(tolower(x), width = 25)
     },
+    limits = rev,
     position='top') +
-  scale_y_reverse(position='left', expand=c(0,0)) +
+  scale_y_reverse(position='right', expand=c(0,0)) +
   theme(legend.position = 'none',
         plot.background = element_blank(),
         panel.background = element_blank(),
         plot.margin = unit(c(0,0,0,0.1), 'cm'))
 
 p_u10 + p_o1format
-  patchwork::inset_element(
-    p_o1format, left = 0.2, bottom = 0, right = 2.2, top = 1.035)
 ```
 
 #Main text - Figure 3. Partial dependence plots
@@ -201,11 +210,13 @@ ft[[4]]
 ```
 
 #Comparison of results with regional-national estimates
-```{r comparison, echo = FALSE, fig.width = 6, fig.height = 6,  dpi=600}
+```{r comparison, echo = FALSE, fig.width = 6, fig.height = 10,  dpi=600}
 loadd(fr_plot)
 loadd(us_plot)
-
-grid.arrange(fr_plot, us_plot, left = 'Prevalence of intermittency (% river length)') 
+loadd(au_plot) 
+au_plot <- au_plot$plot + theme(axis.title.y = element_blank(), 
+                                legend.title=element_blank()) + labs(x='Surface area km2')
+grid.arrange(fr_plot$plot, us_plot$plot, au_plot, left = 'Prevalence of intermittency (% river length)') 
 ```
 
 #Comparison of results with on-the-ground observations for PROSPER
