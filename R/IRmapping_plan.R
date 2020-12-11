@@ -615,14 +615,16 @@ plan_compareresults <- drake_plan(
   pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,
                     in_rivpred = rivpred,
                     predcol = 'predbasic800cat',
-                    interthresh = 0.5),
+                    interthresh = 0.5,
+                    mincutoff = 0.1),
 
   onde_plot = qc_onde(inp_ondedatdir = path_ondedatdir,
                       inp_onderesdir = path_onderesdir,
                       inp_riveratlas = path_riveratlas,
                       in_rivpred = rivpred,
                       predcol = 'predbasic800cat',
-                      interthresh=0.5
+                      interthresh=0.5,
+                      mincutoff = 0.1
   )
 )
 
