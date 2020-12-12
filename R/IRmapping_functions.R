@@ -3862,7 +3862,7 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                                               batch_size = insamp_nbatch))
   }
 
-  learnertune$store_tuning_instance <- FALSE
+  #learnertune$store_tuning_instance = FALSE
   learnertune$id <- in_learner$id
 
   return(learnertune)
@@ -6459,7 +6459,8 @@ extend_globalsummary_clz <- function(
 }
 
 #------ compare_fr --------------------------------------
-compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg, mincutoff) {
+compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg, 
+                       mincutoff) {
   in_netpath <- file.path(inp_frdir, 'network')
   in_baspath <- file.path(inp_frdir, 'hydrobasins12')
   valuevarsub <- "1"
@@ -6467,7 +6468,7 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg, mincutoff) {
   net_all <- st_read(dsn = dirname(in_netpath),
                      layer = basename(in_netpath))
   net <- net_all[((net_all$rhtvs2_all_phi_qclass_MODULE >= mincutoff) |
-                    (net$rhtvs2_all_phi_qclass_SURF_BV >= 10)),]
+                    (net_all$rhtvs2_all_phi_qclass_SURF_BV >= 10)),]
 
   bas <- st_read(dsn = dirname(in_baspath),
                  layer = basename(in_baspath)) %>%
@@ -6852,7 +6853,7 @@ compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
 
 #------ qc_pnw ------------
 qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
-                   interthresh=0.5, cutoff = 0) {
+                   interthresh=0.5, mincutoff = 0) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
 
@@ -6903,7 +6904,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     ), by=HYRIV_ID] %>%
     setorder(HYRIV_ID, -refinter) %>%
     .[!duplicated(HYRIV_ID),] %>%
-    .[dis_m3_pyr >= cutoff,] %>%
+    .[dis_m3_pyr >= mincutoff,] %>%
     .[, IPR := get(probcol) - refinter] #Compute prediction error
 
 
