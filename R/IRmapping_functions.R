@@ -6219,8 +6219,6 @@ extend_preds <- function(in_rivpred, inp_netextend, predcol) {
 
 }
 
-
->>>>>>> 6a3f45d095a790badef385a66c5fb6cd9c494b54
 #------ formatmisclass_bm -------------
 formatmisclass_bm <- function(in_bm, in_bmid) {
   #If path, read qs
@@ -6404,11 +6402,6 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
 }
 
 #------ extend_globalsummary ---------
-in_IRESextra <- extraIRES_pred
-idvars <- 'clz_cl_cmj'
-inp_riveratlas_legends <- readd(path_riveratlas_legends)
-#extendcutoff <- 0.01
-
 extend_globalsummary_clz <- function(
   in_IRESextra, in_globaltable, inp_riveratlas_legends) {
 
@@ -6729,8 +6722,6 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
     geom_point() +
     geom_smooth() +
     facet_wrap(~bin, scales='free')
-
->>>>>>> 6a3f45d095a790badef385a66c5fb6cd9c494b54
 
   # --------------------- Compute national hist. comparison ----------------------------------
   #Compute bin statistics ncluding "artificial flow path"

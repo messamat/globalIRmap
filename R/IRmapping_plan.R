@@ -670,6 +670,21 @@ plan_getoutputs_30d <- branch_plan(
   })
   )
 
+plan_compareresults_30d <- branch_plan(
+  plan = plan_compareresults,
+  branch_suffix = '_mdur30',
+  external_arguments_to_modify = 'rivpred',
+  verbose = FALSE
+) %>%
+  as.data.table %>%
+  .[,
+    command :=
+      lapply(command, function(call) {
+        rlang::call_modify(.call=call,
+                           predcol = "predbasic800_mdur30cat")
+      })] %>%
+  as_tibble
+
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,
                    plan_runmodels_branches_default,
