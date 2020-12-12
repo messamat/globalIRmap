@@ -31,8 +31,6 @@ plan_preprocess <- drake_plan(
   path_pnwresdir =  file.path(path_insituresdir, 'pnw.gdb'),
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
-  path_linkpop = file.path(!!rootdir, 'data\\worldpop.gdb\\link_worldpop'),
-  path_netextend = file.path(!!rootdir, "data\\streamseg_o1skm.csv") ,
 
   outpath_gaugep = file_out(!!file.path(rootdir, 'results\\GRDCstations_predbasic800.gpkg')),
   outpath_riveratlaspred = file_out(!!file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv')),
@@ -76,7 +74,7 @@ plan_preprocess <- drake_plan(
                                     verbose = FALSE,
                                     .progress = TRUE)),
 
-  basemaps = get_basemapswintri()
+  #basemaps = get_basemapswintri()
 )
 
 ########################### plan_setupdata ####################################
@@ -120,15 +118,20 @@ plan_setupdata <- drake_plan(
                                              inp_resdir = path_resdir,
                                              plotseries = FALSE),
 
-  gaugestats_format = format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
-                                        in_gaugep = gaugep,
-                                        yearthresh = 1800),
-
+  gaugestats_format = target(format_gaugestats(in_gaugestats = gaugestats_analyzed$data,
+                                               in_gaugep = gaugep,
+                                               yearthresh = 1800)
+                             # ,
+                             # trigger  = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
+  
+  
   watergap_stats = eval_watergap(in_qstats = GRDCqstats,
                                  in_selgauges = gaugestats_format,
                                  binarg = c(1, 10, 100, 1000, 10000, 1000000)
   ),
-
+  
   predvars = target(
     selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
                           in_gaugestats = gaugestats_format)
@@ -136,12 +139,12 @@ plan_setupdata <- drake_plan(
     # trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
-
-
+  
+  
   measures = target(list(classif = msr("classif.bacc"),
                          regr = msr("regr.mae"))
   ),
-
+  
   rivernetwork = rformat_network(in_predvars = predvars,
                                  #in_monthlydischarge = monthlydischarge,
                                  inp_riveratlasmeta = path_riveratlas_meta,
@@ -150,20 +153,21 @@ plan_setupdata <- drake_plan(
   )
   ,
 
-  netlength_extra = extrapolate_networklength(
-    inp_riveratlas = path_riveratlas,
-    min_cutoff = 0.1,
-    dispred =  seq(0.01, 0.09, 0.01),
-    interactive = F
-  ),
+  # netlength_extra = extrapolate_networklength(
+  #   inp_riveratlas = path_riveratlas,
+  #   min_cutoff = 0.1,
+  #   dispred =  seq(0.01, 0.09, 0.01),
+  #   interactive = F
+  # ),
 
   #-------------------- set-up tasks -------------------------------------
   gauges_div = target(
     gaugestats_format[(dis_m3_pyr >= discharge_interval[1]) &
                         (dis_m3_pyr < discharge_interval[2]),]
     ,
-    transform = map(discharge_interval = list(c(0, 10), c(1, Inf)),
-                    .names = c('gaugestats_format_u10',
+    transform = map(discharge_interval = list(c(0, Inf), c(0, 10), c(1, Inf)),
+                    .names = c('gaugestats_format_all',
+                               'gaugestats_format_u10',
                                'gaugestats_format_o1')
     )
     # ,
@@ -177,13 +181,12 @@ plan_setupdata <- drake_plan(
                  id_suffix = in_id,
                  include_discharge = map_includedis),
     transform = map(
-      in_gauges = c(gaugestats_format_u10,
+      in_gauges = c(gaugestats_format_all,
+                    gaugestats_format_u10,
                     gaugestats_format_o1),
-      in_id = c('_u10', '_o1'),
-      map_includedis = c(TRUE, TRUE),
-      .names = c('tasks_u10', 'tasks_o1'),
-      tag_in = task,
-      tag_out = size
+      in_id = c('_all', '_u10', '_o1'),
+      map_includedis = c(TRUE, TRUE, TRUE),
+      .names = c('tasks_all', 'tasks_u10', 'tasks_o1')
     )
     # ,
     # trigger  = trigger(mode = "condition", condition =FALSE)
@@ -208,6 +211,7 @@ plan_runmodels <- drake_plan(
                        # trigger  = trigger(mode = "condition", condition =FALSE)
                        ),
 
+  ###when update mlr3, uncomment store_tuning_instance 
   autotuningset = target(
     set_tuning(in_learner = seplearners,
                in_measure = measures,
@@ -220,11 +224,15 @@ plan_runmodels <- drake_plan(
     # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  resamplingset = set_cvresampling(rsmp_id = 'repeated_cv',
-                                   in_task = tasks$classif,
-                                   outsamp_nrep = 2,
-                                   outsamp_nfolds = 3),
-
+  resamplingset = target(
+    set_cvresampling(rsmp_id = 'repeated_cv',
+                     in_task = tasks$classif,
+                     outsamp_nrep = 2,
+                     outsamp_nfolds = 3)
+    # ,
+    # trigger  = trigger(mode = "condition", condition =FALSE)
+  ),
+  
   rfresampled_classif = target(
     dynamic_resample(in_task = tasks$classif,
                      in_learner = autotuningset,
@@ -333,6 +341,7 @@ plan_runmodels <- drake_plan(
     # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
+
   vimp_plot = ggvimp(in_rftuned = rftuned, in_predvars = predvars,
                      varnum=20, spatial_rsp = FALSE),
 
@@ -398,15 +407,10 @@ plan_runsimplemodels_30d <- drake_plan(
                                            in_gaugestats = gaugestats_format,
                                            newmdurthresh = 30),
 
-  autotuner_mdur30 = change_oversamp(in_oversamprf = rftuned$rf_inner,
+  autotunerdur10 = change_oversamp(in_oversamprf = rftuned$rf_inner,
                                    in_task = tasks_featsel_mdur30),
 
-  res_featsel_cv_mdur30 = mlr3::resample(task = tasks_featsel_mdur30,
-                                         learner = autotuner_mdur30,
-                                         resampling = featsel_cv,
-                                         store_models = FALSE),
-
-  rftuned_mdur30 = selecttrain_rf(in_rf = res_featsel_cv_mdur30,
+  rftuned_mdur30 = selecttrain_rf(in_rf = autotunerdur10,
                                   in_task = tasks_featsel_mdur30,
                                   insamp_nfolds =  4, insamp_nevals = 100),
 
@@ -414,7 +418,7 @@ plan_runsimplemodels_30d <- drake_plan(
                                     in_gaugestats = gaugestats_format,
                                     in_predvars = predvars,
                                     interthresh = interthresh,
-                                    simple = FALSE)
+                                    simple = TRUE)
 )
 
 ########################### plan_getpreds #####################################
@@ -455,27 +459,20 @@ plan_getpreds <- drake_plan(
   )
   ,
 
-  envhist = layout_ggenvhist(in_rivernetwork = rivernetwork,
-                             in_gaugepred = rfpreds_gauges,
-                             in_predvars = predvars),
-
-  bin_finalmisclass = bin_misclass(in_predictions = gpredsdt,
-                                   binvar = 'dis_m3_pyr',
-                                   binfunc = 'manual',
-                                   binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-                                   interthresh=0.5,
-                                   spatial = TRUE
+  envhist = target(
+    layout_ggenvhist(in_rivernetwork = rivernetwork,
+                     in_gaugepred = rfpreds_gauges,
+                     in_predvars = predvars)
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
   )
 )
 
 ########################### plan_getpreds_30d #####################################
 plan_getpreds_30d <- drake_plan(
-  gpredsdt_mdur30 = target(
-    bind_gaugepreds(list(gpredsdt_mdur30_u10,
-                         gpredsdt_mdur30_o1),
-                    interthresh = 0.5
-    ) %>%
-      .[mDur_o1800<30, intermittent_o1800 := '0']
+  gpredsdt_mdur30 = bind_gaugepreds(list(gpredsdt_mdur30_u10,
+                                         gpredsdt_mdur30_o1),
+                                    interthresh = 0.5
   )
   ,
 
@@ -515,6 +512,14 @@ plan_getpreds_30d <- drake_plan(
 )
 ########################### plan_getoutputs #####################################
 plan_getoutputs <- drake_plan(
+  bin_finalmisclass = bin_misclass(in_predictions = gpredsdt,
+                                   binvar = 'dis_m3_pyr',
+                                   binfunc = 'manual',
+                                   binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+                                   interthresh=0.5,
+                                   spatial = TRUE
+  ),
+
   gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
                              in_predvars = predvars,
                              spatial_rsp = TRUE,
@@ -594,7 +599,6 @@ plan_compareresults <- drake_plan(
   fr_plot = compare_fr(inp_frdir = path_frresdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
-                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000),
                        mincutoff = 0.1
   )
   ,
@@ -631,7 +635,7 @@ plan_compareresults <- drake_plan(
 
 ########################### BIND AND BRANCH PLANS ##############################
 plan_runmodels_branches_default <- lapply(
-  c('_u10', '_o1'), function(suffix) {
+  c('_all', '_u10', '_o1'), function(suffix) {
     return(
       branch_plan(
         plan = plan_runmodels,
@@ -651,9 +655,7 @@ plan_runsimplemodels_branches_30d <- lapply(
         branch_suffix = suffix,
         external_arguments_to_modify = c('tasks_featsel',
                                         'gaugestats_format',
-                                        'featsel_cv',
-                                        'rftuned',
-                                        'interthresh'),
+                                        'rftuned', 'interthresh'),
         verbose = FALSE)
     )
   }
@@ -667,15 +669,12 @@ plan_getoutputs_30d <- branch_plan(
                                    'rfpreds_gauges',
                                    'rfpreds_network'),
   verbose = FALSE) %>%
-  as.data.table %>%
-  .[substr(target, 1, 12) %in% c('globaltables', 'IRpop_mdur30'),
-    command :=
-      lapply(command, function(call) {
-        rlang::call_modify(.call=call,
-                           valuevar = "predbasic800_mdur30cat")
-      })] %>%
-  as_tibble
-
+  .[
+    substr(.$target, 1, 12) == 'globaltables',] %>%
+  mutate(command = lapply(command, function(call) {
+    rlang::call_modify(call, valuevar = "predbasic800_mdur30cat")
+  })
+  )
 
 plan_compareresults_30d <- branch_plan(
   plan = plan_compareresults,
@@ -699,8 +698,9 @@ plan <- bind_plans(plan_preprocess,
                    plan_getpreds,
                    plan_getpreds_30d,
                    plan_getoutputs,
-                   #plan_getoutputs_30d,
-                   plan_compareresults,
-                   #plan_compareresults_30d
+                   plan_getoutputs_30d
+                   ,
+                   # plan_compareresults,
+                   # plan_compareresults_30d
 )
 
