@@ -9,6 +9,7 @@ drake_config(plan,
              cache_log_file = TRUE,
              memory_strategy="preclean",
              garbage_collection = TRUE,
+             seed = 0,
              prework = quote(future::plan(future.callr::callr)),
              log_make = "log/drake.log")
 #,   workers=availableCores()-1)

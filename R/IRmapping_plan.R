@@ -125,13 +125,13 @@ plan_setupdata <- drake_plan(
                              # trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
-  
-  
+
+
   watergap_stats = eval_watergap(in_qstats = GRDCqstats,
                                  in_selgauges = gaugestats_format,
                                  binarg = c(1, 10, 100, 1000, 10000, 1000000)
   ),
-  
+
   predvars = target(
     selectformat_predvars(inp_riveratlas_meta = path_riveratlas_meta,
                           in_gaugestats = gaugestats_format)
@@ -139,12 +139,12 @@ plan_setupdata <- drake_plan(
     # trigger  = trigger(mode = "condition", condition =FALSE)
   )
   ,
-  
-  
+
+
   measures = target(list(classif = msr("classif.bacc"),
                          regr = msr("regr.mae"))
   ),
-  
+
   rivernetwork = rformat_network(in_predvars = predvars,
                                  #in_monthlydischarge = monthlydischarge,
                                  inp_riveratlasmeta = path_riveratlas_meta,
@@ -211,7 +211,7 @@ plan_runmodels <- drake_plan(
                        # trigger  = trigger(mode = "condition", condition =FALSE)
                        ),
 
-  ###when update mlr3, uncomment store_tuning_instance 
+  ###when update mlr3, uncomment store_tuning_instance
   autotuningset = target(
     set_tuning(in_learner = seplearners,
                in_measure = measures,
@@ -232,7 +232,7 @@ plan_runmodels <- drake_plan(
     # ,
     # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
-  
+
   rfresampled_classif = target(
     dynamic_resample(in_task = tasks$classif,
                      in_learner = autotuningset,
@@ -528,7 +528,7 @@ plan_getoutputs <- drake_plan(
 
   rivpred = target(
     netpredformat(in_rivernetwork = rivernetwork,
-                  outp_riveratlaspred = rfpreds_network_mdur30)
+                  outp_riveratlaspred = rfpreds_network)
     # ,
     # trigger = trigger(mode = "condition", condition =FALSE)
   ),
@@ -564,11 +564,12 @@ plan_getoutputs <- drake_plan(
     tabulate_globalsummary(outp_riveratlaspred = rfpreds_network,
                            inp_riveratlas = path_riveratlas,
                            inp_riveratlas_legends = path_riveratlas_legends,
+                           interthresh = c(0.45, 0.5, 0.55),
                            idvars = in_idvars,
                            castvar = 'dis_m3_pyr',
                            castvar_num = FALSE,
                            weightvar = 'LENGTH_KM',
-                           valuevar = 'predbasic800cat',
+                           valuevar = 'predbasic800',
                            valuevarsub = 1,
                            binfunc = 'manual',
                            binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),

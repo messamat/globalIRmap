@@ -1375,18 +1375,18 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
 rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-  
+
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-  
+
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-  
+
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, 1, 0))]
-  
+
   sen <- Metrics::recall(as.numeric(as.character(rsmp_pred$truth)),
                          response)
 
@@ -1397,18 +1397,18 @@ rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
 rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-  
+
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-  
+
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-  
+
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, 1, 0))]
-  
+
   spe <- Metrics::recall(1-as.numeric(as.character(rsmp_pred$truth)),
                          1-response)
   return(spe)
@@ -5594,28 +5594,28 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                           spatial_rsp) {
   bas03 <- st_read(dsn = dirname(inp_basin),
                    layer = basename(inp_basin))
-  
+
   if (spatial_rsp) {
     predcol <- 'IRpredcat_CVsp'
   } else {
     predcol <- 'IRpredcat_CVnosp'
   }
-  
+
   classcol='intermittent_o1800'
   dat <- in_gaugepred[, .N, by=classcol]%>%
     setnames(old=classcol, new='classcol')
   minoratio <- dat %>%
     setorder(N) %>%
     .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
-  
+
   in_gaugepred[, ':='(classweights = fifelse(intermittent_o1800 == minoratio$minoclass,
                                              minoratio$ratio, 1)
   )]
-  
+
   gnetjoin <- merge(in_gaugepred,
                     in_rivernetwork[,.(HYRIV_ID, HYBAS_ID03)],
                     by='HYRIV_ID', all.x=T, all.y=F)
-  
+
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==get(predcol)) *
                      classweights) / sum(classweights),
@@ -5624,14 +5624,14 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(get(predcol)==1)/.N) - (sum(intermittent_o1800=='1')/.N)
   ), by=HYBAS_ID03]
-  
-  
+
+
   basbacc_format <- base::merge(
     bas03, basbacc,
     by.x='HYBAS_ID', by.y='HYBAS_ID03',
     all.x.=T, all.y=T)
   basbacc_format$gdens <- with(basbacc_format, gnum/UP_AREA)
-  
+
   st_write(obj=basbacc_format,
            dsn=outp_basinerror,
            driver = 'gpkg',
@@ -5763,7 +5763,7 @@ gggauges <- function(in_gaugepred, in_basemaps,
       coord_cartesian(clip='off', expand=c(0,0)) +
       theme_classic() +
       theme(legend.position = 'none',
-            text = element_text(size=12),
+            text = element_text(size=9),
             plot.background = element_blank(),
             panel.background = element_blank(),
             axis.title.y = element_blank(),
@@ -6280,6 +6280,7 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
                                    inp_riveratlas,
                                    inp_riveratlas_legends,
                                    idvars,
+                                   interthresh,
                                    castvar, castvar_num=TRUE,
                                    weightvar,
                                    valuevar, valuevarsub,
@@ -6303,11 +6304,15 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
 
   #Exclude either those that intersect lakes and/or those that have zero discharge
   if (nolake) {
-    riveratlas <- riveratlas[INLAKEPERC < 1,]
+    riveratlas <- riveratlas[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)]
+    weightvar = 'LENGTH_KM_NOLAKE'
   }
 
   riveratlas <- riveratlas[dis_m3_pyr >= mincutoff,]
 
+  riveratlas[, sum(LENGTH_KM_NOLAKE)]
+  riveratlas[, mean(LENGTH_KM_NOLAKE)]
+  riveratlas[, .N]
 
 
   #If global administrative boundaries were selected for idvar, get country names
@@ -6337,68 +6342,82 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
       .[, clz_cl_cmj := GEnZ_Name]
   }
 
-  #Bin castvar if needed
-  if (!is.null(binfunc) & !is.null(binarg)) {
-    riveratlas <- bin_dt(in_dt = riveratlas, binvar = castvar, valuevar = valuevar,
-                         binfunc = binfunc, binarg = binarg, bintrans = bintrans,
-                         na.rm = na.rm)
-    castvar = 'bin_lformat'
-    castvar_num = FALSE
+  format_tidyperc <- function(interthresh,
+                              riveratlas, castvar, newvar, binfunc,
+                              binarg, bintrans, na.rm, cast, tidy) {
+    newvar <- paste0(valuevar, 'cat')
+    riveratlas[, (newvar) := fifelse(get(valuevar)>=interthresh, valuevarsub, 0)]
+
+    #Bin castvar if needed
+    if (!is.null(binfunc) & !is.null(binarg)) {
+      riveratlas_format <- bin_dt(in_dt = riveratlas, binvar = castvar, valuevar = newvar,
+                                  binfunc = binfunc, binarg = binarg, bintrans = bintrans,
+                                  na.rm = na.rm)
+      castvar = 'bin_lformat'
+      castvar_num = FALSE
+    }
+
+    #Compute overall number or weight for all combinations of castvar, valuevar and idvars
+    #e.g. total number or river length for each flow state category for each country and river order
+    statall <- riveratlas_format[if (na.rm) {!is.na(eval(newvar))},
+                                 if (!is.null(weightvar)) sum(get(weightvar)) else .N,
+                                 by=c(eval(castvar), eval(newvar), eval(idvars))] %>%
+      rbind(
+        .[, list('World', sum(V1)), by=c(eval(castvar), eval(newvar))] %>%
+          setnames(c('V1', 'V2'), c(idvars, 'V1'))
+      )
+
+
+    #Compute for each cast and id var, the percentage of the newvar that is of the category of interest
+    #(e.g. for each country and river order, percentage of river length that is intermittent)
+    tidyperc <- statall[, 100*.SD[get(newvar)==valuevarsub, sum(V1)]/sum(V1),
+                        by=c(eval(castvar), eval(idvars))]
+
+    #If cast variable is a numeric (e.g. Strahler Order), sort table in increasing order
+    if (castvar_num) {
+      tidyperc[, eval(castvar) := as.numeric(as.character(get(eval(castvar))))]
+    }
+    setorderv(tidyperc, cols=c(castvar, idvars))
+
+
+    #Compute totals for each newvar and idvar summed across castvar
+    #e.g. (total length of rivers for each country, and of each flow regime)
+    tidytotal <- statall[, list('Total intermittency (%)',
+                                100*.SD[get(newvar)==valuevarsub, sum(V1)]/sum(V1)),
+                         by=eval(idvars)] %>%
+      rbind(  statall[, list('Total stream length (10^3 km)', sum(V1)/1000),
+                      by=c(eval(idvars))]) %>%
+      setnames(c('V1', 'V2'), c(castvar, 'V1'))
+    totalcols <- unique(tidytotal[, get(eval(castvar))]) #Name of total cols
+
+    #Prepare casting formula for formatting
+    castformula <- as.formula(paste0(paste(idvars, collapse='+'),
+                                     '~',
+                                     paste(castvar, collapse='+')))
+
+    #Merge percentages and totals, then cast table if tidy != TRUE
+    tidypercformat <- tidyperc[, eval(castvar) := as.factor(get(eval(castvar)))] %>%
+      rbind(tidytotal)
+
+    if (!tidy) {
+      tidyperc_cast <- dcast(tidypercformat, castformula, value.var = 'V1') %>%
+        .[, (totalcols) := lapply(.SD, function(x) fifelse(is.na(x), 0 , x)), #Replace NAs in total cols by 0
+          .SDcols = totalcols]
+
+      tidyperc_format <- rbind(tidyperc_cast[get(eval(idvars)) != 'World',],
+                               tidyperc_cast[get(eval(idvars)) == 'World',])
+    }
+
+    return(tidyperc_format)
   }
 
+  tidyperc_list <- lapply(interthresh, format_tidyperc,
+                          riveratlas, castvar, newvar, binfunc,
+                          binarg, bintrans, na.rm, cast, tidy)
 
-  #Compute overall number or weight for all combinations of castvar, valuevar and idvars
-  #e.g. total number or river length for each flow state category for each country and river order
-  statall <- riveratlas[if (na.rm) {!is.na(eval(valuevar))},
-                        if (!is.null(weightvar)) sum(get(weightvar)) else .N,
-                        by=c(eval(castvar), eval(valuevar), eval(idvars))] %>%
-    rbind(
-      .[, list('World', sum(V1)), by=c(eval(castvar), eval(valuevar))] %>%
-        setnames(c('V1', 'V2'), c(idvars, 'V1'))
-    )
+  names(tidyperc_list) <- interthresh
 
-
-  #Compute for each cast and id var, the percentage of the valuevar that is of the category of interest
-  #(e.g. for each country and river order, percentage of river length that is intermittent)
-  tidyperc <- statall[, 100*.SD[get(valuevar)==valuevarsub, sum(V1)]/sum(V1),
-                      by=c(eval(castvar), eval(idvars))]
-
-  #If cast variable is a numeric (e.g. Strahler Order), sort table in increasing order
-  if (castvar_num) {
-    tidyperc[, eval(castvar) := as.numeric(as.character(get(eval(castvar))))]
-  }
-  setorderv(tidyperc, cols=c(castvar, idvars))
-
-
-  #Compute totals for each valuevar and idvar summed across castvar
-  #e.g. (total length of rivers for each country, and of each flow regime)
-  tidytotal <- statall[, list('Total intermittency (%)',
-                              100*.SD[get(valuevar)==valuevarsub, sum(V1)]/sum(V1)),
-                       by=eval(idvars)] %>%
-    rbind(  statall[, list('Total stream length (10^3 km)', sum(V1)/1000),
-                    by=c(eval(idvars))]) %>%
-    setnames(c('V1', 'V2'), c(castvar, 'V1'))
-  totalcols <- unique(tidytotal[, get(eval(castvar))]) #Name of total cols
-
-  #Prepare casting formula for formatting
-  castformula <- as.formula(paste0(paste(idvars, collapse='+'),
-                                   '~',
-                                   paste(castvar, collapse='+')))
-
-  #Merge percentages and totals, then cast table if tidy != TRUE
-  tidypercformat <- tidyperc[, eval(castvar) := as.factor(get(eval(castvar)))] %>%
-    rbind(tidytotal)
-
-  if (!tidy) {
-    tidyperc_cast <- dcast(tidypercformat, castformula, value.var = 'V1') %>%
-      .[, (totalcols) := lapply(.SD, function(x) fifelse(is.na(x), 0 , x)), #Replace NAs in total cols by 0
-        .SDcols = totalcols]
-
-    tidyperc_format <- rbind(tidyperc_cast[get(eval(idvars)) != 'World',],
-                             tidyperc_cast[get(eval(idvars)) == 'World',])
-  }
-
-  return(tidyperc_format)
+  return(tidyperc_list)
 }
 
 #------ extend_globalsummary ---------
@@ -6459,7 +6478,7 @@ extend_globalsummary_clz <- function(
 }
 
 #------ compare_fr --------------------------------------
-compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg, 
+compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
                        mincutoff) {
   in_netpath <- file.path(inp_frdir, 'network')
   in_baspath <- file.path(inp_frdir, 'hydrobasins12')
