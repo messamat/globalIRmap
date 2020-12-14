@@ -237,7 +237,7 @@ plan_runmodels <- drake_plan(
     dynamic_resample(in_task = tasks$classif,
                      in_learner = autotuningset,
                      in_resampling = resamplingset,
-                     store_models = FALSE,
+                     store_models = TRUE,
                      type = 'classif'),
     dynamic = map(autotuningset)
     # ,
@@ -370,27 +370,28 @@ plan_runmodels <- drake_plan(
                                      spatial_rsp=TRUE
   ),
 
-  misclass_format = target(
-    formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
-    transform = map(
-      in_bm = list(
-        rfbm_classif,
-        c(rfresampled_regr_res, rfresampled_regover_res),
-        c(rfeval_featall, rfeval_featsel)),
-      in_bmid = list('classif1', 'regr1', 'classif2'),
-      .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
-    # ,
-    # trigger = trigger(mode = "condition", condition =FALSE)
-  ),
-
-  misclass_plot = target(
-    ggmisclass_bm(list(misclass_classif1,
-                       misclass_regr1,
-                       misclass_classif2))
-    # ,
-    # trigger = trigger(mode = "condition", condition =FALSE)
-  )
-  ,
+  
+  ############ REPLACE WITH RF TUNED ##############
+  # misclass_format = target(
+  #   formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
+  #   transform = map(
+  #     in_bm = list(
+  #       rfbm_classif,
+  #       c(rfresampled_regr_res, rfresampled_regover_res),
+  #       c(rfeval_featall, rfeval_featsel)),
+  #     in_bmid = list('classif1', 'regr1', 'classif2'),
+  #     .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
+  #   # ,
+  #   # trigger = trigger(mode = "condition", condition =FALSE)
+  # ),
+  # misclass_plot = target(
+  #   ggmisclass_bm(list(misclass_classif1,
+  #                      misclass_regr1,
+  #                      misclass_classif2))
+  #   # ,
+  #   # trigger = trigger(mode = "condition", condition =FALSE)
+  # )
+  # ,
 
   gpredsdt = target(
     make_gaugepreds(in_rftuned = rftuned,

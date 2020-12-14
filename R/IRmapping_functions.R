@@ -237,7 +237,7 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
   gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
     .[!is.na(MEAN),] %>%
     setorder(date)
-
+☺
   #Format for plotting: compute MEAN - 2*SD if > MIN, otherwise MIN
   gaugetab[, `:=`(ribbonlow = max(c(MEAN-2*SD, MIN)),
                   ribbonhigh = min(c(MEAN+2*SD, MAX))
@@ -734,7 +734,7 @@ threshold_dat <- function(bmres) {
       rsmp_preds <- preds
     }
 
-    baccthresh <- ldply(seq(0,1,0.01), function(threshold_class) {
+    baccthresh <- ldply(seq(0.4,0.6,0.01), function(threshold_class) {
       print(threshold_class)
       cbind(
         rsmp_bacc(bmres, rsmp_i=rsmp_i, threshold_class=threshold_class),
