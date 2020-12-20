@@ -237,7 +237,7 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
   gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
     .[!is.na(MEAN),] %>%
     setorder(date)
-☺
+
   #Format for plotting: compute MEAN - 2*SD if > MIN, otherwise MIN
   gaugetab[, `:=`(ribbonlow = max(c(MEAN-2*SD, MIN)),
                   ribbonhigh = min(c(MEAN+2*SD, MAX))
@@ -4061,8 +4061,6 @@ selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
   return(outlist)
 }
 
-
-
 #------ change_taskbackend -----------------------------------
 change_tasktarget <- function(in_task, in_gaugestats, newmdurthresh) {
   in_gaugestats_new <- copy(in_gaugestats)
@@ -4092,6 +4090,7 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
   cols_toread <-  unique(
     c("HYRIV_ID", "HYBAS_L12", "HYBAS_ID03", "LENGTH_KM",'INLAKEPERC',
+      'PFAF_ID05',
       in_predvars[, varcode], 'pop_ct_csu', 'pop_ct_usu',
       'ele_mt_cav','ele_mt_uav', 'gwt_cm_cav', 'dor_pc_pva', 'ORD_STRA',
       #paste0('pre_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
@@ -4353,7 +4352,7 @@ extrapolate_networklength <- function(inp_riveratlas,
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = incols) %>%
     setorder(dis_m3_pyr) %>%
-    .[INLAKEPERC < 1, ]
+    .[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)]
   if (grouping_var == 'PFAF_IDclz') {
     riveratlas[, PFAF_IDclz := paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj)]
   }
@@ -4395,7 +4394,7 @@ extrapolate_networklength <- function(inp_riveratlas,
 
   #----------- Compute empirical cumulative distribution by basin --------------
   #Compute cumulative length by discharge
-  cumL_bas03 <- riveratlas[dis_m3_pyr > 0, list(suml = sum(LENGTH_KM)),
+  cumL_bas03 <- riveratlas[dis_m3_pyr > 0, list(suml = sum(LENGTH_KM_NOLAKE)),
                            by=c('dis_m3_pyr', grouping_var)] %>%
     setorder(-dis_m3_pyr) %>%
     .[, cumL := cumsum(suml), by = grouping_var]
@@ -4556,7 +4555,7 @@ extrapolate_networklength <- function(inp_riveratlas,
   #Merge predictions for small and large basins
   pred_all_format <- pred_all %>%
     merge(riveratlas[dis_m3_pyr >= min_cutoff,
-                     list(cumL_cutoffref = sum(LENGTH_KM)), by=grouping_var],
+                     list(cumL_cutoffref = sum(LENGTH_KM_NOLAKE)), by=grouping_var],
           by=grouping_var) %>%
     .[, `:=`(cumL_predextra = round(cumL_pred - cumL_cutoffref, 2),
              cumL_pred = round(cumL_pred, 2))]
@@ -4702,18 +4701,19 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
   }
   netsub <- in_rivpred %>%
     .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
-    .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 3
-             dislogbin = binlog(dis_m3_pyr))] #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+    .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 2
+             dislogbin = binlog(dis_m3_pyr),
+             LENGTH_KM_NOLAKE = LENGTH_KM*(1-INLAKEPERC))] #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
 
   #-------- Compute prevalence of IRES (by length) by discharge bin
   netsub_binir <- netsub[
-    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM),
+    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
            Nreach = .N),
     by = .(dislogbin)]
 
   #-------- Compute prevalence of IRES by discharge bin AND BASIN
   netsub_basbinir <- netsub[
-    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM),
+    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
            Nreach = .N),
     by = c('dislogbin', grouping_var)]
 
@@ -4746,9 +4746,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
         }
 
         return(preds)
-      },  error=function(cond) {
-        message(cond)
-        message('Therefore, simply extending percentage of smallest bin...')
+      },  finally = {
         preds$percinter_bin <- dt_gamformat[, max(percinter_bin)]
         return(preds)
       }
@@ -4862,9 +4860,9 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
   #e.g. for a cutoff of 0.1, use IRES prevalence from reaches with discharge [0.1,0.2) )
   netsub_IRESconservative <- netsub[
     dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,
-    list(percinter_ref_overcutoff = sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM),
+    list(percinter_ref_overcutoff = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
          percinter_ref_lastbin = .SD[dislogbin == min(dislogbin),
-                                     sum(predbasic800cat*LENGTH_KM)/sum(LENGTH_KM)]
+                                     sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE)]
     ),
     by=grouping_var]
 
@@ -5170,7 +5168,7 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     setorder(-imp_wmean)
 
   #Plot 'em
-  outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname_format,
+  outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname,
                                              color =Category, fill=Category)) +
     geom_bar(aes(y=imp_wmean), stat = 'identity', alpha=0.7) +
     geom_errorbar(aes(ymin=imp_wmean-imp_wsd, ymax=imp_wmean+imp_wsd)) +
@@ -5612,8 +5610,9 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                                              minoratio$ratio, 1)
   )]
 
+  in_rivernetwork[, PFAF_ID03 := substr(PFAF_ID05, 1, 3)]
   gnetjoin <- merge(in_gaugepred,
-                    in_rivernetwork[,.(HYRIV_ID, HYBAS_ID03)],
+                    in_rivernetwork[,.(HYRIV_ID, PFAF_ID03)],
                     by='HYRIV_ID', all.x=T, all.y=F)
 
   basbacc <- gnetjoin[, list(
@@ -5623,12 +5622,12 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     gnum = .N,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(get(predcol)==1)/.N) - (sum(intermittent_o1800=='1')/.N)
-  ), by=HYBAS_ID03]
+  ), by=PFAF_ID03]
 
 
   basbacc_format <- base::merge(
     bas03, basbacc,
-    by.x='HYBAS_ID', by.y='HYBAS_ID03',
+    by.x='PFAF_ID', by.y='PFAF_ID03',
     all.x.=T, all.y=T)
   basbacc_format$gdens <- with(basbacc_format, gnum/UP_AREA)
 
@@ -6180,43 +6179,16 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
 
 #------ compute_IRpop -------
 compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
-  linkpop = st_read(dsn=dirname(inp_linkpop),
-                    layer=basename(inp_linkpop)
-  ) %>%
-    as.data.table %>%
-    merge(in_rivpred, by = 'HYRIV_ID', all.x=T, all.y=T)
+  linkpop = fread(inp_linkpop) %>%
+    merge(in_rivpred, by.x = 'VALUE', by.y = 'HYRIV_ID', all.x=T, all.y=T)
   linkpop[!is.na(VALUE) & is.na(dis_m3_pyr), .N]
-  check <- linkpop[is.na(VALUE) & !is.na(dis_m3_pyr),]
+  linkpop[is.na(VALUE) & !is.na(dis_m3_pyr), .N]
+  
+  #Compute number of people living nearest to a IRES
+  globalestimate <- linkpop[, list(popsum=sum(SUM, na.rm=T)), by=valuevar] %>%
+    .[, popperc:=popsum/sum(.$popsum)]
 
-  return(linkpop[, sum(SUM*get(valuevar), na.rm=T)/sum(SUM, na.rm=T)])
-}
-
-#------ extend_preds -------------------
-extend_preds <- function(in_rivpred, inp_netextend, predcol) {
-  nextend <- fread_cols(inp_netextend, c('PFAF_ID05', 'LENGTH_KM','INLAKEPERC'))
-
-  basinIR <- in_rivpred[(UPLAND_SKM < 20) & (dis_m3_pyr > 0) & (INLAKEPERC < 100),
-                        list(IRperc = sum(LENGTH_KM*predcol)/sum(LENGTH_KM),
-                             LENGTH_sum = sum(LENGTH_KM)
-                        ),
-                        by = PFAF_ID05]
-
-  extendIR <- nextend[(dis_m3_pyr > 0) & is.na(hylak_id),
-                      list(LENGTH_sumext = sum(LENGTH_KM)),
-                      by = PFAF_ID05] %>%
-    .[basinIR, on='PFAF_ID05'] %>%
-    .[, list(IRperc_extend = sum((LENGTH_sumext-LENGTH_sum)*IRperc)/
-               sum(LENGTH_sumext-LENGTH_sum),
-             totallength_extend = sum(LENGTH_sumext-LENGTH_sum))]
-
-  totalIR <- (
-    extendIR$IRperc_extend*extendIR$totallength_extend +
-      in_rivpred[(dis_m3_pyr > 0) & (INLAKEPERC < 100), sum(LENGTH_KM*predcol)]
-  )/
-    nextend[(dis_m3_pyr > 0) & is.na(hylak_id), sum(LENGTH_KM)]
-
-
-
+  return(globalestimate)
 }
 
 #------ formatmisclass_bm -------------
@@ -6455,7 +6427,7 @@ extend_globalsummary_clz <- function(
     merge(clznames, by.x = 'clz_cl_cmj', by.y='GEnZ_ID', all.x=T) %>%
     .[is.na(clz_cl_cmj), GEnZ_Name := 'World']
 
-  tableextend <- merge(in_globaltable,
+  tableextend <- merge(in_globaltable[[0.5]],
                        clzpred_bind[, -c('GEnZ_Code', 'clz_cl_cmj'), with=F],
                        by.x='clz_cl_cmj', by.y = 'GEnZ_Name') %>%
     setorder(-'Total stream length extra')
@@ -6475,6 +6447,8 @@ extend_globalsummary_clz <- function(
       `Total stream length (10^3 km)` = NULL,
       `Total stream length extra` = NULL
     )]
+  
+  return(tableextend)
 }
 
 #------ compare_fr --------------------------------------
@@ -6637,7 +6611,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   netmr_o01 <- netmr[QE_MAm3 >= mincutoff,]
 
   print(paste0(
-    'Range of prevalence of intermittency in NHDplus medium resolution >= 10 km2,',
+    'Range of prevalence of intermittency in NHDplus medium resolution >= 1 m3/s,',
     'depending on whether unclassified reaches are counted as fully intermittent or perennial: ',
     round(100*netmr_o01[FCODE %in% c(46003, 46007), sum(LENGTHKM)]/
             netmr_o01[FCODE %in% keepfcodes, sum(LENGTHKM)]),
@@ -6680,36 +6654,36 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                                 minval=min(netmr_fsub$QE_MAm3))
 
   # --------------------- Compute HUC8 comparison ----------------------------------
-  tidyperc_nhdHUC <- netmr_fsub[!is.na(intermittent),][
-    ,
-    formathistab(in_dt = .SD,
-                 castvar = "QE_MAm3",
-                 valuevar = "intermittent",
-                 valuevarsub = as.numeric(as.character(valuevarsub)),
-                 weightvar = "LENGTHKM",
-                 binfunc = 'manual',
-                 binarg =  binarg,
-                 binlabels = binlabels,
-                 datname = 'U.S. NHD'),
-    by=HUC8]
-
-  tidyperc_rivHUC  <- rivpredsubmr[
-    , formathistab(in_dt = .SD,
-                   castvar = 'dis_m3_pyr',
-                   valuevar = 'predbasic800cat',
-                   valuevarsub = valuevarsub,
-                   weightvar = 'LENGTH_KM',
-                   binfunc = 'manual',
-                   binarg =  binarg,
-                   binlabels = binlabels,
-                   datname = 'Global predictions'),
-    by=HUC8]
-
-  hucmajcl <- rivpredsubmr[, .N,
-                           by=.(clz_cl_cmj, HUC8)][
-                             , .SD[which.max(N), clz_cl_cmj], by=HUC8] %>%
-    setnames('V1', 'majcl')
-
+  # tidyperc_nhdHUC <- netmr_fsub[!is.na(intermittent),][
+  #   ,
+  #   formathistab(in_dt = .SD,
+  #                castvar = "QE_MAm3",
+  #                valuevar = "intermittent",
+  #                valuevarsub = as.numeric(as.character(valuevarsub)),
+  #                weightvar = "LENGTHKM",
+  #                binfunc = 'manual',
+  #                binarg =  binarg,
+  #                binlabels = binlabels,
+  #                datname = 'U.S. NHD'),
+  #   by=HUC8]
+  # 
+  # tidyperc_rivHUC  <- rivpredsubmr[
+  #   , formathistab(in_dt = .SD,
+  #                  castvar = 'dis_m3_pyr',
+  #                  valuevar = 'predbasic800cat',
+  #                  valuevarsub = valuevarsub,
+  #                  weightvar = 'LENGTH_KM',
+  #                  binfunc = 'manual',
+  #                  binarg =  binarg,
+  #                  binlabels = binlabels,
+  #                  datname = 'Global predictions'),
+  #   by=HUC8]
+  # 
+  # hucmajcl <- rivpredsubmr[, .N,
+  #                          by=.(clz_cl_cmj, HUC8)][
+  #                            , .SD[which.max(N), clz_cl_cmj], by=HUC8] %>%
+  #   setnames('V1', 'majcl')
+  # 
   # setnames(tidyper_nhdHUC, paste0(names(tidyper_nhdHUC), 'NHD'))
   # tidyHUCmerge <- merge(tidyperc_rivHUC, tidyperc_nhdHUC,
   #                       by.x=c('HUC8','bin'), by.y=c('HUC8NHD','binNHD'),
@@ -6717,31 +6691,31 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   # ggplot(tidyHUCmerge, aes(x=perc, y=percNHD, color=factor(majcl))) +
   #   geom_point() +
   #   facet_wrap(~binformat)
-
-  tidyperc_hucbind <- rbind(tidyperc_nhdHUC, tidyperc_rivHUC) %>%
-    merge(hucmajcl, by='HUC8', all.x=T)
-
-  clhucbox <- ggplot(tidyperc_hucbind, aes(x=factor(majcl), y=perc, fill=dat)) +
-    geom_boxplot() +
-    facet_wrap(~binformat)
-
-  #Check what difference is due to differences in drainage density
-  compare_dens <- dcast(tidyperc_hucbind, HUC8+bin~dat,
-                        value.var=c('binsumdens', 'perc', 'binsumlength')
-  )
-  compcols <- names(compare_dens[
-    , which(as.vector(unlist(lapply(compare_dens, is.numeric)))), with=F])
-  compare_dens[, (compcols) := lapply(.SD, function(x)
-    {fifelse(is.na(x), 0, x)}), .SDcols=compcols] %>%
-    .[,`:=`(densdiff = (`binsumdens_Global predictions` - `binsumdens_U.S. NHD`)/
-              ((`binsumdens_Global predictions` + `binsumdens_U.S. NHD`)/2),
-            percdiff = (`perc_Global predictions` - `perc_U.S. NHD`)/
-              ((`perc_Global predictions` + `perc_U.S. NHD`)/2))]
-
-  ggplot(compare_dens, aes(x=percdiff, y=densdiff)) +
-    geom_point() +
-    geom_smooth() +
-    facet_wrap(~bin, scales='free')
+  # 
+  # tidyperc_hucbind <- rbind(tidyperc_nhdHUC, tidyperc_rivHUC) %>%
+  #   merge(hucmajcl, by='HUC8', all.x=T)
+  # 
+  # clhucbox <- ggplot(tidyperc_hucbind, aes(x=factor(majcl), y=perc, fill=dat)) +
+  #   geom_boxplot() +
+  #   facet_wrap(~binformat)
+  # 
+  # Check what difference is due to differences in drainage density
+  # compare_dens <- dcast(tidyperc_hucbind, HUC8+bin~dat,
+  #                       value.var=c('binsumdens', 'perc', 'binsumlength')
+  # )
+  # compcols <- names(compare_dens[
+  #   , which(as.vector(unlist(lapply(compare_dens, is.numeric)))), with=F])
+  # compare_dens[, (compcols) := lapply(.SD, function(x)
+  #   {fifelse(is.na(x), 0, x)}), .SDcols=compcols] %>%
+  #   .[,`:=`(densdiff = (`binsumdens_Global predictions` - `binsumdens_U.S. NHD`)/
+  #             ((`binsumdens_Global predictions` + `binsumdens_U.S. NHD`)/2),
+  #           percdiff = (`perc_Global predictions` - `perc_U.S. NHD`)/
+  #             ((`perc_Global predictions` + `perc_U.S. NHD`)/2))]
+  # 
+  # ggplot(compare_dens, aes(x=percdiff, y=densdiff)) +
+  #   geom_point() +
+  #   geom_smooth() +
+  #   facet_wrap(~bin, scales='free')
 
   # --------------------- Compute national hist. comparison ----------------------------------
   #Compute bin statistics ncluding "artificial flow path"
@@ -6796,6 +6770,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
       plot = ggcompare(datmerge_all, binarg=binarg) +
         geom_rect(aes(xmin=-Inf, xmax=1.5, ymin=0, ymax=Inf),
                   fill='white', alpha=0.09) +
+        scale_y_continuous(breaks=c(0,25,75,100)) +
         coord_cartesian(ylim=c(0,120), expand=c(0,0)) +
         theme(axis.title.y = element_blank(),
               legend.title = element_blank(),
@@ -6877,6 +6852,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
 
   valuevarsub <- "1"
+  probcol <- gsub('cat', '', predcol)
 
   #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
   refpts <- st_read(dsn=dirname(in_refpts),
@@ -6927,14 +6903,15 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     .[, IPR := get(probcol) - refinter] #Compute prediction error
 
 
-  refpts_reach[, sum(nobs)]
-  refpts_reach[, .N]
-  refpts_reach[, .N, by=truth]
-
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
                       response = factor(get(predcol),levels=c('0','1'))
   )]
+  
+  refpts_reach[, sum(nobs)]
+  refpts_reach[, .N]
+  refpts_reach[, .N, by=truth]
+  
   pnw_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
     auc = mlr3measures::auc(truth, predbasic800, positive='1'),
@@ -7042,9 +7019,10 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                     in_rivpred, predcol, interthresh=0.5, mincutoff=0) {
   in_refpts <- file.path(inp_onderesdir, 'obs_finalwgs')
   in_fulldat <- file.path(inp_ondedatdir, 'onde_france_merge.csv')
-
+  
   valuevarsub <- "1"
-
+  probcol <- gsub('cat', '', predcol)
+  
   #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
   refpts <- st_read(dsn = inp_onderesdir,
                     layer = basename(in_refpts)) %>%

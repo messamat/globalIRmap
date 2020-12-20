@@ -22,6 +22,7 @@ plan_preprocess <- drake_plan(
   path_riveratlas2 = file_in(!!file.path(rootdir, 'results\\RiverATLAS_v11tab.csv')),
   path_bas03 = file.path(!!rootdir, "data\\HydroATLAS\\BasinATLAS_v10.gdb\\BasinATLAS_v10_lev03"),
   path_compresdir = file_in(!!file.path(rootdir, 'results\\Comparison_databases')),
+  path_linkpop = file_in(!!file.path(rootdir, 'results\\worldpop_link_20201220.csv')),
   path_frresdir = file.path(path_compresdir, 'france.gdb'),
   path_usdatdir = file.path(rootdir, 'data\\Comparison_databases', 'US'),
   path_usresdir = file.path(path_compresdir, 'us.gdb'),
@@ -74,7 +75,7 @@ plan_preprocess <- drake_plan(
                                     verbose = FALSE,
                                     .progress = TRUE)),
 
-  #basemaps = get_basemapswintri()
+  basemaps = get_basemapswintri()
 )
 
 ########################### plan_setupdata ####################################
@@ -153,12 +154,12 @@ plan_setupdata <- drake_plan(
   )
   ,
 
-  # netlength_extra = extrapolate_networklength(
-  #   inp_riveratlas = path_riveratlas,
-  #   min_cutoff = 0.1,
-  #   dispred =  seq(0.01, 0.09, 0.01),
-  #   interactive = F
-  # ),
+  netlength_extra = extrapolate_networklength(
+    inp_riveratlas = path_riveratlas,
+    min_cutoff = 0.1,
+    dispred =  seq(0.01, 0.09, 0.01),
+    interactive = F
+  ),
 
   #-------------------- set-up tasks -------------------------------------
   gauges_div = target(
@@ -298,17 +299,19 @@ plan_runmodels <- drake_plan(
                        in_bm = rfbm_classif,
                        in_lrnid =  selected_learner,
                        in_resampling = in_resampling,
-                       store_models = FALSE,
+                       store_models = store_models,
                        type = 'classif'),
-    transform= cross(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]]),
-                     in_resampling = c(featsel_cv, featsel_spcv),
-                     .names = c('res_all_cv', 'res_featsel_cv',
-                                'res_all_spcv', 'res_featsel_spcv'))
-    # ,
+    transform= map(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]],
+                                      tasks_featsel[[1]], tasks_featsel[[2]]),
+                   in_resampling = c(featsel_cv, featsel_cv, 
+                                     featsel_spcv, featsel_spcv),
+                   store_models = c(FALSE, TRUE, FALSE, FALSE),
+                   .names = c('res_all_cv', 'res_featsel_cv',
+                              'res_all_spcv', 'res_featsel_spcv'))
     # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  rfeval_featall = target(c(res_all_cv, res_all_spcv)
+  rfeval_featall = target(c(res_all_cv)
                           )
   ,
 
@@ -500,15 +503,6 @@ plan_getpreds_30d <- drake_plan(
     )
     # ,
     # trigger = trigger(mode = "condition", condition =FALSE)
-  ),
-
-  bin_finalmisclass_mdur30 = bin_misclass(
-    in_predictions = gpredsdt_mdur30,
-    binvar = 'dis_m3_pyr',
-    binfunc = 'manual',
-    binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-    interthresh=0.5,
-    spatial = FALSE
   )
 )
 ########################### plan_getoutputs #####################################
@@ -534,13 +528,14 @@ plan_getoutputs <- drake_plan(
   ),
 
   IRESextra = extrapolate_IRES(in_rivpred = rivpred,
-                                 in_extranet = netlength_extra,
-                                 min_cutoff = 0.1,
-                                 interactive = F),
+                               in_extranet = netlength_extra,
+                               min_cutoff = 0.1,
+                               interactive = F),
 
   basinBACC = target(
     map_basinBACC(in_gaugepred = gpredsdt,
                   inp_basin = path_bas03,
+                  in_rivernetwork = rivpred,
                   outp_basinerror = outpath_bas03error,
                   spatial_rsp = TRUE)
     # ,
@@ -601,7 +596,8 @@ plan_compareresults <- drake_plan(
   fr_plot = compare_fr(inp_frdir = path_frresdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
-                       mincutoff = 0.1
+                       mincutoff = 0.1,
+                       binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000)
   )
   ,
 
@@ -647,7 +643,15 @@ plan_runmodels_branches_default <- lapply(
     )
   }
 ) %>%
-  do.call(bind_plans, .)
+  do.call(bind_plans, .) %>%
+  .[!(.$target %in% c('res_all_spcv_all', 'res_featsel_spcv_all',
+                      'rfeval_featall_all', 'rfeval_featsel_all',
+                      'rfbm_featall_all', 'rfbm_featsel_all',
+                      'bin_rftunedmisclass_all', 'res_all_spcv_o1',
+                      'res_all_spcv_u10', 'rftuned_all', 'gpredsdt_all',
+                      'vimp_plot_all', 'pd_plot_all',
+                      'tablebm_classif1_all', 'tablebm_classif2_all', 'tablebm_regr1_all')
+      ),] 
 
 plan_runsimplemodels_branches_30d <- lapply(
   c('_u10', '_o1'), function(suffix) {
@@ -670,14 +674,16 @@ plan_getoutputs_30d <- branch_plan(
   external_arguments_to_modify = c('gpredsdt',
                                    'rfpreds_gauges',
                                    'rfpreds_network'),
-  verbose = FALSE) %>%
-  .[
-    substr(.$target, 1, 12) == 'globaltables',] %>%
-  mutate(command = lapply(command, function(call) {
-    rlang::call_modify(call, valuevar = "predbasic800_mdur30cat")
-  })
-  )
-
+  verbose = FALSE)%>%
+  as.data.table %>%
+  .[substr(target, 1, 12) == 'globaltables',
+    command :=
+      lapply(command, function(call) {
+        rlang::call_modify(.call=call,
+                           predcol = "predbasic800_mdur30cat")
+      })] %>%
+  as_tibble
+  
 plan_compareresults_30d <- branch_plan(
   plan = plan_compareresults,
   branch_suffix = '_mdur30',
@@ -696,13 +702,12 @@ plan_compareresults_30d <- branch_plan(
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,
                    plan_runmodels_branches_default,
-                   plan_runsimplemodels_branches_30d,
+                   #plan_runsimplemodels_branches_30d,
                    plan_getpreds,
-                   plan_getpreds_30d,
+                   #plan_getpreds_30d,
                    plan_getoutputs,
-                   plan_getoutputs_30d
-                   ,
-                   # plan_compareresults,
-                   # plan_compareresults_30d
+                   #plan_getoutputs_30d,
+                   plan_compareresults,
+                   #plan_compareresults_30d
 )
 
