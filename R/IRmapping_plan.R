@@ -416,7 +416,7 @@ plan_runsimplemodels_30d <- drake_plan(
 
   rftuned_mdur30 = selecttrain_rf(in_rf = autotunerdur10,
                                   in_task = tasks_featsel_mdur30,
-                                  insamp_nfolds =  4, insamp_nevals = 100),
+                                  insamp_nfolds =  4, insamp_nevals = 25),
 
   gpredsdt_mdur30 = make_gaugepreds(in_rftuned = rftuned_mdur30,
                                     in_gaugestats = gaugestats_format,
@@ -559,7 +559,7 @@ plan_getoutputs <- drake_plan(
     tabulate_globalsummary(outp_riveratlaspred = rfpreds_network,
                            inp_riveratlas = path_riveratlas,
                            inp_riveratlas_legends = path_riveratlas_legends,
-                           interthresh = c(0.45, 0.5, 0.55),
+                           interthresh = 0.5,
                            idvars = in_idvars,
                            castvar = 'dis_m3_pyr',
                            castvar_num = FALSE,
@@ -702,12 +702,12 @@ plan_compareresults_30d <- branch_plan(
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,
                    plan_runmodels_branches_default,
-                   #plan_runsimplemodels_branches_30d,
+                   plan_runsimplemodels_branches_30d,
                    plan_getpreds,
-                   #plan_getpreds_30d,
+                   plan_getpreds_30d,
                    plan_getoutputs,
-                   #plan_getoutputs_30d,
+                   plan_getoutputs_30d,
                    plan_compareresults,
-                   #plan_compareresults_30d
+                   plan_compareresults_30d
 )
 

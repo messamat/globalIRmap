@@ -4352,7 +4352,9 @@ extrapolate_networklength <- function(inp_riveratlas,
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = incols) %>%
     setorder(dis_m3_pyr) %>%
-    .[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)]
+    .[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)] %>%
+    .[LENGTH_KM_NOLAKE > 0,]
+  
   if (grouping_var == 'PFAF_IDclz') {
     riveratlas[, PFAF_IDclz := paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj)]
   }
@@ -4703,8 +4705,8 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
     .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 2
              dislogbin = binlog(dis_m3_pyr),
-             LENGTH_KM_NOLAKE = LENGTH_KM*(1-INLAKEPERC))] #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
-
+             LENGTH_KM_NOLAKE = max(0, LENGTH_KM*(1-INLAKEPERC)))] #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+  
   #-------- Compute prevalence of IRES (by length) by discharge bin
   netsub_binir <- netsub[
     , list(percinter_bin = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
@@ -5065,6 +5067,30 @@ analyze_benchmark <- function(in_bm, in_measure) {
   ))
 }
 
+#------ compute_confustats ----------------
+compute_confustats <- function(in_gselpreds, ndigits=2) {
+  confu <- in_gselpreds[, .N, by=.(truth, response)]
+  
+  outvec <- data.table(
+    inter_confu =  paste0(confu[truth==1 & response==1, max(0L, N)], '|',
+                          confu[truth==1 & response==0, max(0L, N)]),
+    pere_confu = paste0(confu[truth==0 & response==1, max(0L, N)], '|',
+                        confu[truth==0 & response==0, max(0L, N)]),
+    misclas = round(confu[truth != response, sum(N)] / confu[, sum(N)], ndigits),
+    sens = round(
+      confu[truth == '1' & response == '1', max(0L, N)]/confu[truth=='1', sum(N)],
+      ndigits),
+    spec  = round(
+      confu[truth=='0' & response==0, max(0L, N)]/confu[truth=='0', sum(N)],
+      ndigits),
+    N = sum(confu$N),
+    predtrue_inter = paste0(round(confu[response==1, 100*sum(N)/sum(confu$N)]),
+                            '|',
+                            round(confu[truth==1, 100*sum(N)/sum(confu$N)]))
+  )
+  return(outvec)
+}
+
 #------ bin_misclass --------------------------------
 bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                           in_gaugestats=NULL, binvar, binfunc, binarg,
@@ -5119,35 +5145,14 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
   gselpreds <- merge(bin_gauges, predsformat, by='row_id', all.y=F)
 
   #Function to get statistics for each bin
-  binconfustats <- function(in_gselpreds) {
-    confu <- in_gselpreds[, .N, by=.(truth, response)]
 
-    outvec <- data.table(
-      inter_confu =  paste0(confu[truth==1 & response==1, max(0L, N)], '|',
-                            confu[truth==1 & response==0, max(0L, N)]),
-      pere_confu = paste0(confu[truth==0 & response==1, max(0L, N)], '|',
-                          confu[truth==0 & response==0, max(0L, N)]),
-      misclas = round(confu[truth != response, sum(N)] / confu[, sum(N)], 2),
-      sens = round(
-        confu[truth == '1' & response == '1', max(0L, N)]/confu[truth=='1', sum(N)],
-        2),
-      spec  = round(
-        confu[truth=='0' & response==0, max(0L, N)]/confu[truth=='0', sum(N)],
-        2),
-      N = sum(confu$N),
-      predtrue_inter = paste0(round(confu[response==1, 100*sum(N)/sum(confu$N)]),
-                              '|',
-                              round(confu[truth==1, 100*sum(N)/sum(confu$N)]))
-    )
-    return(outvec)
-  }
 
   #Run function for each bin
-  performtable <- gselpreds[, binconfustats(.SD),
+  performtable <- gselpreds[, compute_confustats(.SD),
                             by=.(bin, paste0(round(bin_lmin, 2), '-',
                                              round(bin_lmax, 2)))] %>%
     setorder(bin) %>%
-    rbind(binconfustats(gselpreds)[, paste0 := 'All'], use.names=T, fill=T)
+    rbind(compute_confustats(gselpreds)[, paste0 := 'All'], use.names=T, fill=T)
 
   return(performtable)
 }
@@ -6231,6 +6236,191 @@ ggmisclass_bm <- function(in_threshdts) {
           legend.title = element_blank())
 
   return(ggthresh_benchmark)
+}
+
+
+#------ test_thresholdsensitivity ---------
+# binvar = 'dis_m3_pyr',
+# binfunc = 'manual',
+# binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+# interthresh=0.5,
+# spatial = TRUE
+
+in_gpredsdt <- readd(gpredsdt)
+in_rivpred = readd(rivpred)
+
+test_thresholdsensitivity <- function(in_gpredsdt,
+                                      in_rivpred,
+                                      threshrange_gauges = seq(0.25, 0.75, 0.01),
+                                      threshrange_network = seq(0.45, 0.55, 0.01),
+                                      mincutoff = 0.1,
+                                      gaugescol = 'IRpredprob_CVnosp',
+                                      netcol = 'predbasic800') {
+  
+  #--------------- Compute sensitivity for gauges -------------------
+  gpreds_format <- in_gpredsdt[dis_m3_pyr >= mincutoff,
+                               `:=`(truth = intermittent_o1800,
+                                    row_id = .I)]
+  
+  threshgrid <- expand.grid(threshrange_gauges, threshrange_gauges) %>%
+    setnames(c('thresh_u10', 'thresh_o10'))
+  
+  gstats <- mapply(function(tu10, to10) {
+    print(paste('thresh_u10:', tu10, 'thresh_o10:', to10))
+    gpreds_format[dis_m3_pyr < 10, 
+                  response := as.numeric(get(gaugescol) >= tu10)]
+    gpreds_format[dis_m3_pyr >= 10, 
+                  response := as.numeric(get(gaugescol) >= to10)]
+    
+    confustats <- compute_confustats(gpreds_format, ndigits=4) %>%
+      .[, predratio := (as.numeric(gsub("[|][0-9]+", "", predtrue_inter)) -
+                          as.numeric(gsub("[0-9]+[|]", "", predtrue_inter)))/
+          as.numeric(gsub("[0-9]+[|]", "", predtrue_inter))] %>%
+      cbind(gpreds_format[, list(
+        bacc = mlr3measures::bacc(truth, as.factor(response)),
+        threshold_u10 = tu10,
+        threshold_o10 = to10
+    )]
+    )
+    
+    return(confustats)
+  }, 
+  tu10 = threshgrid$thresh_u10, 
+  to10 = threshgrid$thresh_o10, 
+  SIMPLIFY = F
+  ) %>%
+    do.call(rbind, .)
+  
+  #--------------- Plot sensitivity for gauges -------------------
+  collimit_bias <- max(abs(gstats$predratio)) * c(-100, 100)
+  minmax_gpoints <- gstats[c(which.min(abs(predratio)),
+                             which.min(misclas),
+                             which.max(bacc),
+                             which.min(abs(sens-spec))),] %>%
+    .[, perfstat := c('Minimum bias', 'Maximum accuracy', 
+                      'Maximum BACC', 'Sensitivity = Specificity')]
+  
+  threshpoly_gpredratio <- gstats[
+    which(abs(round(predratio/2,2))==min(abs(round(predratio/2,2)))),] %>%
+    .[, perfstat := 'Bias']
+  
+  threshpoly_gmisclass <- copy(gstats)[
+    which(round(misclas/2,2)==min(round(misclas/2,2))),] %>%
+    .[, perfstat := 'Raw accuracy']
+  
+  threshpoly_gbacc <- copy(gstats)[
+    which(round(bacc/2,2)==max(round(bacc/2,2))),] %>%
+    .[, perfstat := 'Balanced accuracy (BACC)']
+  
+  threshpoly_gsenspec <- gstats[
+    which(round(abs(sens-spec)/2,2)==min(round(abs(sens-spec)/2,2))),] %>%
+    .[,perfstat := 'Sensitivity = Specificity']
+  
+  thresh_ghexdt <- rbindlist(list(
+    threshpoly_gpredratio,
+    threshpoly_misclass,
+    threshpoly_gbacc,
+    threshpoly_gsenspec
+  )) 
+  
+  thresh_gpolydt <-thresh_ghexdt[, .SD[chull(threshold_u10, threshold_o10)],
+                                 by=perfstat]
+  
+  minnetrhesh <- min(threshrange_network)
+  maxnethresh <- max(threshrange_network)
+  boxnet <- data.table(xstart=c(minnetrhesh, minnetrhesh, 
+                                   maxnethresh , maxnethresh ), 
+                          xend=c(minnetrhesh, maxnethresh , 
+                                 minnetrhesh, maxnethresh ),
+                          ystart=c(minnetrhesh, minnetrhesh, 
+                                   maxnethresh , maxnethresh ), 
+                          yend=c(maxnethresh , minnetrhesh, 
+                                 maxnethresh , minnetrhesh))
+  
+  sensitivityplot_gperf <- ggplot(data=threshpoly_gpredratio, 
+                                  aes(x=threshold_u10, y=threshold_o10)) +
+    geom_vline(xintercept=0.5, color='black') + 
+    geom_hline(yintercept=0.5, color='black') +
+    geom_segment(data=boxnet, aes(x=xstart, y=ystart, xend=xend, yend=yend),
+                 color='darkgrey') + 
+    stat_bin2d(aes(fill=perfstat), 
+               stat='identity', alpha=1/2) +
+    stat_bin2d(data=threshpoly_gbacc, aes(fill=perfstat), 
+               stat='identity', alpha=1/2) +
+    stat_bin2d(data=threshpoly_gmisclass, aes(fill=perfstat), 
+               stat='identity', alpha=1/2) +
+    stat_bin2d(data=threshpoly_gsenspec, aes(fill=perfstat), 
+               stat='identity', alpha=1/2) +
+    scale_fill_manual(
+      name='Zone within 1% of optimum',
+      values=c("#999999", "#E69F00", "#56B4E9", "#D55E00")) +
+    # geom_point(data=minmax_gpoints, size=2) +
+    # geom_text(data=minmax_gpoints, aes(label=perfstat),
+    #   size=3, hjust=0.5, vjust=-0.8) +
+    # geom_text(data=minmax_gpoints, aes(
+    #   label=paste0(' x=', threshold_u10, ', y=', threshold_o10)),
+    #   size=3, hjust=0.5, vjust=1.1) +
+    scale_x_continuous(
+      name=bquote('Probability threshold for gauges with MAF < 10'~m^3~s^-1)) +
+    scale_y_continuous(
+      name=expression(Probability~threshold~"for"~gauges~with~MAF >= 10~m^3~s^-1)) +
+    coord_fixed(clip='off') +
+    theme_classic() + 
+    theme(legend.position = c(0.20, 0.12),
+          legend.background = element_blank())
+  
+  #--------------- Compute sensitivity for global network -------------------
+  in_rivpred[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)]
+  
+  threshgrid_net <- expand.grid(threshrange_network, threshrange_network) %>%
+    setnames(c('thresh_u10', 'thresh_o10'))
+  
+  netstats <- mapply(function(tu10, to10) {
+    print(paste(tu10, to10))
+    in_rivpred[(dis_m3_pyr>=0.1) & (INLAKEPERC < 1),
+               list(
+                 IRESperc = (
+                   .SD[dis_m3_pyr<10, 
+                       sum(LENGTH_KM_NOLAKE*as.numeric(get(netcol)>=tu10))] +
+                     .SD[dis_m3_pyr>=10, 
+                         sum(LENGTH_KM_NOLAKE*as.numeric(get(netcol)>=to10))]
+                 )/
+                   sum(LENGTH_KM_NOLAKE),
+                 threshold_u10 = tu10,
+                 threshold_o10 = to10
+               )
+    ]
+  }, 
+  tu10 = threshgrid_net$thresh_u10, 
+  to1 = threshgrid_net$thresh_o10, 
+  SIMPLIFY = F
+  ) %>%
+    do.call(rbind, .)
+  
+  predbounds <- netstats[
+    (threshold_u10 %in% c(minnetrhesh, maxnethresh ))
+    &
+      (threshold_o10 %in%  c(minnetrhesh, maxnethresh )),
+  ]
+  
+  sensitivityplot_netpred <- ggplot(
+    netstats, aes(x=threshold_u10, y=threshold_o10)) + 
+    geom_vline(xintercept=0.5, color='black') + 
+    geom_hline(yintercept=0.5, color='black') +
+    geom_bin2d(aes(fill=IRESperc), stat='identity', alpha=0.8) +
+    scale_fill_distiller(name='Predicted % of IRES',
+                         palette='Spectral') +
+    scale_x_continuous(
+      name=bquote('Probability threshold for gauges with MAF < 10'~m^3~s^-1)) +
+    scale_y_continuous(
+      name=expression(Probability~threshold~"for"~gauges~with~MAF >= 10~m^3~s^-1)) +
+    coord_fixed(clip='off', expand=c(0,0)) +
+    theme_classic()
+  
+  return(list(gperf = sensitivityplot_gperf,
+              netpred = sensitivityplot_netpred,
+              predbounds = predbounds
+  ))
 }
 
 
