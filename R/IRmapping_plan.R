@@ -469,7 +469,17 @@ plan_getpreds <- drake_plan(
                      in_predvars = predvars)
     # ,
     # trigger = trigger(mode = "condition", condition =FALSE)
-  )
+  ),
+  
+  threshold_sensitivity = test_thresholdsensitivity(
+    in_gpredsdt = gpredsdt,
+    in_rivpred = rivpred,
+    threshrange_gauges = seq(0.25, 0.75, 0.01),
+    threshrange_network = seq(0.45, 0.55, 0.01),
+    mincutoff = 0.1,
+    gaugescol = 'IRpredprob_CVnosp',
+    netcol = 'predbasic800'
+    )
 )
 
 ########################### plan_getpreds_30d #####################################

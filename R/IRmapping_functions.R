@@ -6240,15 +6240,6 @@ ggmisclass_bm <- function(in_threshdts) {
 
 
 #------ test_thresholdsensitivity ---------
-# binvar = 'dis_m3_pyr',
-# binfunc = 'manual',
-# binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-# interthresh=0.5,
-# spatial = TRUE
-
-in_gpredsdt <- readd(gpredsdt)
-in_rivpred = readd(rivpred)
-
 test_thresholdsensitivity <- function(in_gpredsdt,
                                       in_rivpred,
                                       threshrange_gauges = seq(0.25, 0.75, 0.01),
