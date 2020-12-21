@@ -23,24 +23,37 @@ source(file.path(srcdir, 'R/IRmapping_functions.R'))
 source(file.path(srcdir, 'R/IRmapping_plan.R'))
 
 loadd(gpredsdt)
+loadd(rivpred)
+loadd(tasks_u10)
+loadd(tasks_featsel_u10)
+loadd(tasks_featsel_o1)
 ```
 
 
 #Geographical distribution of reference streamgauging stations
 ##Statistics for paper
-- Number of gauges in total: `r gpredsdt[, .N]`  
-- Number of perennial gauges used in analysis (average number of years of data): 
-`r gpredsdt[intermittent_o1800==0, .N]`(`gpredsdt[intermittent_o1800==0, mean(totalYears_kept_o1800)]`)
-- Number of intermittent gauges taking in account only post-1800, mDur >= 1 (average number of years of data): 
+- Number of gauges in total:              
+`r gpredsdt[, .N]`  
+- Number of perennial gauges used in analysis (average number of years of data):             
+`r gpredsdt[intermittent_o1800==0, .N]`(`r gpredsdt[intermittent_o1800==0, mean(totalYears_kept_o1800)]`)
+- Number of intermittent gauges taking in account only post-1800, mDur >= 1 (average number of years of data):             
 `r gpredsdt[intermittent_o1800==1, .N]`(`r gpredsdt[intermittent_o1800==1, mean(totalYears_kept_o1800)]`)
-- Number of intermittent gauges taking in account only post-1800, mDur > 0 (average number of years of data): 
+- Number of intermittent gauges taking in account only post-1800, mDur > 0 (average number of years of data):              
 `r gpredsdt[mDur_o1800>0, .N]`
-- Number of intermittent gauges taking in account only post-1800, mDur >= 30 (average number of years of data): 
+- Number of intermittent gauges taking in account only post-1800, mDur >= 30 (average number of years of data):             
 `r gpredsdt[mDur_o1800>=30, .N]`
-
-<!-- gpredsdt[dis_m3_pyr < 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]] -->
-<!-- gpredsdt[dis_m3_pyr >= 10, .SD[intermittent_o1961==0,.N]/.SD[intermittent_o1961==1,.N]] -->
-
+- Number of reaches in network:  
+`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, .N]`
+- Average length of reaches in network:          
+`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, mean(LENGTH_KM*(1-INLAKEPERC))]`
+- Total length of reaches in network:         
+`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, sum(LENGTH_KM*(1-INLAKEPERC))]`
+- Total number of predictor variables:            
+`r length(tasks_u10$classif$feature_names)`
+- Total number of predictor variables kept in model for gauges < 10 m3/s:            
+`r length(tasks_featsel_u10$classif$feature_names)`
+- Total number of predictor variables kept in model for gauges >= 1 m3/s:            
+`r length(tasks_featsel_o1$classif$feature_names)`
 
 
 
@@ -128,7 +141,7 @@ gpredsdt[, mlr3measures::bacc(factor(as.character(intermittent_o1800),
 ```
 
 #Main text - Figure 2. Variable importance for top 20 variables
-```{r variable-importance, fig.width=12, fig.height=10, dpi=600, echo=FALSE}
+```{r variable-importance, fig.width=6, fig.height=5, dpi=600, echo=FALSE}
 loadd(vimp_plot_u10)
 loadd(vimp_plot_o1)
 
@@ -186,7 +199,7 @@ get_tabletarget <- function(in_gaugeformat) {
   lapply(names(in_gaugeformat), function(var) {
     targetname <- paste0('globaltables_', var)
     #print(targetname)
-    tryCatch(return(readd(eval(targetname), character_only = T) %>%
+    tryCatch(return(readd(eval(targetname), character_only = T)$`0.5` %>%
                       setDT(tab) %>%
                       setorder(-`Total stream length (10^3 km)`)),
              error=function(e) NULL)
@@ -207,6 +220,10 @@ ft[[1]]
 ft[[2]]
 ft[[3]]
 ft[[4]]
+
+print('Extrapolation')
+loadd(globaltable_clzextend)
+flextable(globaltable_clzextend)
 ```
 
 #Comparison of results with regional-national estimates
