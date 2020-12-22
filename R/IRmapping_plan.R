@@ -450,36 +450,7 @@ plan_getpreds <- drake_plan(
     )
    #  ,
    # trigger = trigger(mode = "condition", condition =TRUE)
-  ),
-
-  gauges_plot = target(
-    gggauges(in_gaugepred =rfpreds_gauges,
-             in_basemaps = basemaps,
-             binarg = c(30, 60, 100),
-             binvar = 'totalYears_kept_o1800'
-    )
-    # ,
-    # trigger = trigger(mode = "condition", condition =FALSE)
   )
-  ,
-
-  envhist = target(
-    layout_ggenvhist(in_rivernetwork = rivernetwork,
-                     in_gaugepred = rfpreds_gauges,
-                     in_predvars = predvars)
-    # ,
-    # trigger = trigger(mode = "condition", condition =FALSE)
-  ),
-  
-  threshold_sensitivity = test_thresholdsensitivity(
-    in_gpredsdt = gpredsdt,
-    in_rivpred = rivpred,
-    threshrange_gauges = seq(0.25, 0.75, 0.01),
-    threshrange_network = seq(0.45, 0.55, 0.01),
-    mincutoff = 0.1,
-    gaugescol = 'IRpredprob_CVnosp',
-    netcol = 'predbasic800'
-    )
 )
 
 ########################### plan_getpreds_30d #####################################
@@ -516,32 +487,55 @@ plan_getpreds_30d <- drake_plan(
   )
 )
 ########################### plan_getoutputs #####################################
-plan_getoutputs <- drake_plan(
-  bin_finalmisclass = bin_misclass(in_predictions = gpredsdt,
-                                   binvar = 'dis_m3_pyr',
-                                   binfunc = 'manual',
-                                   binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
-                                   interthresh=0.5,
-                                   spatial = TRUE
-  ),
-
-  gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
-                             in_predvars = predvars,
-                             spatial_rsp = TRUE,
-                             yearthresh = 1800),
-
-  rivpred = target(
-    netpredformat(in_rivernetwork = rivernetwork,
-                  outp_riveratlaspred = rfpreds_network)
+plan_getoutputs_1 <- drake_plan(
+  gauges_plot = target(
+    gggauges(in_gaugepred =rfpreds_gauges,
+             in_basemaps = basemaps,
+             binarg = c(30, 60, 100),
+             binvar = 'totalYears_kept_o1800'
+    )
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
+  )
+  ,
+  
+  envhist = target(
+    layout_ggenvhist(in_rivernetwork = rivernetwork,
+                     in_gaugepred = rfpreds_gauges,
+                     in_predvars = predvars)
     # ,
     # trigger = trigger(mode = "condition", condition =FALSE)
   ),
-
-  IRESextra = extrapolate_IRES(in_rivpred = rivpred,
-                               in_extranet = netlength_extra,
-                               min_cutoff = 0.1,
-                               interactive = F),
-
+  
+  bin_finalmisclass = target(
+    bin_misclass(in_predictions = gpredsdt,
+                 binvar = 'dis_m3_pyr',
+                 binfunc = 'manual',
+                 binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+                 interthresh=0.5,
+                 rspcol = rspcol
+    ),
+    map(rspcol = c('IRpredcat_CVnosp', 'IRpredcat_CVsp')
+    )
+  )
+  ,
+  
+  threshold_sensitivity = test_thresholdsensitivity(
+    in_gpredsdt = gpredsdt,
+    in_rivpred = rivpred,
+    threshrange_gauges = seq(0.25, 0.75, 0.01),
+    threshrange_network = seq(0.45, 0.55, 0.01),
+    mincutoff = 0.1,
+    gaugescol = 'IRpredprob_CVnosp',
+    netcol = 'predbasic800'
+  ),
+  
+  gaugeIPR_plot = gggaugeIPR(in_gpredsdt = gpredsdt,
+                             in_predvars = predvars,
+                             spatial_rsp = TRUE,
+                             yearthresh = 1800)
+  ,
+  
   basinBACC = target(
     map_basinBACC(in_gaugepred = gpredsdt,
                   inp_basin = path_bas03,
@@ -551,8 +545,7 @@ plan_getoutputs <- drake_plan(
     # ,
     # trigger = trigger(mode = "condition", condition =FALSE)
   )
-  ,
-
+  
   # NOT SUPER USEFUL - maybe only to reply to reviewers around spatial auto-correlation
   # krigepreds = krige_spgaugeIPR(in_rftuned = rftuned,
   #                               in_gaugep = gaugep,
@@ -564,7 +557,23 @@ plan_getoutputs <- drake_plan(
   #                                    in_kpathlist = krigepreds,
   #                                    outp_krigingtif = outpath_krigingtif,
   #                                    overwrite = TRUE),
+)
 
+
+plan_getoutputs_2 <- drake_plan(
+  rivpred = target(
+    netpredformat(in_rivernetwork = rivernetwork,
+                  outp_riveratlaspred = rfpreds_network)
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
+  ),
+  
+  IRESextra = extrapolate_IRES(in_rivpred = rivpred,
+                               in_extranet = netlength_extra,
+                               min_cutoff = 0.1,
+                               valuevar = 'predbasic800cat',
+                               interactive = F),
+  
   globaltables = target(
     tabulate_globalsummary(outp_riveratlaspred = rfpreds_network,
                            inp_riveratlas = path_riveratlas,
@@ -587,18 +596,18 @@ plan_getoutputs <- drake_plan(
     # ,
     # trigger = trigger(mode = "condition", condition =TRUE)
   ),
-
+  
   globaltable_clzextend = extend_globalsummary_clz(
     in_IRESextra = IRESextra,
     in_globaltable = globaltables_clz_cl_cmj,
     inp_riveratlas_legends = path_riveratlas_legends
-    ),
-
-
+  ),
+  
+  
   IRpop = compute_IRpop(in_rivpred = rivpred,
                         inp_linkpop = path_linkpop,
                         valuevar = 'predbasic800cat'
-                        )
+  )
 )
 
 ########################### plan_compareresults ################################
@@ -610,7 +619,7 @@ plan_compareresults <- drake_plan(
                        binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000)
   )
   ,
-
+  
   us_plot = compare_us(inp_usresdir = path_usresdir,
                        inp_usdatdir = path_usdatdir,
                        in_rivpred = rivpred,
@@ -618,12 +627,13 @@ plan_compareresults <- drake_plan(
                        binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000),
                        mincutoff = 0.1
   ),
-
+  
   au_plot = compare_au(inp_auresdir = path_auresdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
-                       binarg = c(10, 100, 10^3, 10^4, 10^5, 10^6, 10^7)),
-
+                       binarg = c(100, 10^3, 10^4, 10^5, 10^6, 10^7)
+                       ),
+  
   pnw_plot = qc_pnw(inp_pnwresdir = path_pnwresdir,
                     in_rivpred = rivpred,
                     predcol = 'predbasic800cat',
@@ -678,8 +688,11 @@ plan_runsimplemodels_branches_30d <- lapply(
 ) %>%
   do.call(bind_plans, .)
 
+
+#SHould makea function to modify single arg values
+
 plan_getoutputs_30d <- branch_plan(
-  plan = plan_getoutputs,
+  plan = plan_getoutputs_2,
   branch_suffix = '_mdur30',
   external_arguments_to_modify = c('gpredsdt',
                                    'rfpreds_gauges',
@@ -690,10 +703,15 @@ plan_getoutputs_30d <- branch_plan(
     command :=
       lapply(command, function(call) {
         rlang::call_modify(.call=call,
-                           predcol = "predbasic800_mdur30cat")
+                           valuevar = "predbasic800_mdur30")
       })] %>%
+  .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
+    command := lapply(command, function(call) {
+      rlang::call_modify(.call=call,
+                         valuevar = "predbasic800_mdur30cat")
+    })] %>%
   as_tibble
-  
+
 plan_compareresults_30d <- branch_plan(
   plan = plan_compareresults,
   branch_suffix = '_mdur30',
@@ -715,7 +733,8 @@ plan <- bind_plans(plan_preprocess,
                    plan_runsimplemodels_branches_30d,
                    plan_getpreds,
                    plan_getpreds_30d,
-                   plan_getoutputs,
+                   plan_getoutputs_1,
+                   plan_getoutputs_2,
                    plan_getoutputs_30d,
                    plan_compareresults,
                    plan_compareresults_30d

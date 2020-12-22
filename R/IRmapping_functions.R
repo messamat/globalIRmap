@@ -4695,6 +4695,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
                              in_extranet = netlength_extra,
                              min_cutoff = 0.1,
                              interactive = F,
+                             valuevar = 'predbasic800cat',
                              grouping_var = 'PFAF_IDclz') {
 
   #Format rivp
@@ -4704,18 +4705,20 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
   netsub <- in_rivpred %>%
     .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
     .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 2
-             dislogbin = binlog(dis_m3_pyr),
-             LENGTH_KM_NOLAKE = max(0, LENGTH_KM*(1-INLAKEPERC)))] #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+             dislogbin = binlog(dis_m3_pyr), #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+             LENGTH_KM_NOLAKE = LENGTH_KM*(1-INLAKEPERC)
+             )] 
   
   #-------- Compute prevalence of IRES (by length) by discharge bin
   netsub_binir <- netsub[
-    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
+    , list(percinter_bin = sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
            Nreach = .N),
-    by = .(dislogbin)]
+    by = .(dislogbin)] %>%
+    setorder(dislogbin)
 
   #-------- Compute prevalence of IRES by discharge bin AND BASIN
   netsub_basbinir <- netsub[
-    , list(percinter_bin = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
+    , list(percinter_bin = sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
            Nreach = .N),
     by = c('dislogbin', grouping_var)]
 
@@ -4727,9 +4730,9 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
                                                 default = percinter_bin),
                        by = dislogbin]
 
-    preds <- data.frame(dislogbin=c(seq(0.01, 0.09, 0.01),
-                                    unique(dt$dislogbin)))
-    preds <-  tryCatch(
+    preds_input <- data.frame(dislogbin=c(seq(0.01, 0.09, 0.01),
+                                         unique(dt$dislogbin)))
+    preds <-  try(
       {
         if (dt_gamformat[, length(unique(percinter_bin)) > 1  &
                          diff(range(percinter_bin)) > 0.01]
@@ -4742,18 +4745,21 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
             print(summary(gamfit))
           }
 
-          preds$percinter_bin <- as.vector(predict(gamfit, preds, type='response'))
+          preds_input$percinter_bin <- as.vector(predict(gamfit, preds_input, type='response'))
         } else {
-          preds$percinter_bin <- dt_gamformat[, max(percinter_bin)]
+          preds_input$percinter_bin <- dt_gamformat[, max(percinter_bin)]
         }
 
-        return(preds)
-      },  finally = {
-        preds$percinter_bin <- dt_gamformat[, max(percinter_bin)]
-        return(preds)
+        preds_input
       }
-    ) %>%
-      as.data.table
+    )
+    if (inherits(preds, 'try-error')) {
+      preds <- preds_input
+      preds$percinter_bin <- dt_gamformat[, max(percinter_bin)]
+      
+    }
+    
+    setDT(preds)
 
     preds[dislogbin < min(dt_gamformat$dislogbin),
           percinter_bin_adjust := max(c(percinter_bin,
@@ -4862,9 +4868,9 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
   #e.g. for a cutoff of 0.1, use IRES prevalence from reaches with discharge [0.1,0.2) )
   netsub_IRESconservative <- netsub[
     dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,
-    list(percinter_ref_overcutoff = sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
+    list(percinter_ref_overcutoff = sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
          percinter_ref_lastbin = .SD[dislogbin == min(dislogbin),
-                                     sum(predbasic800cat*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE)]
+                                     sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE)]
     ),
     by=grouping_var]
 
@@ -5094,7 +5100,7 @@ compute_confustats <- function(in_gselpreds, ndigits=2) {
 #------ bin_misclass --------------------------------
 bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                           in_gaugestats=NULL, binvar, binfunc, binarg,
-                          interthresh=0.5, spatial_rsp=FALSE) {
+                          interthresh=0.5, spatial_rsp=NULL, rspcol=NULL) {
   #Get misclassification error, sensitivity, and specificity for different classification thresholds
   #i.e. binary predictive assignment of gauges to either perennial or intermittent class
   if (!is.null(in_resampleresult)) {
@@ -5122,18 +5128,19 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                          bintrans=NULL, na.rm=FALSE)%>%
       .[, row_id := .I]
 
-  }
-  else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
+  } else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
     #Get bins
     bin_gauges <- bin_dt(in_dt = in_predictions, binvar = 'dis_m3_pyr',
                          binfunc = 'manual', binarg=binarg,
                          bintrans=NULL, na.rm=FALSE) %>%
       .[, row_id := .I]
 
-    if (spatial_rsp) {
-      rspcol <- 'IRpredcat_CVsp'
-    } else {
-      rspcol <- 'IRpredcat_CVnosp'
+    if (!is.null(spatial_rsp) & is.null(rspcol)) {
+      if (spatial_rsp) {
+        rspcol <- 'IRpredcat_CVsp'
+      } else {
+        rspcol <- 'IRpredcat_CVnosp'
+      }
     }
 
     predsformat <- in_predictions[, `:=`(truth = intermittent_o1800,
@@ -6242,22 +6249,22 @@ ggmisclass_bm <- function(in_threshdts) {
 #------ test_thresholdsensitivity ---------
 test_thresholdsensitivity <- function(in_gpredsdt,
                                       in_rivpred,
-                                      threshrange_gauges = seq(0.25, 0.75, 0.01),
+                                      threshrange_gauges = seq(0.30, 0.70, 0.01),
                                       threshrange_network = seq(0.45, 0.55, 0.01),
                                       mincutoff = 0.1,
                                       gaugescol = 'IRpredprob_CVnosp',
                                       netcol = 'predbasic800') {
   
   #--------------- Compute sensitivity for gauges -------------------
-  gpreds_format <- in_gpredsdt[dis_m3_pyr >= mincutoff,
-                               `:=`(truth = intermittent_o1800,
-                                    row_id = .I)]
+  gpreds_format <- in_gpredsdt[dis_m3_pyr >= mincutoff,] %>%
+    .[,`:=`(truth = intermittent_o1800,
+            row_id = .I)]
   
   threshgrid <- expand.grid(threshrange_gauges, threshrange_gauges) %>%
     setnames(c('thresh_u10', 'thresh_o10'))
   
   gstats <- mapply(function(tu10, to10) {
-    print(paste('thresh_u10:', tu10, 'thresh_o10:', to10))
+    #print(paste('thresh_u10:', tu10, 'thresh_o10:', to10))
     gpreds_format[dis_m3_pyr < 10, 
                   response := as.numeric(get(gaugescol) >= tu10)]
     gpreds_format[dis_m3_pyr >= 10, 
@@ -6309,7 +6316,7 @@ test_thresholdsensitivity <- function(in_gpredsdt,
   
   thresh_ghexdt <- rbindlist(list(
     threshpoly_gpredratio,
-    threshpoly_misclass,
+    threshpoly_gmisclass,
     threshpoly_gbacc,
     threshpoly_gsenspec
   )) 
@@ -6667,7 +6674,7 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'dis_m3_pyr',
-                                valuevar = 'predbasic800cat',
+                                valuevar = predcol,
                                 valuevarsub = valuevarsub,
                                 weightvar = 'LENGTH_KM',
                                 binfunc = 'manual',
@@ -6851,7 +6858,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   # tidyperc_rivHUC  <- rivpredsubmr[
   #   , formathistab(in_dt = .SD,
   #                  castvar = 'dis_m3_pyr',
-  #                  valuevar = 'predbasic800cat',
+  #                  valuevar = 'get(predcol)',
   #                  valuevarsub = valuevarsub,
   #                  weightvar = 'LENGTH_KM',
   #                  binfunc = 'manual',
@@ -6927,7 +6934,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   #Compute bin statistics for river networks
   tidyperc_riv  <- formathistab(in_dt = rivpredsubmr,
                                 castvar = 'dis_m3_pyr',
-                                valuevar = 'predbasic800cat',
+                                valuevar = predcol,
                                 valuevarsub = valuevarsub,
                                 weightvar = 'LENGTH_KM',
                                 binfunc = 'manual',
@@ -6948,7 +6955,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   #Create plot
   return(
     list(
-      plot = ggcompare(datmerge_all, binarg=binarg) +
+      plot = ggcompare(datmerge_all, binarg=binarg[]) +
         geom_rect(aes(xmin=-Inf, xmax=1.5, ymin=0, ymax=Inf),
                   fill='white', alpha=0.09) +
         scale_y_continuous(breaks=c(0,25,75,100)) +
@@ -6956,7 +6963,8 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
         theme(axis.title.y = element_blank(),
               legend.title = element_blank(),
               legend.position = c(0.8, 0.2)),
-      data = datmerge_all
+      data_all = datmerge_all,
+      data_noartificial = datmerge_noartificial
     )
   )
 }
@@ -6973,8 +6981,9 @@ compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
                  layer = basename(in_netpath)
   ) %>%
     as.data.table %>%
-    .[UpstrDArea >=10^7,] %>%
-    .[, UpstrDArea := UpstrDArea/(10^6)]
+    .[, UpstrDArea := UpstrDArea/(10^6)]  %>%
+    .[UpstrDArea >=10,]
+
 
   #Get HydroSHEDS basins that overlap with selected NHD HUC8s
   bas <- st_read(dsn = dirname(in_baspath),
@@ -7088,31 +7097,18 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
                       response = factor(get(predcol),levels=c('0','1'))
   )]
-  
-  refpts_reach[, sum(nobs)]
-  refpts_reach[, .N]
-  refpts_reach[, .N, by=truth]
-  
+
   pnw_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
-    auc = mlr3measures::auc(truth, predbasic800, positive='1'),
+    auc = mlr3measures::auc(truth, get(probcol), positive='1'),
     ce = mlr3measures::ce(truth, response),
     sen = mlr3measures::sensitivity(truth, response, positive='1'),
-    spe = mlr3measures::specificity(truth, response, positive='1')
+    spe = mlr3measures::specificity(truth, response, positive='1'),
+    nobs_total = sum(nobs),
+    nreaches = .N,
+    nreaches_perennial = .SD[truth=='0', .N],
+    nreaches_nonperennial = .SD[truth=='1', .N]
   )]
-
-  print(paste0('Balanced accuracy of predictions based on PROSPER: ',
-               round(pnw_measures$bacc, 3)))
-  print(paste0('AUC based on PROSPER: ',
-               round(pnw_measures$auc, 3)))
-  print(paste0('Misclassification rate based on PROSPER: ',
-               round(pnw_measures$ce, 3)))
-  print(paste0('Sensitivity based on PROSPER: ',
-               round(pnw_measures$sen, 3)))
-  print(paste0('Specificity rate based on PROSPER: ',
-               round(pnw_measures$spe, 3)))
-  print(paste0('Median discharge of observations for PROSPER',
-               refpts_reach[, round(median(HYDROSHEDSdis), 2)]))
 
   #Compute relative position of observation point on HydroSHEDS reach line
   refpts_reach[, RATIOLENGTH := min(c(1, (fromM*95)/LENGTH_KM)), by=OBJECTID]
@@ -7124,7 +7120,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     refpts_reach[,-c('Shape','i.Shape'), with=F],
     by='OBJECTID', all.x=F, all.y=T) %>%
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
-                   "predbasic800cat", "predbasic800"),
+                   predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp")) %>%
     setnames(new=unlist(lapply(names(.), function(x) gsub('[.]','_', x))))
 
@@ -7135,7 +7131,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                               'pop_ct_usu')],
            dsn = dirname(inp_pnwresdir),
            layer=paste0('pnwobs_IPR',
-                        format(Sys.time(), '%Y%m%d%H'), '.shp'),
+                        format(Sys.time(), '%Y%m%d%H%M%S'), '.shp'),
            driver='ESRI Shapefile')
 
   #Scatterpoint of x = drainage area, y = predprobability - refinter_reach
@@ -7191,7 +7187,9 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
           legend.background = element_blank()) +
     facet_wrap(~variable, scales ='free_x', ncol=2)
 
-  return(pnw_qcplot)
+  return(list(plot = pnw_qcplot,
+              stats = pnw_measures)
+  )
 }
 
 
@@ -7280,8 +7278,9 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
 
   #Merge points with rivernetwork by HYRIV_ID
   refpts_join <- merge(obsattri,
-                       in_rivpred[, .(HYRIV_ID, HYBAS_L12, LENGTH_KM,
-                                      predbasic800, predbasic800cat, dis_m3_pyr)],
+                       in_rivpred[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM',
+                                      probcol, predcol, 'dis_m3_pyr'),
+                                  with = F],
                        by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
     merge(riveratlas, by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
     .[, IPR := get(probcol) - refinter] #Compute prediction error
@@ -7294,9 +7293,6 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     .[dis_m3_pyr >= mincutoff,] %>%
     .[, IPR := get(probcol) - refinter] #Compute prediction error
 
-  refpts_reach[, sum(nobs)]
-  refpts_reach[, .N]
-  refpts_reach[, .N, by=refinter_reach]
 
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
@@ -7304,24 +7300,15 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
   )]
   onde_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
-    auc = mlr3measures::auc(truth, predbasic800, positive='1'),
+    auc = mlr3measures::auc(truth, get(probcol), positive='1'),
     ce = mlr3measures::ce(truth, response),
     sen = mlr3measures::sensitivity(truth, response, positive='1'),
-    spe = mlr3measures::specificity(truth, response, positive='1')
+    spe = mlr3measures::specificity(truth, response, positive='1'),
+    nobs_total = sum(nobs),
+    nreaches = .N,
+    nreaches_perennial = .SD[truth=='0', .N],
+    nreaches_nonperennial = .SD[truth=='1', .N]
   )]
-
-  print(paste0('Balanced accuracy of predictions based on ONDE: ',
-               round(onde_measures$bacc, 3)))
-  print(paste0('AUC based on ONDE: ',
-               round(onde_measures$auc, 3)))
-  print(paste0('Misclassification rate based on ONDE: ',
-               round(onde_measures$ce, 3)))
-  print(paste0('Sensitivity based on ONDE: ',
-               round(onde_measures$sen, 3)))
-  print(paste0('Specificity rate based on ONDE: ',
-               round(onde_measures$spe, 3)))
-  print(paste0('Median discharge of observations',
-               refpts_reach[, round(median(HYDROSHEDSdis), 2)]))
 
   #Compute relative position of observation point on HydroSHEDS reach line
   refpts_join[, RATIOLENGTH := (fromM/1000)/LENGTH_KM]
@@ -7332,7 +7319,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                        refpts_join,
                        by.x = "F_CdSiteHydro_", by.y = 'CdSiteHydro') %>%
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
-                   "predbasic800cat", "predbasic800"),
+                   predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp"))
 
   write_sf(predtowrite, file.path(dirname(inp_onderesdir), 'ondeobs_IPR4.shp'))
@@ -7396,7 +7383,9 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
           panel.spacing = unit(1.5, "lines")) +
     facet_wrap(~variable, scales ='free_x', ncol=2)
 
-  return(onde_qcplot)
+  return(list(plot=onde_qcplot,
+              stats = onde_measures)
+  )
 }
 
 

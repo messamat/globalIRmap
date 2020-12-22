@@ -27,53 +27,93 @@ loadd(rivpred)
 loadd(tasks_u10)
 loadd(tasks_featsel_u10)
 loadd(tasks_featsel_o1)
+loadd(IRpop)
 ```
 
 
 #Geographical distribution of reference streamgauging stations
 ##Statistics for paper
-- Number of gauges in total:              
-`r gpredsdt[, .N]`  
-- Number of perennial gauges used in analysis (average number of years of data):             
-`r gpredsdt[intermittent_o1800==0, .N]`(`r gpredsdt[intermittent_o1800==0, mean(totalYears_kept_o1800)]`)
-- Number of intermittent gauges taking in account only post-1800, mDur >= 1 (average number of years of data):             
-`r gpredsdt[intermittent_o1800==1, .N]`(`r gpredsdt[intermittent_o1800==1, mean(totalYears_kept_o1800)]`)
-- Number of intermittent gauges taking in account only post-1800, mDur > 0 (average number of years of data):              
-`r gpredsdt[mDur_o1800>0, .N]`
-- Number of intermittent gauges taking in account only post-1800, mDur >= 30 (average number of years of data):             
-`r gpredsdt[mDur_o1800>=30, .N]`
-- Number of reaches in network:  
-`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, .N]`
-- Average length of reaches in network:          
-`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, mean(LENGTH_KM*(1-INLAKEPERC))]`
-- Total length of reaches in network:         
-`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, sum(LENGTH_KM*(1-INLAKEPERC))]`
-- Total number of predictor variables:            
-`r length(tasks_u10$classif$feature_names)`
-- Total number of predictor variables kept in model for gauges < 10 m3/s:            
-`r length(tasks_featsel_u10$classif$feature_names)`
-- Total number of predictor variables kept in model for gauges >= 1 m3/s:            
-`r length(tasks_featsel_o1$classif$feature_names)`
+- Number of gauges in total: \         
+`r gpredsdt[, .N]` \
+- Number of perennial gauges used in analysis (average number of years of data): \
+`r gpredsdt[intermittent_o1800==0, .N]`(`r gpredsdt[intermittent_o1800==0, mean(totalYears_kept_o1800)]`) \
+- Number of intermittent gauges taking in account only post-1800, mDur >= 1 (average number of years of data): \
+`r gpredsdt[intermittent_o1800==1, .N]`(`r gpredsdt[intermittent_o1800==1, mean(totalYears_kept_o1800)]`) \
+- Number of intermittent gauges taking in account only post-1800, mDur > 0 (average number of years of data): \
+`r gpredsdt[mDur_o1800>0, .N]` \
+- Number of intermittent gauges taking in account only post-1800, mDur >= 30 (average number of years of data): \
+`r gpredsdt[mDur_o1800>=30, .N]` \
+- Number of reaches in network: \
+`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, .N]` \
+- Average length of reaches in network: \
+`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, mean(LENGTH_KM*(1-INLAKEPERC))]` \
+- Total length of reaches in network: \
+`r rivpred[dis_m3_pyr > 0.1 & INLAKEPERC < 1, sum(LENGTH_KM*(1-INLAKEPERC))]` \
+- Total number of predictor variables: \
+`r length(tasks_u10$classif$feature_names)` \
+- Total number of predictor variables kept in model for gauges < 10 m3/s: \
+`r length(tasks_featsel_u10$classif$feature_names)` \
+- Total number of predictor variables kept in model for gauges >= 1 m3/s: \
+`r length(tasks_featsel_o1$classif$feature_names)` \
+- Number of people living nearest to an IRES: \
+`r flextable(IRpop)` \
 
+```{r clean-targets, echo=FALSE}
+remove(gpredsdt)
+remove(rivpred)
+remove(tasks_u10)
+remove(tasks_featsel_u10)
+remove(tasks_featsel_o1)
+remove(IRpop)
+gc()
+```
 
+#IRES extrapolation
+```{r extra-ires, echo = FALSE}
+loadd(IRESextra)
+print("Number of climate-basins sub-units occurrences: ")
+print(IRESextra[,.N])
 
+print(paste0(
+    'For mdur >= 1, statistically extrapolating the prevalence of intermittence in rivers < 0.1 m3/s, we predict that ',
+    round(100*IRESextra[
+      , sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
+    '% of rivers >= 0.01 m3/s are intermittent'
+  ))
+
+print(paste0('For a total river length of ',IRESextra[, sum(cumL_pred)], ' km'
+             ))
+
+loadd(IRESextra_mdur30)
+print(paste0(
+    'For mdur >= 30, statistically extrapolating the prevalence of intermittence in rivers < 0.1 m3/s, we predict that ',
+    round(100*IRESextra_mdur30[
+      , sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
+    '% of rivers >= 0.01 m3/s are intermittent'
+  ))
+
+remove(IRESextra)
+remove(IRESextra_mdur30)
+gc()
+
+```
+
+#Gauges map
 ```{r basic-map, echo = FALSE, fig.width = 7,  fig.height = 5, dpi=600}
 loadd(gauges_plot)
 print(gauges_plot)
+
+remove(gauges_plot)
+gc()
 ```
 
 #WaterGAP stats
 ```{r watergap-stats, echo = FALSE}
 loadd(watergap_stats)
 flextable(watergap_stats)
-```
 
-#Environmental variables used in model training  + variable selection results
-```{r variabl-figure, echo=FALSE}
-loadd(predvars)
-flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
-                      'Temporal/Statistical aggreg.', 'Source', 'Citation'),
-                   with=F])
+remove(watergap_stats)
+gc()
 ```
 
 #Environmental distribution of reference streamgauging stations
@@ -81,6 +121,9 @@ flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
 loadd(envhist)
 grid.newpage() 
 grid.draw(envhist)
+
+remove(envhist)
+gc()
 ```
 
 
@@ -121,6 +164,11 @@ results_table_o1 <- rbindlist(list(tablebm_classif1_o1$results,
                               tablebm_classif2_o1$results),
                          fill=T, use.names=T)
 flextable(results_table_o1)
+
+remove(tablebm_classif1_u10)
+remove(tablebm_regr1_u10)
+remove(tablebm_classif2_u10)
+gc()
 ```
 
 #Methods - Figure 2. Benchmark comparison of models through curves
@@ -138,10 +186,12 @@ gpredsdt[, mlr3measures::bacc(factor(as.character(intermittent_o1800),
 gpredsdt[, mlr3measures::bacc(factor(as.character(intermittent_o1800),
                                       levels=c('0', '1')),
                                factor(IRpredcat_CVnosp, levels=c('0','1')))]
+
 ```
 
+
 #Main text - Figure 2. Variable importance for top 20 variables
-```{r variable-importance, fig.width=6, fig.height=5, dpi=600, echo=FALSE}
+```{r variable-importance, fig.width=7.5, fig.height=6, dpi=600, echo=FALSE}
 loadd(vimp_plot_u10)
 loadd(vimp_plot_o1)
 
@@ -166,7 +216,15 @@ p_o1format <- vimp_plot_o1 +
         panel.background = element_blank(),
         plot.margin = unit(c(0,0,0,0.1), 'cm'))
 
+pdf(paste0(file.path(resdir, 'figures//vimp_'), 
+           format(Sys.Date(), '%Y%m%d'), '.pdf'), 
+    width=7.5, height=6)
 p_u10 + p_o1format
+dev.off()
+
+remove(vimp_plot_u10)
+remove(vimp_plot_o1)
+gc()
 ```
 
 #Main text - Figure 3. Partial dependence plots
@@ -176,6 +234,10 @@ lapply(pd_plot_u10, function(p) plot(p))
 
 loadd(pd_plot_o1)
 lapply(pd_plot_o1, function(p) plot(p))
+
+remove(pd_plot_u10)
+remove(pd_plot_o1)
+gc()
 ```
 
 #Methods - Figure 3 A. Predictions uncertainty by metavariable and environment
@@ -183,14 +245,57 @@ lapply(pd_plot_o1, function(p) plot(p))
 loadd(gaugeIPR_plot)
 grid.newpage()
 grid.draw(gaugeIPR_plot)
+
+remove(gaugeIPR_plot)
+gc()
 ```
 
-#Final binned summary statistics
+#Final binned summary statistics for split model approach(< 10 and >= 1)
 ```{r binned_misclas, echo=FALSE}
-loadd(bin_finalmisclass)
-flextable(bin_finalmisclass)
+loadd(bin_finalmisclass_IRpredcat_CVnosp)
+loadd(bin_finalmisclass_IRpredcat_CVsp)
+loadd(gpredsdt)
 
+print('Split model approach: 3-fold non-spatial CV')
+print(paste0(
+  'Overal bacc:', 
+  gpredsdt[, round(mlr3measures::bacc(intermittent_o1800, 
+                                      as.factor(IRpredcat_CVnosp)),
+                   2)]
+)
+)
+flextable(bin_finalmisclass_IRpredcat_CVnosp)
+
+print('Slit model approach: 40-fold spatial CV')
+print(paste0(
+  'Overal bacc:', 
+  gpredsdt[, round(mlr3measures::bacc(intermittent_o1800, 
+                                      as.factor(IRpredcat_CVsp)),
+                   2)]
+)
+)
+flextable(bin_finalmisclass_IRpredcat_CVsp)
+
+remove(bin_finalmisclass_IRpredcat_CVnosp)
+remove(bin_finalmisclass_IRpredcat_CVsp)
 ```
+
+#Binned summary statistics for single model approach
+```{r binned_misclass_all, echo = FALSE}
+loadd(res_featsel_cv_all)
+print('Single model approach: 3-fold non-♣spatial CV')
+bin_misclass_all <- bin_misclass(in_resampleresult = res_featsel_cv_all,
+                                 binvar = 'dis_m3_pyr',
+                                 binfunc = 'manual',
+                                 binarg = c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+                                 interthresh=0.5,
+                                 spatial_rsp=FALSE
+)
+flextable(bin_misclass_all)
+
+remove(res_featsel_cv_all)
+gc()
+```    
 
 #Tables of intermittence by categories
 ```{r inter-tables, echo=FALSE}
@@ -224,26 +329,150 @@ ft[[4]]
 print('Extrapolation')
 loadd(globaltable_clzextend)
 flextable(globaltable_clzextend)
+
+remove(gaugestats_format)
+gc()
 ```
 
 #Comparison of results with regional-national estimates
-```{r comparison, echo = FALSE, fig.width = 6, fig.height = 10,  dpi=600}
+```{r comparison, echo = FALSE, fig.width = 5, fig.height = 11,  dpi=600}
+getdisplay_totalest <- function(target, subtarget='data') {
+  flextable(target[[subtarget]] %>%
+              rbind(.[bin>1, list(bin='world',
+                                  perc = weighted.mean(perc, binsumlength)
+              ), by=dat],fill=T)
+  )
+}
+
 loadd(fr_plot)
 loadd(us_plot)
-loadd(au_plot) 
+loadd(au_plot)
 au_plot <- au_plot$plot + theme(axis.title.y = element_blank(), 
-                                legend.title=element_blank()) + labs(x='Surface area km2')
+                                legend.title=element_blank()) + 
+  labs(x=bquote('Surface area'~km^2))
 grid.arrange(fr_plot$plot, us_plot$plot, au_plot, left = 'Prevalence of intermittency (% river length)') 
+
+print("Data for comparison: US - all")
+getdisplay_totalest(us_plot, subtarget='data_all')
+
+print("Data for comparison: US - no artificial")
+getdisplay_totalest(us_plot, subtarget='data_noartificial')
+
+print("Data for comparison: France")
+getdisplay_totalest(fr_plot)
+
+print("Data for comparison: Australia")
+getdisplay_totalest(au_plot)
+
+remove(ft_plot)
+remove(us_plot)
+remove(au_plot)
+gc()
+
+loadd(fr_plot_mdur30)
+loadd(us_plot_mdur30)
+loadd(au_plot_mdur30) 
+au_plot_mdur30 <- au_plot_mdur30$plot + theme(axis.title.y = element_blank(), 
+                                              legend.title=element_blank()) + 
+    labs(x=bquote('Surface area'~km^2))
+grid.arrange(fr_plot_mdur30$plot, us_plot_mdur30$plot, au_plot_mdur30, 
+             left = 'Prevalence of intermittency (% river length)') 
+
+print("Data for comparison, mdur >= 30: US - all")
+getdisplay_totalest(us_plot_mdur30, subtarget='data_all')
+
+print("Data for comparison, mdur >= 30: US - no artificial")
+getdisplay_totalest(us_plot_mdur30, subtarget='data_noartificial')
+
+print("Data for comparison, mdur >= 30: France")
+getdisplay_totalest(fr_plot_mdur30)
+
+print("Data for comparison, mdur >= 30: Australia")
+getdisplay_totalest(au_plot_mdur30)
+
+remove(ft_plot_mdur30)
+remove(us_plot_mdur30)
+remove(au_plot_mdur30)
+gc()
+
 ```
 
 #Comparison of results with on-the-ground observations for PROSPER
 ```{r QC_pnw, echo = FALSE, fig.width = 8, fig.height=6, dpi=600}
 loadd(pnw_plot)
-print(pnw_plot)
+print(pnw_plot$plot)
+
+pnw_measures <- pnw_plot$stats
+print(paste0('Balanced accuracy of predictions based on PROSPER: ',
+             round(pnw_measures$bacc, 3)))
+print(paste0('AUC based on PROSPER: ',
+             round(pnw_measures$auc, 3)))
+print(paste0('Misclassification rate based on PROSPER: ',
+             round(pnw_measures$ce, 3)))
+print(paste0('Sensitivity based on PROSPER: ',
+             round(pnw_measures$sen, 3)))
+print(paste0('Specificity rate based on PROSPER: ',
+             round(pnw_measures$spe, 3)))
+
+
+print(paste0('Total number of obs: ',
+             pnw_measures$nobs_total
+))
+print(paste0('Total number of reaches: ',
+             pnw_measures$nreaches
+))
+print(paste0('Total number of perennial reaches: ',
+              pnw_measures$nreaches_perennial
+))
+print(paste0('Total number of non-perennial reaches: ',
+              pnw_measures$nreaches_nonperennial
+))
+
+remove(pnw_plot)
+gc()
 ```
 
 #Comparison of results with on-the-ground observations for ONDE
 ```{r QC_onde, echo = FALSE, fig.width = 8, fig.height=8, dpi=600}
 loadd(onde_plot)
-print(onde_plot)
+print(onde_plot$plot)
+
+onde_measures <- onde_plot$stats
+print(paste0('Balanced accuracy of predictions based on ONDE: ',
+             round(onde_measures$bacc, 3)))
+print(paste0('AUC based on ONDE: ',
+             round(onde_measures$auc, 3)))
+print(paste0('Misclassification rate based on ONDE: ',
+             round(onde_measures$ce, 3)))
+print(paste0('Sensitivity based on ONDE: ',
+             round(onde_measures$sen, 3)))
+print(paste0('Specificity rate based on ONDE: ',
+             round(onde_measures$spe, 3)))
+
+print(paste0('Total number of obs: ',
+             onde_measures$nobs_total
+))
+print(paste0('Total number of reaches: ',
+             onde_measures$nreaches
+))
+print(paste0('Total number of perennial reaches: ',
+              onde_measures$nreaches_perennial
+))
+print(paste0('Total number of non-perennial reaches: ',
+              onde_measures$nreaches_nonperennial
+))
+
+remove(onde_plot)
+gc()
+```
+
+#Environmental variables used in model training  + variable selection results
+```{r variabl-figure, echo=FALSE}
+loadd(predvars)
+flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
+                      'Temporal/Statistical aggreg.', 'Source', 'Citation'),
+                   with=F])
+
+remove(predvars)
+gc()
 ```
