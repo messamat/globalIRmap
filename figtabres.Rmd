@@ -68,26 +68,66 @@ remove(IRpop)
 gc()
 ```
 
+#Threshold sensitivity
+```{r threshold-sensitivity, fig.height = 6, fig.height = 6, dpi=600, echo = FALSE}
+loadd(threshold_sensitivity)
+
+png(paste0(file.path(resdir, 'figures//thresholdsensitivty_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=6, height=6, units='in', res=600)
+print(threshold_sensitivity$gperf)
+dev.off()
+
+print(threshold_sensitivity$predbounds)
+```
+
 #IRES extrapolation
 ```{r extra-ires, echo = FALSE}
 loadd(IRESextra)
+loadd(netlength_extra)
 print("Number of climate-basins sub-units occurrences: ")
-print(IRESextra[,.N])
+print(IRESextra$preds[,.N])
+
 
 print(paste0(
     'For mdur >= 1, statistically extrapolating the prevalence of intermittence in rivers < 0.1 m3/s, we predict that ',
-    round(100*IRESextra[
+    round(100*IRESextra$preds[
       , sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
     '% of rivers >= 0.01 m3/s are intermittent'
   ))
 
-print(paste0('For a total river length of ',IRESextra[, sum(cumL_pred)], ' km'
+print(paste0('For a total river length of ',IRESextra$preds[, sum(cumL_pred)], ' km'
              ))
+
+print('Example plots')
+png(paste0(file.path(resdir, 'figures//extraIRESplot_62_18_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=5, height=5, units='in', res=600)
+print(IRESextra$plot_62_18)
+dev.off()
+png(paste0(file.path(resdir, 'figures//extraIRESplot_14_17_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=5, height=5, units='in', res=600)
+print(IRESextra$plot_14_17)
+dev.off()
+
+png(paste0(file.path(resdir, 'figures//extraLENGTHplot_62_18_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=5, height=5, units='in', res=600)
+print(netlength_extra$plot_62_18)
+dev.off()
+png(paste0(file.path(resdir, 'figures//extraLENGTHplot_14_17_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=5, height=5, units='in', res=600)
+print(netlength_extra$plot_14_17)
+dev.off()
+
+
 
 loadd(IRESextra_mdur30)
 print(paste0(
     'For mdur >= 30, statistically extrapolating the prevalence of intermittence in rivers < 0.1 m3/s, we predict that ',
-    round(100*IRESextra_mdur30[
+    round(100*IRESextra_mdur30$preds[
       , sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
     '% of rivers >= 0.01 m3/s are intermittent'
   ))
@@ -121,6 +161,13 @@ gc()
 loadd(envhist)
 grid.newpage() 
 grid.draw(envhist)
+
+
+pdf(paste0(file.path(resdir, 'figures//envhist_'), 
+           format(Sys.Date(), '%Y%m%d'), '.pdf'), 
+    width=10, height=9)
+grid.draw(envhist)
+dev.off()
 
 remove(envhist)
 gc()
@@ -297,48 +344,11 @@ remove(res_featsel_cv_all)
 gc()
 ```    
 
-#Tables of intermittence by categories
-```{r inter-tables, echo=FALSE}
-loadd(gaugestats_format)
-get_tabletarget <- function(in_gaugeformat) {
-  lapply(names(in_gaugeformat), function(var) {
-    targetname <- paste0('globaltables_', var)
-    #print(targetname)
-    tryCatch(return(readd(eval(targetname), character_only = T)$`0.5` %>%
-                      setDT(tab) %>%
-                      setorder(-`Total stream length (10^3 km)`)),
-             error=function(e) NULL)
-  })
-}
-
-tables <- get_tabletarget(gaugestats_format) %>%
-  compact
-
-ft <- list()
-for (i in 1:length(tables)) {
-  numcols <- names(tables[[i]])[tables[[i]][,sapply(.SD, class)=='numeric']]
-  ft[[i]] <- flextable(tables[[i]][, (numcols) := lapply(.SD, function(x) as.integer(x)),
-                              .SDcols = numcols]) %>%
-    autofit
-}
-ft[[1]]
-ft[[2]]
-ft[[3]]
-ft[[4]]
-
-print('Extrapolation')
-loadd(globaltable_clzextend)
-flextable(globaltable_clzextend)
-
-remove(gaugestats_format)
-gc()
-```
-
 #Comparison of results with regional-national estimates
 ```{r comparison, echo = FALSE, fig.width = 5, fig.height = 11,  dpi=600}
-getdisplay_totalest <- function(target, subtarget='data') {
+getdisplay_totalest <- function(target, subtarget='data', minbin=2) {
   flextable(target[[subtarget]] %>%
-              rbind(.[bin>1, list(bin='world',
+              rbind(.[bin>=minbin, list(bin='world',
                                   perc = weighted.mean(perc, binsumlength)
               ), by=dat],fill=T)
   )
@@ -362,7 +372,7 @@ print("Data for comparison: France")
 getdisplay_totalest(fr_plot)
 
 print("Data for comparison: Australia")
-getdisplay_totalest(au_plot)
+getdisplay_totalest(au_plot, minbin=1)
 
 remove(ft_plot)
 remove(us_plot)
@@ -388,7 +398,7 @@ print("Data for comparison, mdur >= 30: France")
 getdisplay_totalest(fr_plot_mdur30)
 
 print("Data for comparison, mdur >= 30: Australia")
-getdisplay_totalest(au_plot_mdur30)
+getdisplay_totalest(au_plot_mdur30, minbin=1)
 
 remove(ft_plot_mdur30)
 remove(us_plot_mdur30)
@@ -474,5 +484,84 @@ flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
                    with=F])
 
 remove(predvars)
+gc()
+```
+
+#Tables of intermittence by categories for base model
+```{r inter-tables, echo=FALSE}
+loadd(gaugestats_format)
+get_tabletarget <- function(in_gaugeformat) {
+  lapply(names(in_gaugeformat), function(var) {
+    targetname <- paste0('globaltables_', var)
+    #print(targetname)
+    tryCatch(return(readd(eval(targetname), character_only = T)$`0.5` %>%
+                      setDT(tab) %>%
+                      setorder(-`Total stream length (10^3 km)`)),
+             error=function(e) NULL)
+  })
+}
+
+tables <- get_tabletarget(gaugestats_format) %>%
+  compact
+
+ft <- list()
+for (i in 1:length(tables)) {
+  numcols <- names(tables[[i]])[tables[[i]][,sapply(.SD, class)=='numeric']]
+  ft[[i]] <- flextable(tables[[i]][, (numcols) := lapply(.SD, function(x) as.integer(round(x))),
+                              .SDcols = numcols]) %>%
+    autofit
+}
+ft[[1]]
+ft[[2]]
+ft[[3]]
+ft[[4]]
+
+print('Extrapolation')
+loadd(globaltable_clzextend)
+flextable(globaltable_clzextend)
+
+remove(gaugestats_format)
+gc()
+```
+
+#Tables of intermittence by categories for mdur 30 model
+```{r inter-tables-mdur30, echo=FALSE}
+loadd(gaugestats_format)
+get_tabletarget_mdur30 <- function(in_gaugeformat) {
+  lapply(names(in_gaugeformat), function(var) {
+    targetname <- paste0('globaltables_', var, '_mdur30')
+    #print(targetname)
+    tryCatch(return(readd(eval(targetname), character_only = T)$`0.5` %>%
+                      setDT(tab) %>%
+                      setorder(-`Total stream length (10^3 km)`)),
+             error=function(e) NULL)
+  })
+}
+
+tables <- get_tabletarget_mdur30(gaugestats_format) %>%
+  compact
+
+ft_mdur30 <- list()
+for (i in 1:length(tables)) {
+  numcols <- names(tables[[i]])[tables[[i]][,sapply(.SD, class)=='numeric']]
+  ft_mdur30[[i]] <- flextable(tables[[i]][, (numcols) := lapply(.SD, function(x) as.integer(round(x))),
+                              .SDcols = numcols]) %>%
+    autofit
+}
+
+print(paste0('Table organized by: ', ft[[1]]$header$col_keys[1]))
+ft_mdur30[[1]]
+print(paste0('Table organized by: ', ft[[2]]$header$col_keys[1]))
+ft_mdur30[[2]]
+print(paste0('Table organized by: ', ft[[3]]$header$col_keys[1]))
+ft_mdur30[[3]]
+print(paste0('Table organized by: ', ft[[4]]$header$col_keys[1]))
+ft_mdur30[[4]]
+
+print('Extrapolation')
+loadd(globaltable_clzextend_mdur30)
+flextable(globaltable_clzextend_mdur30)
+
+remove(gaugestats_format)
 gc()
 ```

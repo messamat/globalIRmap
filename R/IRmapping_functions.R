@@ -4428,7 +4428,7 @@ extrapolate_networklength <- function(inp_riveratlas,
   if (interactive) {
     ccdf_datbas03[!duplicated(get(grouping_var)),.N]
     ccdf_datbas03[!duplicated(get(grouping_var)) & nuniquedis_o01 >= 20, .N]
-    100*ccdf_datbas03[nuniquedis_o01 < 20, sum(suml)]/ccdf_datbas03[nuniquedis_o01 >= 20, sum(suml)]
+    ccdf_datbas03[nuniquedis_o01 < 20, sum(suml)]/ccdf_datbas03[nuniquedis_o01 >= 20, sum(suml)]
     #~3000 km out of 33 million kilometers
   }
 
@@ -4455,8 +4455,12 @@ extrapolate_networklength <- function(inp_riveratlas,
       annotation_logticks() +
       theme_classic()
   }
+  plot_62_18 <- fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="62_18")
+  plot_14_17 <- fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="14_17")
+  
   if (interactive) {
-    fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="62_18")
+    print(plot_62_18)
+    print(plot_14_17)
   }
 
   #-----Across all basins:
@@ -4565,8 +4569,10 @@ extrapolate_networklength <- function(inp_riveratlas,
   #Check total
   pred_all_format[dispred == 0.01, sum(cumL_pred)]
 
-  return(pred_all_format)
-
+  return(list(preds=pred_all_format,
+              plot_62_18 = plot_62_18,
+              plot_14_17 = plot_14_17)
+  )
   ################### EXTRA STUFF NOT USED#############################
   # #
   # #Look at distribution for a given basin
@@ -4698,6 +4704,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
                              valuevar = 'predbasic800cat',
                              grouping_var = 'PFAF_IDclz') {
 
+  in_extranet <- in_extranet$preds
   #Format rivp
   binlog <- function(x) {
     round(x/10^floor(log10(x)))*10^floor(log10(x))
@@ -4746,6 +4753,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
           }
 
           preds_input$percinter_bin <- as.vector(predict(gamfit, preds_input, type='response'))
+          preds_input$adjr2 <- summary(gamfit)$r.sq
         } else {
           preds_input$percinter_bin <- dt_gamformat[, max(percinter_bin)]
         }
@@ -4788,16 +4796,16 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
       {
         preds <- fit_basIRESgam(dt=gamsubdat)
 
-        ggplot(gamsubdat, aes(x=dislogbin, y=percinter_bin, group=1)) +
+        ggplot(gamsubdat, aes(x=dislogbin, y=100*percinter_bin, group=1)) +
           geom_step(size=1.5, stat='identity', alpha=1/3) +
           geom_step(data=preds, color='red') +
           geom_step(data=preds[dislogbin <= min(gamsubdat$dislogbin),],
-                    aes(y=percinter_bin_adjust, group=1),color='blue') +
+                    aes(y=100*percinter_bin_adjust, group=1),color='blue') +
           scale_x_log10(name=bquote(
             'Binned naturalized long-term mean annual discharge'~(m^3~s^-1)),
             limits=c(0.001, 10000)) +
           scale_y_continuous(name='Prevalence of intermittence within bin (% of length)') +
-          annotation_logticks() +
+          annotation_logticks(sides='b') +
           theme_classic()
       },  error=function(cond) {
         message(cond)
@@ -4830,7 +4838,13 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id= "45_17")
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id= "14_17")
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id= "91_5")
+    plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id= "12_7")
+    plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="62_18")
+    plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="14_17")
   }
+  
+  plot_62_18 <- plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="62_18")
+  plot_14_17 <- plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="14_17")
   #dt = netsub_basbinir[get(grouping_var) == checkpfaf,]
 
 
@@ -4843,7 +4857,7 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
                      verbose = F, onlyextra = T) %>%
         .[, (grouping_var) := pfaf_id]
     }) %>%
-    rbindlist()
+    rbindlist(fill=T)
 
   #Compute IRES prevalence based on GAM output for log bins below minimum discharge cutoff
   gambasires_bin_merge <- merge(gambasires_bin, in_extranet,
@@ -4925,7 +4939,10 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
     '% of rivers >= 0.01 m3/s are intermittent'
   ))
 
-  return(extraIRES_pred)
+  return(list(preds=extraIRES_pred,
+              plot_62_18 = plot_62_18,
+              plot_14_17 = plot_14_17)
+  )
 }
 
 
@@ -5333,6 +5350,12 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 }
 
 #------ gggaugeIPR -----------------
+in_gpredsdt = readd(gpredsdt)
+in_predvars = readd(predvars)
+spatial_rsp = F
+interthresh = 0.5
+yearthresh = 1800
+
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                        interthresh = 0.5, yearthresh) {
   #Plot numeric variables
@@ -5759,7 +5782,7 @@ gggauges <- function(in_gaugepred, in_basemaps,
 
     gaugehist <- ggplot(in_gdf, aes(x=as.numeric(bin), fill=bin)) +
       geom_histogram(stat="count", width=1) +
-      geom_vline(xintercept = meanpos - 1) +
+      geom_vline(xintercept = meanpos - 0.5) +
       annotate(geom='text', angle=90,
                x=meanpos-0.6,
                y=0.5*max(as.data.table(in_gdf)[, .N, by=bin]$N),
@@ -5768,16 +5791,13 @@ gggauges <- function(in_gaugepred, in_basemaps,
       scale_x_continuous(name = 'Years of data',
                          breaks = c(binarg_tick, x_tick),
                          labels = c(rep(c(""), len), c(l_freq, u_freq[bins]))) +
-      # scale_y_continuous(name = paste0('Number of gauging stations (total: ',
-      #                                  nrow(in_gdf),
-      #                                  ')'))+
+      scale_y_continuous(name = 'Count (gauges)')+
       coord_cartesian(clip='off', expand=c(0,0)) +
       theme_classic() +
       theme(legend.position = 'none',
             text = element_text(size=9),
             plot.background = element_blank(),
             panel.background = element_blank(),
-            axis.title.y = element_blank(),
             axis.title.x = element_text(vjust=3),
             axis.ticks.x = element_line(color = c(rep(NA, len - 1),
                                                   rep("black", len))))
@@ -6299,20 +6319,26 @@ test_thresholdsensitivity <- function(in_gpredsdt,
                       'Maximum BACC', 'Sensitivity = Specificity')]
   
   threshpoly_gpredratio <- gstats[
-    which(abs(round(predratio/2,2))==min(abs(round(predratio/2,2)))),] %>%
+    which(abs(predratio)<=min(abs(predratio))+0.01),] %>%
     .[, perfstat := 'Bias']
+  threshpoly_gpredratio[, .(min(predratio), max(predratio))]
   
   threshpoly_gmisclass <- copy(gstats)[
-    which(round(misclas/2,2)==min(round(misclas/2,2))),] %>%
+    which(misclas<=min(misclas)+0.01),] %>%
     .[, perfstat := 'Raw accuracy']
   
+  threshpoly_gmisclass[, .(1-max(misclas), 1-min(misclas))]
+  
   threshpoly_gbacc <- copy(gstats)[
-    which(round(bacc/2,2)==max(round(bacc/2,2))),] %>%
+    which(bacc>=max(bacc)-0.01),] %>%
     .[, perfstat := 'Balanced accuracy (BACC)']
   
+  threshpoly_gbacc[, .(min(bacc), max(bacc))]
+  
   threshpoly_gsenspec <- gstats[
-    which(round(abs(sens-spec)/2,2)==min(round(abs(sens-spec)/2,2))),] %>%
+    which(abs(sens-spec)<=min(abs(sens-spec)+0.01)),] %>%
     .[,perfstat := 'Sensitivity = Specificity']
+  threshpoly_gsenspec[, .(min(abs(sens-spec)), max(abs(sens-spec)))]
   
   thresh_ghexdt <- rbindlist(list(
     threshpoly_gpredratio,
@@ -6584,6 +6610,8 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
 extend_globalsummary_clz <- function(
   in_IRESextra, in_globaltable, inp_riveratlas_legends) {
 
+  in_IRESextra <- in_IRESextra$preds
+  
   worldpred_belowcutoff <- in_IRESextra[
     , list(`0.01-0.099` = 100*sum(percinter_gam_belowcutoff*cumL_predextra, na.rm=T)/sum(cumL_predextra, na.rm=T),
            clz_cl_cmj = 'World')]
@@ -6971,30 +6999,33 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
 
 
 #------ compare_au ----------------
-compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
-  in_netpath <- file.path(inp_auresdir, 'AHGFNetworkStream')
-  in_baspath <- file.path(inp_auresdir, 'hydrobasins12')
+compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
   valuevarsub <- "1"
 
   #Get Australian network
-  net <- st_read(dsn = dirname(in_netpath),
-                 layer = basename(in_netpath)
-  ) %>%
-    as.data.table %>%
+  net <- fread(file.path(inp_resdir, 'netbas12_inters_australia.csv'))%>%
     .[, UpstrDArea := UpstrDArea/(10^6)]  %>%
     .[UpstrDArea >=10,]
 
-
-  #Get HydroSHEDS basins that overlap with selected NHD HUC8s
-  bas <- st_read(dsn = dirname(in_baspath),
-                 layer = basename(in_baspath)) %>%
-    .[, c('HYBAS_ID'), with=F]
-
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
-  rivpredbas <- merge(in_rivpred, bas,
+  rivpredbas <- merge(in_rivpred, unique(net[, .(HYBAS_ID)]),
                       by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
   rivpredsub <- rivpredbas[dis_m3_pyr > 0 & UPLAND_SKM >= 10,] #Remove segments with 0 discharge
 
+  #Comparing by basin (adjusting prevalence of intermittence predicted by RF based 
+  # on length of rivers in Geofabric)
+  # bastats_au <- net[,list(sumlen_IRES_au = .SD[Perennial == "Non Perennial", sum(LENGTH_GEO)],
+  #                         sumlen_all_au = sum(LENGTH_GEO)),
+  #                   by=HYBAS_ID]
+  # bastats_riv <- rivpredsub[,list(sumlen_IRES_riv = sum(get(predcol)*LENGTH_KM),
+  #                                 sumlen_all_riv = sum(LENGTH_KM)),
+  #                           by=HYBAS_L12]
+  # 
+  # bastats <- merge(bastats_au, bastats_riv, by.x='HYBAS_ID', by.y='HYBAS_L12')
+  # bastats[, sum((sumlen_IRES_riv/sumlen_all_riv)*sumlen_all_au)/sum(sumlen_all_au)]
+  # bastats[, sum((sumlen_IRES_au/sumlen_all_au)*sumlen_all_riv)/sum(sumlen_all_riv)]
+  
+  #Get binned prevalence of IRES and length
   binlabels <- label_manualbins(binarg=binarg,
                                 minval=10)
 
@@ -7002,12 +7033,11 @@ compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
                               castvar = "UpstrDArea",
                               valuevar = "Perennial",
                               valuevarsub = "Non Perennial",
-                              weightvar = "GeodesLen",
+                              weightvar = "LENGTH_GEO",
                               binfunc = 'manual',
                               binarg =  binarg,
                               binlabels = binlabels,
-                              datname = 'Geofabric') %>%
-    .[, binsumlength := binsumlength/1000]
+                              datname = 'Geofabric') 
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'UPLAND_SKM',
@@ -7025,7 +7055,10 @@ compare_au <- function(inp_auresdir, in_rivpred, predcol, binarg) {
     .[, binformat := factor(binformat, levels=unique(binformat))]
   print('Percentage intermittence for Australia')
   print(datmerge[, weighted.mean(perc, binsumlength), by=dat])
-
+  
+  # dcast(datmerge, formula=binformat~dat, value.var = c('perc', 'binsumlength')) %>%
+  #   .[, weighted.mean(perc_Global, binsumlength_Geofabric)]
+  
   return(
     list(
       plot = ggcompare(datmerge, binarg, insetx = 0.9, insety = 0.97),
@@ -7124,14 +7157,16 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
              new=c("LINEdis", "LINEDA", "predcat", "predp")) %>%
     setnames(new=unlist(lapply(names(.), function(x) gsub('[.]','_', x))))
 
-  st_write(obj=predtowrite[,c('OBJECTID', 'IPR',
+  st_write(obj=predtowrite[,c('OBJECTID', 'HYRIV_ID', 
+                              'IPR',
                               "LINEdis", "LINEDA",
                               "predcat", "predp",
                               'nobs', 'refinter_reach',
                               'pop_ct_usu')],
            dsn = dirname(inp_pnwresdir),
-           layer=paste0('pnwobs_IPR',
-                        format(Sys.time(), '%Y%m%d%H%M%S'), '.shp'),
+           layer=paste0('pnwobs_IPR_',
+                        predcol,
+                        format(Sys.time(), '%Y%m%d%H%M'), '.shp'),
            driver='ESRI Shapefile')
 
   #Scatterpoint of x = drainage area, y = predprobability - refinter_reach
@@ -7322,8 +7357,13 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                    predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp"))
 
-  write_sf(predtowrite, file.path(dirname(inp_onderesdir), 'ondeobs_IPR4.shp'))
-
+  write_sf(predtowrite, file.path(dirname(inp_onderesdir), 
+                                  paste0(
+                                    'ondeobs_IPR_',
+                                    predcol,
+                                    format(Sys.time(), '%Y%m%d%H%M'), '.shp')
+  ))
+  
   #Remove those whose ID doesn't fit what they were snapped to? (to inspect another time?)
   refpts_joinsub <- refpts_join[RATIOLENGTH < 1.01 & RATIODA< 1.01,]
 

@@ -628,7 +628,7 @@ plan_compareresults <- drake_plan(
                        mincutoff = 0.1
   ),
   
-  au_plot = compare_au(inp_auresdir = path_auresdir,
+  au_plot = compare_au(inp_resdir = path_resdir,
                        in_rivpred = rivpred,
                        predcol = 'predbasic800cat',
                        binarg = c(100, 10^3, 10^4, 10^5, 10^6, 10^7)
