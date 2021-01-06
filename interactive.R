@@ -2,13 +2,12 @@ library(drake)
 #r_outdated()
 r_make()
 
-drake::vis_drake_graph(plan, targets_only = T)
-#predict_runtime(plan, from_scratch = TRUE) #Predict how long it would take to re-run plan
 
-
-cached()
 drake::drake_cache("C:\\globalIRmap\\src/globalIRmap/.drake")$unlock()
 drake::drake_cache("E:\\Mathis/src/globalIRmap/.drake")$unlock()
+
+#################### Interactive manipulations of plan #########################
+cached()
 
 history_last <- drake_history(analyze = FALSE) %>%
   setDT %>%

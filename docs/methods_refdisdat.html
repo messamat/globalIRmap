@@ -1,0 +1,1449 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+
+
+<title>Reference stream gauging stations</title>
+
+<script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="site_libs/navigation-1.1/tabsets.js"></script>
+<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+
+<link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
+<!-- Add a small amount of space between sections. -->
+<style type="text/css">
+div.section {
+  padding-top: 12px;
+}
+</style>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+<style type="text/css">
+/* padding for bootstrap navbar */
+body {
+  padding-top: 51px;
+  padding-bottom: 40px;
+}
+/* offset scroll position for anchor links (for fixed navbar)  */
+.section h1 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h2 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h3 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h4 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h5 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.section h6 {
+  padding-top: 56px;
+  margin-top: -56px;
+}
+.dropdown-submenu {
+  position: relative;
+}
+.dropdown-submenu>.dropdown-menu {
+  top: 0;
+  left: 100%;
+  margin-top: -6px;
+  margin-left: -1px;
+  border-radius: 0 6px 6px 6px;
+}
+.dropdown-submenu:hover>.dropdown-menu {
+  display: block;
+}
+.dropdown-submenu>a:after {
+  display: block;
+  content: " ";
+  float: right;
+  width: 0;
+  height: 0;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 5px 0 5px 5px;
+  border-left-color: #cccccc;
+  margin-top: 5px;
+  margin-right: -10px;
+}
+.dropdown-submenu:hover>a:after {
+  border-left-color: #ffffff;
+}
+.dropdown-submenu.pull-left {
+  float: none;
+}
+.dropdown-submenu.pull-left>.dropdown-menu {
+  left: -100%;
+  margin-left: 10px;
+  border-radius: 6px 0 6px 6px;
+}
+</style>
+
+<script>
+// manage active state of menu based on current page
+$(document).ready(function () {
+  // active menu anchor
+  href = window.location.pathname
+  href = href.substr(href.lastIndexOf('/') + 1)
+  if (href === "")
+    href = "index.html";
+  var menuAnchor = $('a[href="' + href + '"]');
+
+  // mark it active
+  menuAnchor.parent().addClass('active');
+
+  // if it's got a parent navbar menu mark it active as well
+  menuAnchor.closest('li.dropdown').addClass('active');
+});
+</script>
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+  background-color: transparent;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="navbar navbar-default  navbar-fixed-top" role="navigation">
+  <div class="container">
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="index.html">Global mapping of intermittent rivers and ephemeral streams</a>
+    </div>
+    <div id="navbar" class="navbar-collapse collapse">
+      <ul class="nav navbar-nav">
+        <li>
+  <a href="index.html">Home</a>
+</li>
+<li>
+  <a href="about.html">About</a>
+</li>
+<li>
+  <a href="license.html">License</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Data and methods
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="methods_workflow.html">Analysis workflow</a>
+    </li>
+    <li>
+      <a href="methods_refdisdat.html">Reference stream gauging stations</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Results
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="results_diagnostics.html">Model diagnostics</a>
+    </li>
+  </ul>
+</li>
+      </ul>
+      <ul class="nav navbar-nav navbar-right">
+        
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div><!--/.container -->
+</div><!--/.navbar -->
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">Reference stream gauging stations</h1>
+
+</div>
+
+
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
+</button>
+</p>
+<div id="workflowr-report" class="collapse">
+<ul class="nav nav-tabs">
+<li class="active">
+<a data-toggle="tab" href="#summary">Summary</a>
+</li>
+<li>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
+</li>
+<li>
+<a data-toggle="tab" href="#versions">Past versions</a>
+</li>
+</ul>
+<div class="tab-content">
+<div id="summary" class="tab-pane fade in active">
+<p>
+<strong>Last updated:</strong> 2021-01-06
+</p>
+<p>
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
+</p>
+<p>
+<strong>Knit directory:</strong> <code>globalIRmap/analysis/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
+</p>
+<p>
+This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
+  href="https://github.com/jdblischak/workflowr">workflowr</a> (version 1.6.2). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+</p>
+<hr>
+</div>
+<div id="checks" class="tab-pane fade">
+<div id="workflowr-checks" class="panel-group">
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
+</p>
+</div>
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The R Markdown is untracked by Git. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+</p>
+</div>
+<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed12345code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(12345)</code> </a>
+</p>
+</div>
+<div id="strongSeedstrongcodesetseed12345code" class="panel-collapse collapse">
+<div class="panel-body">
+<p>The command <code>set.seed(12345)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
+</p>
+</div>
+<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
+</p>
+</div>
+<div id="strongCachestrongnone" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
+</p>
+</div>
+<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
+<div class="panel-body">
+<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
+</div>
+</div>
+</div>
+<div class="panel panel-default">
+<div class="panel-heading">
+<p class="panel-title">
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree21b2992b392aa329c41e057ce574fd616d72338atargetblank21b2992a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/21b2992b392aa329c41e057ce574fd616d72338a" target="_blank">21b2992</a> </a>
+</p>
+</div>
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree21b2992b392aa329c41e057ce574fd616d72338atargetblank21b2992a" class="panel-collapse collapse">
+<div class="panel-body">
+<p>
+Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
+</p>
+<p>
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/21b2992b392aa329c41e057ce574fd616d72338a" target="_blank">21b2992</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+</p>
+<p>
+Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
+</p>
+<pre><code>
+Ignored files:
+    Ignored:    .Rhistory
+    Ignored:    .Rproj.user/
+    Ignored:    .drake/config/
+    Ignored:    .drake/data/
+    Ignored:    .drake/drake/
+    Ignored:    .drake/keys/
+    Ignored:    .drake/scratch/
+    Ignored:    renv/library/
+    Ignored:    renv/staging/
+
+Untracked files:
+    Untracked:  .Rbuildignore
+    Untracked:  Compare_models_20201026.Rmd
+    Untracked:  analysis/methods_refdisdat.Rmd
+    Untracked:  analysis/methods_workflow.Rmd
+    Untracked:  analysis/results_diagnostics.Rmd
+    Untracked:  figtabres.docx
+    Untracked:  figtabres_20201220_1.docx
+    Untracked:  log/
+    Untracked:  mandrake_workflow.R
+    Untracked:  removeGSIMper.R
+    Untracked:  schema.ini
+    Untracked:  tabs_quick.Rmd
+    Untracked:  tabs_quick.docx
+    Untracked:  tabs_quick.html
+    Untracked:  test.html
+
+Unstaged changes:
+    Modified:   IntermittentAnalysis_MasterScript_reproduced.R
+    Modified:   R/IRmapping_functions.R
+    Modified:   R/IRmapping_packages.R
+    Modified:   R/IRmapping_plan.R
+    Modified:   _drake.R
+    Deleted:    _workflowr.yml
+    Modified:   analysis/_site.yml
+    Modified:   analysis/about.Rmd
+    Deleted:    analysis/diagnostics.Rmd
+    Deleted:    analysis/figure/figtabres.Rmd/basic map-1.png
+    Modified:   analysis/license.Rmd
+    Modified:   drake_cache.csv
+    Modified:   globalIRmap.Rproj
+    Deleted:    install/R/win-library/3.6/packrat/DESCRIPTION
+    Deleted:    install/R/win-library/3.6/packrat/INDEX
+    Deleted:    install/R/win-library/3.6/packrat/MD5
+    Deleted:    install/R/win-library/3.6/packrat/Meta/Rd.rds
+    Deleted:    install/R/win-library/3.6/packrat/Meta/features.rds
+    Deleted:    install/R/win-library/3.6/packrat/Meta/hsearch.rds
+    Deleted:    install/R/win-library/3.6/packrat/Meta/links.rds
+    Deleted:    install/R/win-library/3.6/packrat/Meta/nsInfo.rds
+    Deleted:    install/R/win-library/3.6/packrat/Meta/package.rds
+    Deleted:    install/R/win-library/3.6/packrat/NAMESPACE
+    Deleted:    install/R/win-library/3.6/packrat/R/packrat
+    Deleted:    install/R/win-library/3.6/packrat/R/packrat.rdb
+    Deleted:    install/R/win-library/3.6/packrat/R/packrat.rdx
+    Deleted:    install/R/win-library/3.6/packrat/help/AnIndex
+    Deleted:    install/R/win-library/3.6/packrat/help/aliases.rds
+    Deleted:    install/R/win-library/3.6/packrat/help/packrat.rdb
+    Deleted:    install/R/win-library/3.6/packrat/help/packrat.rdx
+    Deleted:    install/R/win-library/3.6/packrat/help/paths.rds
+    Deleted:    install/R/win-library/3.6/packrat/html/00Index.html
+    Deleted:    install/R/win-library/3.6/packrat/html/R.css
+    Deleted:    install/R/win-library/3.6/packrat/resources/init-rprofile.R
+    Deleted:    install/R/win-library/3.6/packrat/resources/init.R
+    Deleted:    install/R/win-library/3.6/packrat/resources/mac_r_userlib.sh
+    Deleted:    install/R/win-library/3.6/packrat/rstudio/rstudio-protocol
+    Deleted:    install/R/win-library/3.6/renv/DESCRIPTION
+    Deleted:    install/R/win-library/3.6/renv/INDEX
+    Deleted:    install/R/win-library/3.6/renv/LICENSE
+    Deleted:    install/R/win-library/3.6/renv/Meta/Rd.rds
+    Deleted:    install/R/win-library/3.6/renv/Meta/features.rds
+    Deleted:    install/R/win-library/3.6/renv/Meta/hsearch.rds
+    Deleted:    install/R/win-library/3.6/renv/Meta/links.rds
+    Deleted:    install/R/win-library/3.6/renv/Meta/nsInfo.rds
+    Deleted:    install/R/win-library/3.6/renv/Meta/package.rds
+    Deleted:    install/R/win-library/3.6/renv/Meta/vignette.rds
+    Deleted:    install/R/win-library/3.6/renv/NAMESPACE
+    Deleted:    install/R/win-library/3.6/renv/NEWS.md
+    Deleted:    install/R/win-library/3.6/renv/R/renv
+    Deleted:    install/R/win-library/3.6/renv/R/renv.rdb
+    Deleted:    install/R/win-library/3.6/renv/R/renv.rdx
+    Deleted:    install/R/win-library/3.6/renv/doc/ci.R
+    Deleted:    install/R/win-library/3.6/renv/doc/ci.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/ci.html
+    Deleted:    install/R/win-library/3.6/renv/doc/collaborating.R
+    Deleted:    install/R/win-library/3.6/renv/doc/collaborating.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/collaborating.html
+    Deleted:    install/R/win-library/3.6/renv/doc/docker.R
+    Deleted:    install/R/win-library/3.6/renv/doc/docker.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/docker.html
+    Deleted:    install/R/win-library/3.6/renv/doc/faq.R
+    Deleted:    install/R/win-library/3.6/renv/doc/faq.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/faq.html
+    Deleted:    install/R/win-library/3.6/renv/doc/index.html
+    Deleted:    install/R/win-library/3.6/renv/doc/local-sources.R
+    Deleted:    install/R/win-library/3.6/renv/doc/local-sources.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/local-sources.html
+    Deleted:    install/R/win-library/3.6/renv/doc/lockfile.R
+    Deleted:    install/R/win-library/3.6/renv/doc/lockfile.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/lockfile.html
+    Deleted:    install/R/win-library/3.6/renv/doc/packages.R
+    Deleted:    install/R/win-library/3.6/renv/doc/packages.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/packages.html
+    Deleted:    install/R/win-library/3.6/renv/doc/python.R
+    Deleted:    install/R/win-library/3.6/renv/doc/python.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/python.html
+    Deleted:    install/R/win-library/3.6/renv/doc/renv.R
+    Deleted:    install/R/win-library/3.6/renv/doc/renv.Rmd
+    Deleted:    install/R/win-library/3.6/renv/doc/renv.html
+    Deleted:    install/R/win-library/3.6/renv/help/AnIndex
+    Deleted:    install/R/win-library/3.6/renv/help/aliases.rds
+    Deleted:    install/R/win-library/3.6/renv/help/paths.rds
+    Deleted:    install/R/win-library/3.6/renv/help/renv.rdb
+    Deleted:    install/R/win-library/3.6/renv/help/renv.rdx
+    Deleted:    install/R/win-library/3.6/renv/html/00Index.html
+    Deleted:    install/R/win-library/3.6/renv/html/R.css
+    Deleted:    install/R/win-library/3.6/renv/html/activate.html
+    Deleted:    install/R/win-library/3.6/renv/html/bootstrap.html
+    Deleted:    install/R/win-library/3.6/renv/html/clean.html
+    Deleted:    install/R/win-library/3.6/renv/html/config.html
+    Deleted:    install/R/win-library/3.6/renv/html/consent.html
+    Deleted:    install/R/win-library/3.6/renv/html/deactivate.html
+    Deleted:    install/R/win-library/3.6/renv/html/dependencies.html
+    Deleted:    install/R/win-library/3.6/renv/html/diagnostics.html
+    Deleted:    install/R/win-library/3.6/renv/html/equip.html
+    Deleted:    install/R/win-library/3.6/renv/html/history.html
+    Deleted:    install/R/win-library/3.6/renv/html/hydrate.html
+    Deleted:    install/R/win-library/3.6/renv/html/init.html
+    Deleted:    install/R/win-library/3.6/renv/html/install.html
+    Deleted:    install/R/win-library/3.6/renv/html/isolate.html
+    Deleted:    install/R/win-library/3.6/renv/html/load.html
+    Deleted:    install/R/win-library/3.6/renv/html/lockfile.html
+    Deleted:    install/R/win-library/3.6/renv/html/lockfiles.html
+    Deleted:    install/R/win-library/3.6/renv/html/migrate.html
+    Deleted:    install/R/win-library/3.6/renv/html/modify.html
+    Deleted:    install/R/win-library/3.6/renv/html/paths.html
+    Deleted:    install/R/win-library/3.6/renv/html/project.html
+    Deleted:    install/R/win-library/3.6/renv/html/purge.html
+    Deleted:    install/R/win-library/3.6/renv/html/rebuild.html
+    Deleted:    install/R/win-library/3.6/renv/html/record.html
+    Deleted:    install/R/win-library/3.6/renv/html/refresh.html
+    Deleted:    install/R/win-library/3.6/renv/html/rehash.html
+    Deleted:    install/R/win-library/3.6/renv/html/remote.html
+    Deleted:    install/R/win-library/3.6/renv/html/remove.html
+    Deleted:    install/R/win-library/3.6/renv/html/renv-package.html
+    Deleted:    install/R/win-library/3.6/renv/html/restore.html
+    Deleted:    install/R/win-library/3.6/renv/html/revert.html
+    Deleted:    install/R/win-library/3.6/renv/html/run.html
+    Deleted:    install/R/win-library/3.6/renv/html/scaffold.html
+    Deleted:    install/R/win-library/3.6/renv/html/settings.html
+    Deleted:    install/R/win-library/3.6/renv/html/snapshot.html
+    Deleted:    install/R/win-library/3.6/renv/html/status.html
+    Deleted:    install/R/win-library/3.6/renv/html/update.html
+    Deleted:    install/R/win-library/3.6/renv/html/upgrade.html
+    Deleted:    install/R/win-library/3.6/renv/html/use_python.html
+    Deleted:    install/R/win-library/3.6/renv/resources/WELCOME
+    Deleted:    install/R/win-library/3.6/renv/resources/activate.R
+    Deleted:    install/R/win-library/3.6/renv/resources/scripts-git-askpass.sh
+    Deleted:    install/R/win-library/3.6/renv/resources/scripts-repos-cache.R
+    Modified:   interactive.R
+
+</code></pre>
+<p>
+Note that any generated files, e.g. HTML, png, CSS, etc., are not included in this status report because it is ok for generated content to have uncommitted changes.
+</p>
+</div>
+</div>
+</div>
+</div>
+<hr>
+</div>
+<div id="versions" class="tab-pane fade">
+<p>
+There are no past versions. Publish this analysis with <code>wflow_publish()</code> to start tracking its development.
+</p>
+<hr>
+</div>
+</div>
+</div>
+<div id="source-datasets" class="section level1">
+<h1>Source datasets</h1>
+<p>Two streamflow gauging station datasets were used as the source of training and cross-validation data for study models — the World Meteorological Organization Global Runoff Data Centre (GRDC) database (n ≈ 10,000) and a complementary subset of the Global Streamflow Indices and Metadata archive (GSIM, n ≈ 25,000), a compilation of twelve free-to-access national and international streamflow gauging station databases.<br />
+Whereas the GRDC offers daily water discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.</p>
+<p>A GSIM station was included only if:<br />
+i) it was not already part of the GRDC database,<br />
+ii) it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and if it was located either<br />
+iii) on an IRES or<br />
+iv) in a river basin which did not already contain a GRDC station (assessed based on level 5 sub-basins of the global BasinATLAS database52, average sub-basin area = 2.9 x 104 km2).<br />
+We applied the described GSIM selection criteria to balance the relative amount of non-perennial vs. perennial records and the spatial distribution of stations in the model training dataset.</p>
+<p>Each station in the combined dataset was geographically associated with a reach in the RiverATLAS stream network and every discharge time series was quality-checked through statistical and manual outlier detection (see Supplementary Information B1 for details on these procedures). Non-perennial gauging stations were only included in the dataset if they were free of anomalous zero-flow values (e.g. from instrument malfunction, gauge freezing, tidal flow reversal). We also excluded stations whose streamflow was potentially dominated by reservoir outflow regulation (i.e. with a degree of regulation &gt; 50% or whose discharge time series exhibited an obvious alteration from natural flow permanence, see Supplementary Information B1), as flow regulating structures may change the flow class of a river either from perennial to non-perennial or vice-versa depending on their mode and rules of operation. We further narrowed our selection by adding only gauging stations with streamflow time series spanning at least 10 years — excluding years with more than 20 days of missing records for the calculation of this criterion and in subsequent analysis. Finally, we classified stations as non-perennial if their recorded discharge dropped to zero at least one day per year on average over the years of record, and as perennial otherwise. Stations with at least one zero-flow day per year on average (i.e. non-perennial) but without a zero-flow day during 20 consecutive valid years of data (those with ≤ 20 missing days), anywhere in their record, were deemed either to have experienced a shift in flow intermittence class (regardless of the direction of the shift) or to have ceased to flow due to exceptional conditions of drought and were also excluded.</p>
+<p>Based on these selection criteria, the training dataset contained data for 3,967 perennial river reaches and for 1,388 non-perennial reaches, with 45 and 34 years of daily streamflow data on average, respectively, across all continents (except Antarctica).</p>
+</div>
+<div id="map-of-selected-and-discarded-gauges" class="section level1">
+<h1>Map of selected and discarded gauges</h1>
+<p>Create data.table with gauge id, characteristics, X, Y, reason for removal, and embedded image</p>
+<pre class="r"><code>analyzemerge_gaugeir &lt;- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthresh,
+                                 in_gaugep, inp_resdir, plotseries = FALSE) {
+  ### Analyze GSIM data ####################################
+  GSIMstatsdt &lt;- rbindlist(in_GSIMgaugestats)
+
+  #Outliers from examining plots of ir time series (those that were commented out were initially considered)
+  GSIMtoremove_o1800_irartifacts &lt;- c(
+    &#39;AT_0000014&#39;, #remove - changed flow permanence
+    &#39;BR_0000286&#39;, #remove - Tapajos river. Impossible that it dries out.
+    &#39;BR_0000581&#39;, #remove - 0 flow happened only once at the end of record
+    &#39;BR_0000786&#39;, #remove - probably perennial
+    &#39;BR_0000862&#39;, #remove - probably perennial
+    &#39;BR_0001011&#39;, #remove - probably perennial
+    &#39;BR_0001116&#39;, #remove - probably naturally perennial
+    &#39;BR_0001133&#39;, #remove - probably naturally perennial
+    &#39;CA_0001057&#39;, #remove - only one 0 flow event in 28 years
+    &#39;CA_0003488&#39;, #remove - only one 0 flow event
+    &#39;CA_0003526&#39;, #remove - only one 0 flow event
+    &#39;ES_0000078&#39;, #remove - first 20 years without 0 flow
+    &#39;ES_0000084&#39;, #remove - probably perennial, first 20 years without 0 flow
+    &#39;ES_0000388&#39;, #remove - record is too discontinued to assess permanence, probably perennial; besides, it looks regulated
+    &#39;ES_0000444&#39;, #remove - only one 0 valid flow occurrence
+    &#39;ES_0000525&#39;, #remove - very discontinued record. Seems to have changed flow permanence
+    &#39;ES_0000729&#39;, #remove - seems to have shifted
+    &#39;ES_0000785&#39;, #remove - erroneous
+    &#39;ES_0000786&#39;, #remove - looks regulated
+    &#39;ES_0000816&#39;, #remove - doesn&#39;t look reliable
+    &#39;ES_0000856&#39;, #remove - 0 flow occured only once in record
+    &#39;ES_0000892&#39;, #remove - probably perennial
+    &#39;ES_0000806&#39;, #remove - probably perennial, 0 flow occurred only once
+    &#39;ES_0000910&#39;, #remove - changed flow permanence
+    &#39;ES_0000986&#39;, #remove - 0 flow occured only once
+    &#39;ES_0000996&#39;, #remove - changed flow permanence
+    &#39;ES_0001020&#39;, #remove - hard to tell flow permanence
+    &#39;ES_0001052&#39;, #remove - regulated
+    &#39;ES_0001082&#39;, #remove - changed flow permanence, either regulated or...
+    &#39;ES_0001085&#39;, #remove - changed flow permanence
+    &#39;ES_0001116&#39;, #remove - occurred only the last year not the first 22 years
+    &#39;ES_0001162&#39;, #remove - most occurrences seem buggy
+    &#39;FI_0000156&#39;, #remove - no occurrences in first 60% of record
+    &#39;FR_0000052&#39;, #remove - no occurrences in first 20 years
+    &#39;HU_0000017&#39;, #remove - only one zero flow occurence in 25 years
+    &#39;IE_0000014&#39;, #remove - no 0 flow occurrence in first 25 years
+    &#39;IN_0000023&#39;, #remove - no 0 flow occurrence in first 20 years
+    &#39;IN_0000045&#39;, #remove - no 0 flow occurrence in first 20 years
+    &#39;IN_0000046&#39;, #remove - changed flow permanence
+    &#39;IN_0000050&#39;, #remove - changed flow permanence
+    &#39;IN_0000063&#39;, #remove - changed flow permanence
+    &#39;IN_0000064&#39;, #remove - changed flow permanence
+    &#39;IN_0000113&#39;, #remove - only one 0 flow occurrence
+    &#39;IN_0000124&#39;, #remove - changed flow permanence
+    &#39;IN_0000125&#39;, #remove - changed flow permanence
+    &#39;IN_0000134&#39;, #remove - changed flow permanence
+    &#39;IN_0000170&#39;, #remove - only one 0 flow occurrence
+    #&#39;IN_0000190&#39;, #checked- looked regulated
+    &#39;IN_0000255&#39;, #remove - changed flow permanence
+    &#39;IN_0000283&#39;, #remove - changed flow permanence
+    &#39;IN_0000312&#39;, #remove - changed flow permanence
+    &#39;MZ_0000010&#39;, #remove - changed flow permanence
+    &#39;NO_0000028&#39;, #remove - changed flow permanence
+    &#39;NO_0000030&#39;, #remove - occurred only once
+    &#39;RU_0000189&#39;, #remove - occurred only once
+    &#39;RU_0000265&#39;, #remove - changed flow permanence
+    &#39;RU_0000358&#39;, #remove - changed flow permanence
+    &#39;TZ_0000018&#39;, #remove - hard to tell but probably changed flow permanence
+    &#39;US_0005106&#39;, #remove - hard to tell, probably changed flow permanence
+    &#39;US_0005874&#39;, #remove - changed flow permanence
+    &#39;US_0005876&#39;, #remove - changed flow permanence
+    &#39;US_0006103&#39;, #remove -  regulated
+    #&#39;US_0006156&#39;, #checked -  regulated, barrier made it perennial?
+    &#39;US_0006396&#39;, #remove - buggy looking pre-1960
+    &#39;US_0006440&#39;, #remove - not enough data to tell, seemed like changed flow permanence
+    &#39;US_0006537&#39;, #remove - changed flow permanence
+    &#39;ZA_0000074&#39;, #remove - missing data
+    &#39;ZA_0000268&#39;, #remove - seemingly changed flow permanence
+    &#39;ZA_0000270&#39; #remove - changed flow permanence
+  )
+
+  GSIMtoremove_o1961_irartifacts &lt;- c(
+    #&#39;AR_0000014&#39;, #maybe regulated --- checked
+    &#39;AT_0000021&#39;, #remove
+    &#39;AT_0000026&#39;, #remove
+    &#39;AT_0000038&#39;, #remove
+    &#39;AT_0000059&#39;, #remove
+    &#39;BR_0000557&#39;, #inspected - confirmed dry channel visually
+    &#39;BR_0000662&#39;, #is regulated -- remove
+    #&#39;BR_0000664&#39;, #change of regime, maybe regulated --- but was intermittent before
+    &#39;BR_0000706&#39;, #remove
+    &#39;BR_0000717&#39;, #remove --regulated intermittency
+    &#39;BR_0000778&#39;, #remove, too much missing data
+    &#39;BR_0001104&#39;, #remove
+    #&#39;CA_0003473&#39;, downstream of natural lake, all good
+    #&#39;CA_0003526&#39;, #downstream of lakes, maybe low lake levels
+    &#39;CA_0003544&#39;, #already in GRDC and a bit buggy looking
+    &#39;CN_0000004&#39;, #remove
+    &#39;CN_0000009&#39;, #remove
+    &#39;CN_0000010&#39;, #remove
+    &#39;CN_0000012&#39;, #remove
+    &#39;CN_0000013&#39;, #remove
+    &#39;CN_0000021&#39;, #remove
+    &#39;CN_0000022&#39;, #remove
+    &#39;CN_0000026&#39;, #remove
+    &#39;CN_0000029&#39;, #remove
+    &#39;CN_0000038&#39;, #remove - got dewatered by dam
+    &#39;CN_0000043&#39;, #remove
+    &#39;CN_0000062&#39;, #remove
+    #&#39;ES_0000525&#39;, #maybe regulated --- check
+    &#39;ES_0000581&#39;, #remove
+    &#39;ES_0000660&#39;, #remove -- regulated
+    #&#39;ES_0000676&#39;, #looks regulated --- but probably intermittent before
+    &#39;ES_0000794&#39;, #remove - same as 0000832
+    &#39;ES_0000784&#39;, #remove -- same as &#39;ES_0000785&#39;
+    &#39;ES_0000818&#39;, #remove - same as ES_0000785 and ES_0000784 which are not intermittent
+    &#39;ES_0000841&#39;, #remove -- regulated
+    &#39;ES_0000958&#39;, #remove -- 0s seem erroneous
+    &#39;FI_0000107&#39;, #remove -- lake inlet, maybe just become standing water when high water level
+    #&#39;IE_0000014&#39;, #downstream of lake -- must be drop in lake levels
+    &#39;IN_0000105&#39;, #remove -- downstream of major dams -- no records pre-1968 time of building
+    &#39;IN_0000159&#39;, #remove -- regulated, no records before dam
+    &#39;IN_0000280&#39;, #remove -- regulated, no records before dam. intermittency started after building of Parambikulam dam
+    #&#39;IN_0000309&#39;, #intermittent before building of reservoir in 1988
+    &#39;NA_0000050&#39;, #remove, unreliable, 0s and interpolations
+    #&#39;NO_0000018&#39;, #checked -- downstream of natural lake. probably water level decrease
+    &#39;NO_0000044&#39;, #remove
+    &#39;NO_0000090&#39;, #remove
+    &#39;SE_0000058&#39;, #remove -- downstream of dam, didn&#39;t use to be intermittent. and experiences ice
+    #&#39;US_0001855&#39;, #maybe rounded values --- check
+    #&#39;US_0001861&#39;, #maybe rounded values --- check
+    #&#39;US_0001868&#39;, #maybe rounded avlues --- check
+    &#39;US_0002247&#39;, #remove -- regulated -- GRDC 4149415 upstream not intermittent
+    &#39;US_0002248&#39;, #remove -- regulated just downstream of 2247
+    &#39;US_0002791&#39;, #on usgs website: &quot;close proximity to the Ohio River. During periods of high water on the Ohio River, the computed discharge at this site may be incorrectly displayed due to the backwater effect created.&quot;
+    #&#39;US_0003591&#39;, #maybe rounded values --- check
+    # &#39;US_0003774&#39;, #maybe rounded values --- check
+    # &#39;US_0003836&#39;, #maybe rounded values --- check
+    # &#39;US_0004023&#39;, #maybe rounded values --- check
+    # &#39;US_0004216&#39;, #maybe rounded values --- check
+    # &#39;US_0004232&#39;, #maybe rounded values --- check
+    # &#39;US_0004658&#39;, #maybe rounded values --- check
+    &#39;US_0004773&#39;, #remove - regulated. no records prior to reservoir buiding
+    #US_005099, #confirmed dried bed on imagery
+    # &#39;US_0005161&#39;, #maybe rounded values --- check
+    # &#39;US_0005177&#39;, #maybe rounded values --- check
+    #&#39;US_0005303&#39;, #looks fine on usgs website and imagery. just small
+    #&#39;US_0005596&#39;, #looks fine, small
+    #&#39;US_0005597&#39;, #looks fine, small
+    # &#39;US_0005622&#39;, #maybe rounded values --- check
+    # &#39;US_0005623&#39;, #maybe rounded values --- check
+    # &#39;US_0005684&#39;, #maybe rounded values --- check
+    # &#39;US_0005687&#39;, #maybe rounded values --- check
+    &#39;US_0005732&#39;, #remove -- regime shift because of Lake Arcadia (reservoir)
+    #&#39;US_0005859&#39;, #maybe rounded values --- check
+    #&#39;US_0005879&#39;, #maybe rounded values --- check
+    # &#39;US_0006073&#39;, #maybe rounded values --- check
+    # &#39;US_0006109&#39;, #maybe rounded values --- check
+    # &#39;US_0006154&#39;, #maybe rounded values --- check
+    &#39;US_0006155&#39;, #currently regulated but used to be intermittent but same as 6156 so remove
+    #&#39;US_0006156&#39;, #currently regulated but used to be intermittent so keep
+    #&#39;US_0006301&#39;, #maybe rounded values --- check
+    #&#39;US_0006327&#39;, #maybe rounded values --- check
+    #&#39;US_0006387&#39;, #maybe rounded values --- check
+    #&#39;US_0006206&#39;, #all good, confirmed dry with imagery
+    #&#39;US_0006574&#39;, #maybe regulated? ---checked all good
+    #&#39;US_0006975&#39;, #maybe rounded values --- check
+    #&#39;US_0006984&#39;, #maybe rounded values --- check
+    #&#39;US_0006985&#39;, #maybe rounded values --- check
+    #&#39;US_0006986&#39;, #maybe rounded values --- check
+    &#39;US_0008607&#39;, #regulated. 1978 intermittency started after building reservoir
+    &#39;US_0008687&#39;, #regulated. intermittency started after bui;lding reserovir 1935
+    # &#39;US_0008726&#39;, #maybe rounded values --- check
+    # &#39;US_0008779&#39;, #maybe rounded values --- check
+    &#39;ZA_0000008&#39;, #remove
+    &#39;ZA_0000084&#39; #remove
+  )
+
+  # readformatGSIMmon(
+  #   GSIMstatsdt[gsim_no == &#39;US_0000546&#39;, path]) %&gt;%
+  #   .[MIN != 0, min(MIN)]
+
+
+  #-----  Check flags in winter IR for GSIM
+  wintergaugesall_GSIM &lt;- plot_winterir(
+    dt = GSIMstatsdt, dbname = &#39;gsim&#39;, inp_resdir = inp_resdir,
+    yearthresh = 1800, plotseries = plotseries)
+
+  #Check suspicious canadian ones
+  GSIMwintermeta &lt;- in_gaugep[in_gaugep$gsim_no %in% wintergaugesall_GSIM$gsim_no,]
+  canadians_toinspect &lt;- in_gaugep[in_gaugep$gsim_no %in%
+                                     paste0(&#39;CA_000&#39;, c(3469, 3473, 3526, 3544, 6082, 6122)),]$reference_no
+
+  # if (!dir.exists(hy_dir())) download_hydat()
+  # cancheck &lt;- lapply(canadians_toinspect, function(refno) {
+  #   merge(hy_daily(station_number = refno),
+  #         hy_stn_regulation(station_number = refno),
+  #         by=&#39;STATION_NUMBER&#39;) %&gt;%
+  #     setDT
+  # }) %&gt;%
+  #   rbindlist
+  # cancheck[REGULATED==T, unique(STATION_NUMBER)] #No regulated station
+  # cancheck[Value==0, .N, by=.(STATION_NUMBER, Symbol)]
+
+  #E - Estimate:  no measured data available for the day or missing period,
+  #    and the water level or streamflow value was estimated by an indirect method
+  #A - Partial Day:  daily mean value was estimated despite gaps of more than
+  #    120 minutes in the data string or missing data not significant enough to
+  #    warrant the use of the E symbol.
+  #B - Ice conditions: value was estimated with consideration for the presence
+  #    of ice in the stream. Ice conditions alter the open water relationship
+  #    between water levels and streamflow.
+  #D - Dry: stream or lake is &quot;dry&quot; or that there is no water at the gauge.
+  #    This symbol is used for water level data only.
+  #R - Revised: The symbol R indicates that a revision, correction or addition
+  # `  has been made to the historical discharge database after January 1, 1989.
+
+  # ggplot(cancheck[Value &gt; 0, ], aes(x=Date, y=Value, color=Symbol)) +
+  #   geom_vline(data=cancheck[is.na(Value),], aes(xintercept = Date), color=&#39;grey&#39;, alpha=1/4) +
+  #   geom_point(alpha=1/6) +
+  #   geom_point(data=cancheck[Value==0,]) +
+  #   facet_wrap(~STATION_NUMBER, scales=&#39;free&#39;) +
+  #   theme_classic()
+
+  #Remove 06NB002, 06AF001 — CA_0003544, CA_0003473
+
+  #Check others &#39;CN_0000047&#39;, &#39;NO_0000018&#39;, &#39;RU_0000089&#39;,
+  #&#39;RU_0000391&#39;, &#39;RU_0000393&#39;, &#39;RU_00000395&#39;, &#39;RU_0000436&#39;,
+  #&#39;RU_0000470&#39;, &#39;US_0008687&#39;)
+  check &lt;- readformatGSIMmon(GSIMstatsdt[gsim_no == &#39;US_0008687&#39;,path])
+
+  #Remove CN_
+  GSIMtoremove_winterIR &lt;- c(&#39;CA_0003544&#39;, #erroneous patterns (abnormally high values)
+                             &#39;CA_0003473&#39;, #sudden peak — unsure about estimated discharge under ice conditions
+                             &#39;CN_0000047&#39;, #Anomalous change from near 0 discharge to 150 m3/s, no explanation)
+                             &#39;NO_0000018&#39;, #Record for 18 years without a 0, 0s every month for last two years before discontinuation
+                             &#39;RU_0000391&#39;, #Stopped recording during the winter the last ~10 years. Maybe questionable winter data
+                             &#39;RU_0000393&#39;, #Didn&#39;t record during the winter for the first 20 years. Maybe questionable winter data
+                             &#39;RU_0000436&#39;, #Same
+                             &#39;RU_0000470&#39;, #Same
+                             &#39;US_0008687&#39; #Just downstream of reservoir which appears to have caused intermittence
+  )
+
+  #-----  Check flags in coastal IR for GSIM
+  GSImcoastalirall &lt;- plot_coastalir(in_gaugep = in_gaugep, dt = GSIMstatsdt,
+                                     dbname = &#39;gsim&#39;, inp_resdir = inp_resdir,
+                                     yearthresh = 1800, plotseries = plotseries)
+
+
+  #Already checked CA_0006122
+  GSIMtoremove_coastalIR &lt;- c(&#39;NO_0000044&#39;,
+                              &#39;NO_0000090&#39;)
+
+
+  #------ Remove stations with unstable intermittent flow regime
+  #Remove those which have at least one day per year of zero-flow day but instances
+  #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
+  GSIMtoremove_unstableIR &lt;- GSIMstatsdt[
+    (mDur_o1800 &gt;= 1) &amp; (!movinginter_o1800), gsim_no]
+
+  ### Analyze GRDC data ####################################
+  GRDCstatsdt &lt;- rbindlist(in_GRDCgaugestats)
+
+  #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
+  GRDCtoremove_allinteger &lt;- GRDCstatsdt[integerperc_o1800 &gt;= 0.99 &amp;
+                                           intermittent_o1800 == 1, GRDC_NO]
+
+  #Outliers from examining plots of ir time series (those that were commented out were initially considered)
+  GRDCtoremove_o1800_irartifacts &lt;- c(
+    1134300, #remove - Appears to have been a change in flow permanence, but too much missing data
+    1159830, #check missing values - probably perennial
+    1160785, #remove - changed flow permanence
+    1160800, #remove - changed flow permanence
+    1160850, #remove - changed flow permanence
+    1160881, #remove - changed flow permanence
+    1196141, #remove - doesn&#39;t look reliable, hard to assess long term flow permanence
+    1199410, #remove - changed flow permanence
+    1259500, #remove - hard to assess long term flow permanence
+    1428500, #remove - changed flow permanence
+    1434200, #remove - almost all integers, impossible to tell flow permanence
+    1434300, #remove - almost all integers
+    1491815, #remove - changed flow permanence
+    1591110, #remove - doesn&#39;t look reliable, changed flow permanence
+    3652050, #remove - looks naturally perennial
+    3652200, #remove - looks natural perennial (first 15 years)
+    4208372, #remove
+    4208655, #remove - insufficient data to tell flow permanence
+    4208855, #remove - insufficient data to tell flow permanence
+    4208857, #remove - probably not intermittent only occured once - missing years suggest perennial too
+    4213566, #remove - probably perennial
+    4214297, #remove - insufficient data to tell flow permanence
+    4214298, #remove - probably perennial
+    4769200, ##remove - insufficient data to tell flow permanence
+    5204170, #remove - probably changed flow permanence
+    5405095, ##remove - hard to tell whether actually intermittent (change at beginning, maybe regulated?)
+    5708200 #remove - probably perennial
+  )
+
+  GRDCtoremove_o1961_irartifacts &lt;- c(#1104800, #Keep
+    1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
+    1159302, #Anomalous zero values
+    1159303, #weird patterns, isolated 0s, sudden jumps and capped at 77
+    #1159320, #0 values for the first 14 years but doesn&#39;t affect post-1961
+    #1159325, #0 values for most record. probably episodic and due to series of agricultural ponds
+    1159510, #0 values for most record, on same segment as 1159511 but weird record, remove.
+    #1159512, #0 values for first 4 years. Otherwise no real reason to doubt.
+    #1159520, #values seem capped after 1968, otherwise seem fine. Could just be rating curve
+    1160101, #0 values are erroneous (goes from 1-10 m3/s to 0 then right back up )
+    1160310, #Only at the beginning of record. Now regulated. Probably dried because of dam building or natural regime
+    1160340, #pretty definitely erroneous. Missing data must have been labeled as 0.
+    #1160378, #just downstream of dam. reservoir fully dry on satellite imagery, so keep as intermittent even when not regulated
+    #1160420, #decreases to 0 appear a bit sudden but ok
+    1160427, #0s at beginning of record, must be missing. Wouldn&#39;t be considered intermittent without that.
+    1160435, #discard. 0s are mostly missing data. unreliable
+    1160440, #only 0 values
+    1160470, #Maybe discard. change of rating curve in 1947, mostly missing data until 1980 but truly intermittent based on imagery
+    #1160510, #sudden shift in regime 1974. maybe change in bed morphology or dam building
+    1160511, #unreliable, remove
+    #1160540, #only 0 - nodata for first 15 years. seemingly good data post 1979. Keep.
+    #1160580, #change of regime post-1974 from intermittent to perennial. not sure why. on same river as 1160510
+    #1160635, #0 values post-1985 seem abrupt but enough values otherwise to make it intermittent
+    1160650, #0 values are outliers
+    1160670, #0 values are outliers due to dam just upstream
+    #1160675, #Some outliers but otherwise most 0 values seem believable
+    1160701, #0 values look like outliers
+    1160756, #most 0 values look like outliers
+    1160770, #only happened once. maybe outlier zeros
+    1160780, #unreliable record. remove
+    #1160785, #some 0 values look like outliers but most seem believable
+    #1160790, #weird record pre 1963 but does not affect much. rating curve must have changed
+    1160795, #most 0 values look like outliers
+    1160825, #first 2 years of data are 0s, some other outlying 0s but enough believable ones to be intermittent
+    1160840, #only 2 zero values are believable, others are outliers
+    #1160850, #unsure
+    1160880, #outlying 0 values. Tugela river. Perennial
+    1160900, #most 0 values look like outliers
+    1160911, #Remove. only one zero-flow vlaues appears right
+    1160971, #check record. most zero-flow values look outliers.
+    1160975, #Remove. unreliable
+    1196100, #Half of the zero-flow values are outliers
+    1196102, #Remove, unreliable
+    #1196160, #Some outlying 0 values but most are good
+    1197500, #Remove, unreliable
+    1197540, #Check, abrupt 0 values. probably remove
+    1197591, #Check, abrupt 0 values. probably remove
+    1197700, #Check, abrupt 0 values. probably remove
+    #1197740, #several outlying 0 flow values, but most are believable
+    1199100, #Most 0s are outliers
+    1199200, #Remove
+    #1199410, #a few outliers pre-1990 but otherwise good
+    1259800, #Remove, 0 values come from integer-based record
+    1286690, #Remove, it seems that values were rounded to second decimal
+    1289230, #Change in regime past 1963, only one outlier zero flow value after, remove
+    1428400, #0 values come from integer-based record
+    1434810, #0 values come from integer-based record
+    #1491870, #some outliers but most 0s are believable
+    1494100, #outlier 0s
+    #1496351, #regulated but naturally intermittent
+    1591720, #buggy, some values also look interpolated
+    1591730, #anomalous drops
+    1733600, #0 values come from integer-based record and outlier
+    1837410, #Check, abrupt 0 values. probably remove
+    #1837430, #Essentially the same as 1837410. Naturally intermittent before dam
+    #1896501, #Faulty values but intermittent
+    1897550, #outlier 0s
+    1898501, #outlier 0s
+    1992400, #nearly half of 0s are seemingly outliers
+    1992600, #Outlier 0 values
+    2549230, #Remove
+    2588500, #Remove
+    2588551, #Remove
+    2588630, #Remove
+    2588640, #Remove
+    2588708, #Remove
+    2588820, #Remove
+    2589230, #Remove
+    2589370, #Remove
+    2591801, #Remove
+    2694450, #Remove
+    2917100, #Remove
+    2969081, #Remove
+    2999920, #0s come from integer-vased values
+    3627900, #Remove
+    #3650460, #some issues but enough believable intermittent ones
+    3650470, #0s come from integer-based values
+    #3650475, #earlier values pre-1973 are erroneous but post-2002 are valid 0s
+    #3650610, #integers pre-1960s but still intermittent after
+    3650640, #lots of outliers. remove
+    3650649, #change of flow regime due to dam building but intermittent before
+    3650690, #weird values but intermittent
+    3650928, #weird. remove
+    3652135, #some outliers, but enough 0s otherwise
+    3844460, #Remove
+    #4101451, #station downstream also has 0s
+    4103700, #zero values are outliers
+    #4113304, #Not super representative of current regime
+    4122150, #just downstream of dam.
+    4148955, #just downstream of dam which made it intermittent. May even be tidally influenced
+    4149411, #Remove
+    #4150605, #just downstream of lwesville dam in Dallas. previously intermittent as well but will be removed anyways as &gt;50% dor
+    #4151513, #Looks regulated but will be removed as &gt; 50% regulated #################### good example for showing effect of regulation
+    4152120, #regulated. intermittency occured right at the building of Alamo Lake on the Bill William
+    4208195, #0s stem from interpolation
+    #4213540, #one outlier, rest is good although occurred only once in 1965..
+    #4213675, #looks funny but just downstream of natural lake
+    4213905, #Regulated. hence the intermittency
+    4213911, #Is regulated, remove
+    4214075, ##Remove
+    4234300, #remove. regulated
+    4243610, #remove, regulated ############################ Good example of regulation
+    4351710, #Remove. 0s due to outlier and integer-based values
+    4355500, #Remove. outlier values. regulated
+    4357510, #Remove
+    4773050, #look erroneous (going from 140L/s to 0 in one day. must be a rating curve issue)
+    5101020, #Remove
+    5101101, #Remove
+    5101130, #Remove
+    5101201, #Remove
+    #5101290, #valkues before 2000 aren&#39;t great. But 0 values post 2000 are believable
+    5101305, #most 0 values are wrong
+    5101380, #Remove
+    5101381, #Remove
+    5109110, #Remove
+    5109200, #Remove, 0 values at beginning, interpolations used, not reliable
+    5109230, #Remove
+    5109251, #Remove
+    5202140, #Remove
+    5202145, #Most 0s look erroneous
+    5202228, #Regulated? Remove
+    5302229, #Remove
+    5302251, #Remove
+    5302261, #Remove
+
+    #5405046, #canal through adelaide - sturt river
+    #5405095, #looks wierd but intermittent it is
+    5606130, #Remove
+    5608100, #Remove
+    5803160, #Remove
+    5864500, #Remove. rounded to 10L/s
+    5870100, #remove, rounded to 100L/S
+    6119100, #Remove, rounded to 10L/s
+    #6128220, #Weird. occurred only once but seems believable
+    6140700, #Remove, perfect example of what an integer-based record involves
+    6401800, #Remove, became regulated
+    6442300, ##Remove, perfect example of what an integer-based record involves
+    6444250, #Remove
+    6444350, #Remove
+    6444400, #Check, abrupt 0 values
+    6935570 #Remove, rounded to 10L/s
+  )
+
+  #plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == 4101450,])
+
+  #### Check intermittent record
+  # checkno &lt;- 6444400 #GRDC_NO
+  # check &lt;- checkGRDCzeroes( #Check area around 0 values
+  #   GRDCstatsdt, in_GRDC_NO=checkno, period=15, yearthresh=1800,
+  #   maxgap=20, in_scales=&#39;free&#39;, labelvals = F)
+  # checkno %in% GRDCtoremove_allinteger #Check whether all integers
+  # in_gaugep[in_gaugep$GRDC_NO==checkno &amp; !is.na(in_gaugep$GRDC_NO), &quot;dor_pc_pva&quot;] #check DOR
+  # GRDCstatsdt[GRDC_NO == checkno, integerperc_o1800] #Check % integers
+
+  #Outliers from examining plots of perennial time series (those that were commented out were initially considered)
+  #Try to find those:
+  # whose low flow plateaus could be 0s
+  # whose perennial character is dam-driven or maybe irrigation driven (changed from IR to perennial but hard to find)
+  # whose missing data are actually 0s
+  # whose quality is too low to be reliable
+  GRDCtoremove_o1800_pereartifacts &lt;- c(
+    1159800, #look regulated
+    #1160302, #looked regulated -- but nothing obvious
+    4101200, #low flows may be zeros as they plateau unless all integers
+    4118850, #low flows plateau
+    4125903, #too regulated
+    4126351, #looks too regulated (as far as the record goes)
+    4148850 #unsure, missing data have lots of zeros
+  )
+
+  GRDCtoremove_o1961_pereartifacts &lt;- c(
+    1160331, #remove- Lower plateaus are likely overestimated 0 values
+    #1593100 #checked - clearly not intermittent but really bad quality
+    1593751, #remove - missing values seem to contain intermittency
+    1599111, #remove - maybe going down to 0 in missing data
+    1160788, #remove - looks like plateauing at 0 but rating curve is off
+    1899100, #remove-maybe intermittent now. intermittent last year of record (missing gap)
+    3628200, #remove- lower values may be 0s but rating curve is off
+    3652030, #remove- 0s in missing years and low flows in other years may also be 0s
+    4115225, #remove -looks like it became regulated and may have otherwised become intermittent
+    4146610, #remove- low flows may be 0s but rating curve is off
+    4151801, #remove - regulated and may otherwise go dry Rio Grande
+    4152651, #remove - regulated by blue mesa reservoir, may have been intermittent otherwise ######### good example
+    4208610, #remove - too much missing data but if not would be intermittent ###################good example of that
+    4213055, #remove- too much missing data but if not would be intermittent
+    4213802, #remove - identical to 4213801
+    4214320, #remove - lower values may be 0s and in missing years
+    #4231620, #check -- maybe regulated but would probably otherwise be perennial
+    4362100, #remove = lower values may be 0s and in missing years
+    5606090, #remove - lower values may be 0s
+    56064140, #remove - lower values may be 0s
+    6123630, #remove- lower values may be 0s
+    6233410, #remove -  looks erroneous
+    6335020, #remove - looks identical to 633060
+    6335050, #remove - looks identical to 6335060
+    6337503, #remove -looks heavily regulated. cannot tell whether may have been intermittent before
+    6442100, #remove - identical to 6442600
+    6935146, #remove - looks identical to 6935145
+    6972350, #remove
+    6935600  #remove - identical to 6935145
+  )
+
+  #---------- Check flags in winter IR
+  plot_winterir(dt = GRDCstatsdt, dbname = &#39;grdc&#39;, inp_resdir = inp_resdir,
+                yearthresh = 1800, plotseries = plotseries)
+
+  #Checked for seemingly anomalous 0s. Sudden decreases.
+  #Check for flags, check satellite imagery, station name, check for construction of reservoir
+  #If no way to explain, remove or if caused by reservoir/dam that is not in GranD
+  #4220310 and 4243610, just downstream of dams that are in GranD — should be taken in account
+  GRDCtoremove_winterIR &lt;- c(&#39;2588640&#39;, #Sudden shift
+                             &#39;2589230&#39;,#Sudden shift
+                             &#39;4213540&#39;,#Sudden shift
+                             &#39;4214075&#39;,#Sudden shift
+                             &#39;6401800&#39; #Just downstream of a reservoir that is not in GranD
+  )
+
+  #------ Check time series of stations within 3 km of seawater
+  GRDCcoastalirall &lt;- plot_coastalir(in_gaugep = in_gaugep, dt = GRDCstatsdt,
+                                     dbname = &#39;grdc&#39;, inp_resdir = inp_resdir,
+                                     yearthresh = 1800, plotseries = plotseries)
+  GRDCcoastalirall[, unique(readformatGRDC(path)$Flag), by=GRDC_NO]
+  #Nothing obviously suspect beyond those that ad already been flagged
+
+  #Inspect statistics for 4208857, 4213531 as no flow days occurred only one year
+  # ID = &#39;6976300&#39;
+  # GRDCstatsdt[GRDC_NO == ID,]
+  # check &lt;- readformatGRDC(GRDCstatsdt[GRDC_NO == ID,path])
+  # unique(check$Flag)
+  #
+  # plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == ID,], outpath=NULL)
+
+
+  #------ Remove stations with unstable intermittent flow regime
+  #Remove those which have at least one day per year of zero-flow day but instances
+  #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
+  GRDCtoremove_unstableIR &lt;- GRDCstatsdt[
+    (mDur_o1800 &gt;= 1) &amp; (!movinginter_o1800) &amp;
+      !(GRDC_NO %in% c(1160115, 1160245, 4146400)), GRDC_NO]
+
+  #Before cleaning
+  GRDCtoremove_all &lt;- unique(c(GRDCtoremove_allinteger,
+                               GRDCtoremove_o1800_irartifacts,
+                               GRDCtoremove_o1800_pereartifacts,
+                               GRDCtoremove_o1961_irartifacts,
+                               GRDCtoremove_o1961_pereartifacts,
+                               GRDCtoremove_winterIR,
+                               GRDCtoremove_unstableIR))
+
+  GRDCstatsdt[intermittent_o1800 == 1 &amp; totalYears_kept_o1800 &gt;= 10, .N]
+  GRDCstatsdt[intermittent_o1800 == 1 &amp; totalYears_kept_o1800 &gt;= 10 &amp;
+                !(GRDC_NO %in% GRDCtoremove_all), .N]
+
+  ### Check changes in GSIM discharge data availability and flow regime over time ####
+  GSIMstatsdt_clean &lt;- GSIMstatsdt[!(gsim_no %in%  c(GSIMtoremove_o1961_irartifacts,
+                                                     GSIMtoremove_o1800_irartifacts,
+                                                     GSIMtoremove_coastalIR,
+                                                     GSIMtoremove_winterIR,
+                                                     GSIMtoremove_unstableIR)),]
+  mvars &lt;- c(&#39;intermittent_o1800&#39;,
+             &#39;intermittent_o1961&#39;,
+             &#39;intermittent_o1971&#39;)
+  alluv_formatGSIM &lt;- melt(GSIMstatsdt_clean,
+                           id.vars = c(&#39;gsim_no&#39;,
+                                       paste0(&#39;totalYears_kept_o&#39;,
+                                              c(1800, 1961, 1971))),
+                           measure.vars = mvars) %&gt;%
+    .[totalYears_kept_o1800 &lt; 10 &amp; variable %in% mvars, value := NA] %&gt;%
+    .[totalYears_kept_o1961 &lt; 10 &amp; variable %in% mvars[2:3], value := NA] %&gt;%
+    .[totalYears_kept_o1971 &lt; 10 &amp; variable %in% mvars[3], value := NA] %&gt;%
+    .[, count := .N, by=.(variable, value)]
+
+
+  ### Check changes in GRDC discharge data availability and flow regime over time ####
+  GRDCstatsdt_clean &lt;- GRDCstatsdt[!(GRDC_NO %in% GRDCtoremove_all),]
+
+  alluv_formatGRDC &lt;- melt(GRDCstatsdt_clean,
+                           id.vars = c(&#39;GRDC_NO&#39;,
+                                       paste0(&#39;totalYears_kept_o&#39;,
+                                              c(1800,1961, 1971))),
+                           measure.vars = mvars) %&gt;%
+    .[totalYears_kept_o1800 &lt; 10 &amp; variable %in% mvars, value := NA] %&gt;%
+    .[totalYears_kept_o1961 &lt; 10 &amp; variable %in% mvars[2:3], value := NA] %&gt;%
+    .[totalYears_kept_o1971 &lt; 10 &amp; variable %in% mvars[3], value := NA] %&gt;%
+    .[, count := .N, by=.(variable, value)]
+
+
+  ###Analyze change in number of gauges with different intermittency criterion
+  irsensi_format &lt;- melt(rbind(GRDCstatsdt_clean, GSIMstatsdt_clean,
+                               use.names=TRUE, fill=T)[totalYears_kept_o1961 &gt;= 10,],
+                         id.vars = c(&#39;GRDC_NO&#39;, &#39;gsim_no&#39;),
+                         measure.vars = paste0(&#39;mDur_o&#39;, c(1800, 1961, 1971))) %&gt;%
+    .[!is.na(value) &amp; value &gt;0,] %&gt;%
+    setorder(variable, -value) %&gt;%
+    .[, cumcount := seq(.N), by=.(variable, is.na(GRDC_NO))]
+
+  ggirsensi &lt;- ggplot(irsensi_format, aes(x=value, y=cumcount,
+                                          color=variable, linetype=is.na(GRDC_NO))) +
+    geom_line(size=1.1) +
+    coord_cartesian(expand=0, clip=&#39;off&#39;) +
+    scale_x_sqrt(breaks=c(1, 5, 10, 30, 90, 180, 365),
+                 labels=c(1, 5, 10, 30, 90, 180, 365)) +
+    geom_vline(xintercept=c(1, 5)) +
+    annotate(geom=&#39;text&#39;, x=c(1.7,6.5), y=150, angle=90,
+             label=c(sum(irsensi_format[value==1 &amp; variable==&#39;mDur_o1800&#39;,
+                                        max(cumcount), by=is.na(GRDC_NO)]$V1),
+                     sum(irsensi_format[value==5 &amp; variable==&#39;mDur_o1800&#39;,
+                                        max(cumcount), by=is.na(GRDC_NO)]$V1))) +
+    theme_classic()
+
+  plots &lt;- grid.arrange(
+    ggalluvium_gaugecount(dtformat = alluv_formatGRDC, alluvvar = &#39;GRDC_NO&#39;),
+    ggalluvium_gaugecount(dtformat = alluv_formatGSIM, alluvvar = &#39;gsim_no&#39;),
+    ggirsensi
+  )
+
+  ### Bind GRDC and GSIM records ####################################
+  databound &lt;- rbind(GRDCstatsdt_clean,
+                     GSIMstatsdt_clean,
+                     use.names=TRUE, fill=T)
+
+  return(list(plots=plots, data=databound))
+}</code></pre>
+<p>Create a map with all gauges and their characteristics</p>
+<p>#Render image based on directory of graphs in github server &lt;- function(input, output, session) { # Send a pre-rendered image, and don’t delete the image after sending it output<span class="math inline">\(preImage &lt;- renderImage({  # When input\)</span>n is 3, filename is ./images/image3.jpeg filename &lt;- normalizePath(file.path(‘./images’, paste(‘image’, input$n, ‘.jpeg’, sep=’’)))</p>
+<pre><code># Return a list containing the filename and alt text
+list(src = filename,
+     alt = paste(&quot;Image number&quot;, input$n))</code></pre>
+<p>}, deleteFile = FALSE) }</p>
+<br>
+<p>
+<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
+<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
+</button>
+</p>
+<div id="workflowr-sessioninfo" class="collapse">
+<pre class="r"><code>sessionInfo()</code></pre>
+<pre><code>R version 4.0.2 (2020-06-22)
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+Running under: Windows 10 x64 (build 18363)
+
+Matrix products: default
+
+locale:
+[1] LC_COLLATE=English_United States.1252 
+[2] LC_CTYPE=English_United States.1252   
+[3] LC_MONETARY=English_United States.1252
+[4] LC_NUMERIC=C                          
+[5] LC_TIME=English_United States.1252    
+
+attached base packages:
+[1] grid      stats     graphics  grDevices datasets  utils     methods  
+[8] base     
+
+other attached packages:
+ [1] visNetwork_2.0.9                 tidyhydat_0.5.0                 
+ [3] raster_3.3-13                    quantreg_5.67                   
+ [5] SparseM_1.78                     profvis_0.3.6                   
+ [7] tictoc_1.0                       stringr_1.4.0                   
+ [9] sf_0.9-6                         scales_1.1.0                    
+[11] rnaturalearthdata_0.1.0          rnaturalearth_0.1.0             
+[13] rgeos_0.5-5                      rgdal_1.5-16                    
+[15] sp_1.4-2                         reprex_0.3.0                    
+[17] rbin_0.2.0                       ranger_0.12.1                   
+[19] qs_0.23.2                        poweRlaw_0.70.6                 
+[21] plyr_1.8.6                       patchwork_1.1.0                 
+[23] paradox_0.4.0                    olsrr_0.5.3                     
+[25] mvtnorm_1.1-1                    mlr3viz_0.3.0                   
+[27] mlr3tuning_0.3.0                 mlr3pipelines_0.3.0             
+[29] mlr3learners_0.3.0               mlr3_0.6.0                      
+[31] mgcv_1.8-33                      nlme_3.1-147                    
+[33] maps_3.3.0                       lubridate_1.7.9                 
+[35] kableExtra_1.2.1                 gstat_2.0-6                     
+[37] gridExtra_2.3                    ggpubr_0.4.0                    
+[39] ggnewscale_0.4.3                 ggalluvial_0.12.2               
+[41] ggplot2_3.3.0                    gdalUtils_2.0.3.2               
+[43] furrr_0.1.0                      future.callr_0.5.0              
+[45] future.apply_1.6.0               future_1.18.0                   
+[47] drake_7.12.5                     dplyr_1.0.2                     
+[49] data.table_1.13.2                cowplot_1.0.0                   
+[51] mandrake_1.0.0                   facetscales_0.1.0.9000          
+[53] bigstatsr_1.2.3                  edarf_1.1.1                     
+[55] mlr3learners.partykit_0.2.1.9000 mlr3spatiotempcv_0.0.0.9004     
+[57] ggplotify_0.0.5                  rprojroot_1.3-2                 
+
+loaded via a namespace (and not attached):
+  [1] R.utils_2.9.2       tidyselect_1.1.0    htmlwidgets_1.5.1  
+  [4] mlr3misc_0.5.0      munsell_0.5.0       mmpf_0.0.5         
+  [7] base64url_1.4       units_0.6-7         codetools_0.2-16   
+ [10] bbotk_0.2.1         withr_2.2.0         colorspace_1.4-1   
+ [13] filelock_1.0.2      knitr_1.29          uuid_0.1-4         
+ [16] rstudioapi_0.11     ggsignif_0.6.0      listenv_0.8.0      
+ [19] git2r_0.27.1        lgr_0.3.4           txtq_0.2.3         
+ [22] vctrs_0.3.4         generics_0.0.2      xfun_0.17          
+ [25] R6_2.4.1            bigassertr_0.1.3    doParallel_1.0.15  
+ [28] gridGraphics_0.5-1  assertthat_0.2.1    promises_1.1.0     
+ [31] gtable_0.3.0        globals_0.12.5      conquer_1.0.2      
+ [34] processx_3.4.2      goftest_1.2-2       workflowr_1.6.2    
+ [37] MatrixModels_0.4-1  rlang_0.4.7         flock_0.7          
+ [40] splines_4.0.2       rstatix_0.6.0       broom_0.5.6        
+ [43] checkmate_2.0.0     BiocManager_1.30.10 yaml_2.2.1         
+ [46] bigparallelr_0.2.3  abind_1.4-5         backports_1.1.10   
+ [49] httpuv_1.5.4        tools_4.0.2         ellipsis_0.3.0     
+ [52] Rcpp_1.0.4.6        progress_1.2.2      classInt_0.4-3     
+ [55] purrr_0.3.4         ps_1.3.3            prettyunits_1.1.1  
+ [58] zoo_1.8-8           haven_2.3.1         fs_1.5.0           
+ [61] magrittr_1.5        openxlsx_4.1.5      spacetime_1.2-3    
+ [64] storr_1.2.1         matrixStats_0.56.0  stringfish_0.14.2  
+ [67] hms_0.5.3           evaluate_0.14       rio_0.5.16         
+ [70] readxl_1.3.1        compiler_4.0.2      tibble_3.0.1       
+ [73] KernSmooth_2.23-16  crayon_1.3.4        R.oo_1.23.0        
+ [76] htmltools_0.4.0     later_1.0.0         tidyr_1.0.3        
+ [79] RcppParallel_5.0.2  DBI_1.1.0           RApiSerialize_0.1.0
+ [82] Matrix_1.2-18       car_3.0-9           cli_2.0.2          
+ [85] R.methodsS3_1.8.0   parallel_4.0.2      igraph_1.2.5       
+ [88] forcats_0.5.0       pkgconfig_2.0.3     rvcheck_0.1.8      
+ [91] foreign_0.8-78      xml2_1.3.2          roxygen2_7.1.1     
+ [94] foreach_1.5.0       webshot_0.5.2       rvest_0.3.6        
+ [97] callr_3.4.3         digest_0.6.25       pracma_2.2.9       
+[100] rmarkdown_2.3       cellranger_1.1.0    intervals_0.15.2   
+[103] nortest_1.0-4       curl_4.3            jsonlite_1.6.1     
+[106] lifecycle_0.2.0     carData_3.0-4       viridisLite_0.3.0  
+[109] fansi_0.4.1         pillar_1.4.4        lattice_0.20-41    
+[112] httr_1.4.2          glue_1.4.0          xts_0.12-0         
+[115] zip_2.1.1           FNN_1.1.3           iterators_1.0.12   
+[118] class_7.3-16        stringi_1.4.6       renv_0.9.3         
+[121] e1071_1.7-3        </code></pre>
+</div>
+</div>
+
+
+<!-- Adjust MathJax settings so that all math formulae are shown using
+TeX fonts only; see
+http://docs.mathjax.org/en/latest/configuration.html.  This will make
+the presentation more consistent at the cost of the webpage sometimes
+taking slightly longer to load. Note that this only works because the
+footer is added to webpages before the MathJax javascript. -->
+<script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": { availableFonts: ["TeX"] }
+  });
+</script>
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
