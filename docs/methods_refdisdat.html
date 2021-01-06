@@ -443,16 +443,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree2fdc092553d567b0a07d9616471f141eea0e1b35targetblank2fdc092a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/2fdc092553d567b0a07d9616471f141eea0e1b35" target="_blank">2fdc092</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreebb0df37ee5e3f5e92681a4f9aa74ee9988675fa3targetblankbb0df37a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/bb0df37ee5e3f5e92681a4f9aa74ee9988675fa3" target="_blank">bb0df37</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree2fdc092553d567b0a07d9616471f141eea0e1b35targetblank2fdc092a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreebb0df37ee5e3f5e92681a4f9aa74ee9988675fa3targetblankbb0df37a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/2fdc092553d567b0a07d9616471f141eea0e1b35" target="_blank">2fdc092</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/bb0df37ee5e3f5e92681a4f9aa74ee9988675fa3" target="_blank">bb0df37</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -529,6 +529,40 @@ Message
 Rmd
 </td>
 <td>
+<a href="https://github.com/messamat/globalIRmap/blob/bb0df37ee5e3f5e92681a4f9aa74ee9988675fa3/analysis/methods_refdisdat.Rmd" target="_blank">bb0df37</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-06
+</td>
+<td>
+Start formatting gauge selection for better display
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/9b48bde36604b05bd1464fcdb5fd26a3c05a8f88/docs/methods_refdisdat.html" target="_blank">9b48bde</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-06
+</td>
+<td>
+Build site.
+</td>
+</tr>
+<tr>
+<td>
+Rmd
+</td>
+<td>
 <a href="https://github.com/messamat/globalIRmap/blob/f1d9dcf0abf909916216d0b51f409b8ccb7691d5/analysis/methods_refdisdat.Rmd" target="_blank">f1d9dcf</a>
 </td>
 <td>
@@ -581,185 +615,194 @@ We applied the described GSIM selection criteria to balance the relative amount 
 <div id="map-of-selected-and-discarded-gauges" class="section level1">
 <h1>Map of selected and discarded gauges</h1>
 <p>Create data.table with gauge id, characteristics, X, Y, reason for removal, and embedded image</p>
-<pre class="r"><code>analyzemerge_gaugeir &lt;- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthresh,
+<pre class="r"><code>in_GRDCgaugestats &lt;- GRDCgaugestats
+in_GSIMgaugestats &lt;- GSIMgaugestats
+yearthresh = 1800
+in_gaugep = gaugep
+
+analyzemerge_gaugeir &lt;- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthresh,
                                  in_gaugep, inp_resdir, plotseries = FALSE) {
-  ### Analyze GSIM data ####################################
+  ### Analyze GSIM data ########################################################
   GSIMstatsdt &lt;- rbindlist(in_GSIMgaugestats)
+  
+  #------ Remove stations with unstable intermittent flow regime
+  #Remove those which have at least one day per year of zero-flow day but instances
+  #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
+  GSIMtoremove_unstableIR &lt;- GSIMstatsdt[
+    (mDur_o1800 &gt;= 1) &amp; (!movinginter_o1800), gsim_no]
 
+  #------ Remove stations based on examination of plots and data series
   #Outliers from examining plots of ir time series (those that were commented out were initially considered)
-  GSIMtoremove_o1800_irartifacts &lt;- c(
-    &#39;AT_0000014&#39;, #remove - changed flow permanence
-    &#39;BR_0000286&#39;, #remove - Tapajos river. Impossible that it dries out.
-    &#39;BR_0000581&#39;, #remove - 0 flow happened only once at the end of record
-    &#39;BR_0000786&#39;, #remove - probably perennial
-    &#39;BR_0000862&#39;, #remove - probably perennial
-    &#39;BR_0001011&#39;, #remove - probably perennial
-    &#39;BR_0001116&#39;, #remove - probably naturally perennial
-    &#39;BR_0001133&#39;, #remove - probably naturally perennial
-    &#39;CA_0001057&#39;, #remove - only one 0 flow event in 28 years
-    &#39;CA_0003488&#39;, #remove - only one 0 flow event
-    &#39;CA_0003526&#39;, #remove - only one 0 flow event
-    &#39;ES_0000078&#39;, #remove - first 20 years without 0 flow
-    &#39;ES_0000084&#39;, #remove - probably perennial, first 20 years without 0 flow
-    &#39;ES_0000388&#39;, #remove - record is too discontinued to assess permanence, probably perennial; besides, it looks regulated
-    &#39;ES_0000444&#39;, #remove - only one 0 valid flow occurrence
-    &#39;ES_0000525&#39;, #remove - very discontinued record. Seems to have changed flow permanence
-    &#39;ES_0000729&#39;, #remove - seems to have shifted
-    &#39;ES_0000785&#39;, #remove - erroneous
-    &#39;ES_0000786&#39;, #remove - looks regulated
-    &#39;ES_0000816&#39;, #remove - doesn&#39;t look reliable
-    &#39;ES_0000856&#39;, #remove - 0 flow occured only once in record
-    &#39;ES_0000892&#39;, #remove - probably perennial
-    &#39;ES_0000806&#39;, #remove - probably perennial, 0 flow occurred only once
-    &#39;ES_0000910&#39;, #remove - changed flow permanence
-    &#39;ES_0000986&#39;, #remove - 0 flow occured only once
-    &#39;ES_0000996&#39;, #remove - changed flow permanence
-    &#39;ES_0001020&#39;, #remove - hard to tell flow permanence
-    &#39;ES_0001052&#39;, #remove - regulated
-    &#39;ES_0001082&#39;, #remove - changed flow permanence, either regulated or...
-    &#39;ES_0001085&#39;, #remove - changed flow permanence
-    &#39;ES_0001116&#39;, #remove - occurred only the last year not the first 22 years
-    &#39;ES_0001162&#39;, #remove - most occurrences seem buggy
-    &#39;FI_0000156&#39;, #remove - no occurrences in first 60% of record
-    &#39;FR_0000052&#39;, #remove - no occurrences in first 20 years
-    &#39;HU_0000017&#39;, #remove - only one zero flow occurence in 25 years
-    &#39;IE_0000014&#39;, #remove - no 0 flow occurrence in first 25 years
-    &#39;IN_0000023&#39;, #remove - no 0 flow occurrence in first 20 years
-    &#39;IN_0000045&#39;, #remove - no 0 flow occurrence in first 20 years
-    &#39;IN_0000046&#39;, #remove - changed flow permanence
-    &#39;IN_0000050&#39;, #remove - changed flow permanence
-    &#39;IN_0000063&#39;, #remove - changed flow permanence
-    &#39;IN_0000064&#39;, #remove - changed flow permanence
-    &#39;IN_0000113&#39;, #remove - only one 0 flow occurrence
-    &#39;IN_0000124&#39;, #remove - changed flow permanence
-    &#39;IN_0000125&#39;, #remove - changed flow permanence
-    &#39;IN_0000134&#39;, #remove - changed flow permanence
-    &#39;IN_0000170&#39;, #remove - only one 0 flow occurrence
-    #&#39;IN_0000190&#39;, #checked- looked regulated
-    &#39;IN_0000255&#39;, #remove - changed flow permanence
-    &#39;IN_0000283&#39;, #remove - changed flow permanence
-    &#39;IN_0000312&#39;, #remove - changed flow permanence
-    &#39;MZ_0000010&#39;, #remove - changed flow permanence
-    &#39;NO_0000028&#39;, #remove - changed flow permanence
-    &#39;NO_0000030&#39;, #remove - occurred only once
-    &#39;RU_0000189&#39;, #remove - occurred only once
-    &#39;RU_0000265&#39;, #remove - changed flow permanence
-    &#39;RU_0000358&#39;, #remove - changed flow permanence
-    &#39;TZ_0000018&#39;, #remove - hard to tell but probably changed flow permanence
-    &#39;US_0005106&#39;, #remove - hard to tell, probably changed flow permanence
-    &#39;US_0005874&#39;, #remove - changed flow permanence
-    &#39;US_0005876&#39;, #remove - changed flow permanence
-    &#39;US_0006103&#39;, #remove -  regulated
-    #&#39;US_0006156&#39;, #checked -  regulated, barrier made it perennial?
-    &#39;US_0006396&#39;, #remove - buggy looking pre-1960
-    &#39;US_0006440&#39;, #remove - not enough data to tell, seemed like changed flow permanence
-    &#39;US_0006537&#39;, #remove - changed flow permanence
-    &#39;ZA_0000074&#39;, #remove - missing data
-    &#39;ZA_0000268&#39;, #remove - seemingly changed flow permanence
-    &#39;ZA_0000270&#39; #remove - changed flow permanence
-  )
-
-  GSIMtoremove_o1961_irartifacts &lt;- c(
-    #&#39;AR_0000014&#39;, #maybe regulated --- checked
-    &#39;AT_0000021&#39;, #remove
-    &#39;AT_0000026&#39;, #remove
-    &#39;AT_0000038&#39;, #remove
-    &#39;AT_0000059&#39;, #remove
-    &#39;BR_0000557&#39;, #inspected - confirmed dry channel visually
-    &#39;BR_0000662&#39;, #is regulated -- remove
-    #&#39;BR_0000664&#39;, #change of regime, maybe regulated --- but was intermittent before
-    &#39;BR_0000706&#39;, #remove
-    &#39;BR_0000717&#39;, #remove --regulated intermittency
-    &#39;BR_0000778&#39;, #remove, too much missing data
-    &#39;BR_0001104&#39;, #remove
-    #&#39;CA_0003473&#39;, downstream of natural lake, all good
-    #&#39;CA_0003526&#39;, #downstream of lakes, maybe low lake levels
-    &#39;CA_0003544&#39;, #already in GRDC and a bit buggy looking
-    &#39;CN_0000004&#39;, #remove
-    &#39;CN_0000009&#39;, #remove
-    &#39;CN_0000010&#39;, #remove
-    &#39;CN_0000012&#39;, #remove
-    &#39;CN_0000013&#39;, #remove
-    &#39;CN_0000021&#39;, #remove
-    &#39;CN_0000022&#39;, #remove
-    &#39;CN_0000026&#39;, #remove
-    &#39;CN_0000029&#39;, #remove
-    &#39;CN_0000038&#39;, #remove - got dewatered by dam
-    &#39;CN_0000043&#39;, #remove
-    &#39;CN_0000062&#39;, #remove
-    #&#39;ES_0000525&#39;, #maybe regulated --- check
-    &#39;ES_0000581&#39;, #remove
-    &#39;ES_0000660&#39;, #remove -- regulated
-    #&#39;ES_0000676&#39;, #looks regulated --- but probably intermittent before
-    &#39;ES_0000794&#39;, #remove - same as 0000832
-    &#39;ES_0000784&#39;, #remove -- same as &#39;ES_0000785&#39;
-    &#39;ES_0000818&#39;, #remove - same as ES_0000785 and ES_0000784 which are not intermittent
-    &#39;ES_0000841&#39;, #remove -- regulated
-    &#39;ES_0000958&#39;, #remove -- 0s seem erroneous
-    &#39;FI_0000107&#39;, #remove -- lake inlet, maybe just become standing water when high water level
-    #&#39;IE_0000014&#39;, #downstream of lake -- must be drop in lake levels
-    &#39;IN_0000105&#39;, #remove -- downstream of major dams -- no records pre-1968 time of building
-    &#39;IN_0000159&#39;, #remove -- regulated, no records before dam
-    &#39;IN_0000280&#39;, #remove -- regulated, no records before dam. intermittency started after building of Parambikulam dam
-    #&#39;IN_0000309&#39;, #intermittent before building of reservoir in 1988
-    &#39;NA_0000050&#39;, #remove, unreliable, 0s and interpolations
-    #&#39;NO_0000018&#39;, #checked -- downstream of natural lake. probably water level decrease
-    &#39;NO_0000044&#39;, #remove
-    &#39;NO_0000090&#39;, #remove
-    &#39;SE_0000058&#39;, #remove -- downstream of dam, didn&#39;t use to be intermittent. and experiences ice
-    #&#39;US_0001855&#39;, #maybe rounded values --- check
-    #&#39;US_0001861&#39;, #maybe rounded values --- check
-    #&#39;US_0001868&#39;, #maybe rounded avlues --- check
-    &#39;US_0002247&#39;, #remove -- regulated -- GRDC 4149415 upstream not intermittent
-    &#39;US_0002248&#39;, #remove -- regulated just downstream of 2247
-    &#39;US_0002791&#39;, #on usgs website: &quot;close proximity to the Ohio River. During periods of high water on the Ohio River, the computed discharge at this site may be incorrectly displayed due to the backwater effect created.&quot;
-    #&#39;US_0003591&#39;, #maybe rounded values --- check
-    # &#39;US_0003774&#39;, #maybe rounded values --- check
-    # &#39;US_0003836&#39;, #maybe rounded values --- check
-    # &#39;US_0004023&#39;, #maybe rounded values --- check
-    # &#39;US_0004216&#39;, #maybe rounded values --- check
-    # &#39;US_0004232&#39;, #maybe rounded values --- check
-    # &#39;US_0004658&#39;, #maybe rounded values --- check
-    &#39;US_0004773&#39;, #remove - regulated. no records prior to reservoir buiding
-    #US_005099, #confirmed dried bed on imagery
-    # &#39;US_0005161&#39;, #maybe rounded values --- check
-    # &#39;US_0005177&#39;, #maybe rounded values --- check
-    #&#39;US_0005303&#39;, #looks fine on usgs website and imagery. just small
-    #&#39;US_0005596&#39;, #looks fine, small
-    #&#39;US_0005597&#39;, #looks fine, small
-    # &#39;US_0005622&#39;, #maybe rounded values --- check
-    # &#39;US_0005623&#39;, #maybe rounded values --- check
-    # &#39;US_0005684&#39;, #maybe rounded values --- check
-    # &#39;US_0005687&#39;, #maybe rounded values --- check
-    &#39;US_0005732&#39;, #remove -- regime shift because of Lake Arcadia (reservoir)
-    #&#39;US_0005859&#39;, #maybe rounded values --- check
-    #&#39;US_0005879&#39;, #maybe rounded values --- check
-    # &#39;US_0006073&#39;, #maybe rounded values --- check
+  GSIMtoremove_irartifacts &lt;- list(
+    c(&#39;AR_0000014&#39;, &#39;removed&#39;, &quot;large gaps in data, changed flow permanence&quot;),
+    c(&#39;AT_0000021&#39;, &#39;removed&#39;, &quot;single flow intermittency event, probably gap in data&quot;),
+    c(&#39;AT_0000026&#39;, &#39;removed&#39;, &quot;abrupt decrease to 0 flow, probably gaps in data&quot;),
+    c(&#39;AT_0000038&#39;, &#39;removed&#39;, &quot;large gaps in data, single flow intermittency event at the end&quot;),
+    c(&#39;AT_0000059&#39;, &#39;removed&#39;, &quot;abrupt decrease to 0 flow, probably gaps in data&quot;),
+    c(&#39;BR_0000286&#39;, &#39;removed&#39;, &quot;Tapajos river. Impossible that it dries out.&quot;),
+    c(&#39;BR_0000557&#39;, &#39;inspected&#39;, &quot;Confirmed dry channel visually on satellite imagery&quot;),
+    c(&#39;BR_0000581&#39;, &#39;removed&#39;, &quot;Single flow intermittency event at the end&quot;),
+    c(&#39;BR_0000662&#39;, &#39;removed&#39;, &quot;flow regulated. unsure when it started, large data gap&quot;),
+    c(&#39;BR_0000664&#39;, &#39;inspected&#39;, &quot;change of regime in last few years due to regulation, but originally IRES&quot;),
+    c(&#39;BR_0000706&#39;, &#39;removed&#39;, &quot;too many data gaps to determine long-term flow permanence&quot;),
+    c(&#39;BR_0000717&#39;, &#39;removed&#39;, &quot;flow regulated, changed from perennial to IRES&quot;),
+    c(&#39;BR_0000778&#39;, &#39;removed&#39;, &quot;too many data gaps to determine long-term flow permanence&quot;),
+    c(&#39;BR_0000786&#39;, &#39;removed&#39;, &quot;only one flow intermittency event&quot;),
+    c(&#39;BR_0000862&#39;, &#39;removed&#39;, &quot;only one flow intermittency event, too many data gaps&quot;),
+    c(&#39;BR_0001011&#39;, &#39;removed&#39;, &quot;only one flow intermittency event, too many data gaps&quot;),
+    c(&#39;BR_0001104&#39;, &#39;removed&#39;, &quot;only one flow intermittency event at the end&quot;),
+    c(&#39;BR_0001116&#39;, &#39;removed&#39;, &quot;seems to have changed flow permanence, many gata gaps&quot;),
+    c(&#39;BR_0001133&#39;, &#39;removed&#39;, &quot;changed flow permanence&quot;),
+    c(&#39;CA_0001057&#39;, &#39;removed&#39;, &quot;only one flow intermittency event in 28 years&quot;),
+    c(&#39;CA_0003473&#39;, &#39;inspected&#39;, &quot;only one flow intermittency event but outlet of natural lake&quot;),
+    c(&#39;CA_0003488&#39;, &#39;removed&#39;, &quot;only one flow intermittency event&quot;),
+    c(&#39;CA_0003526&#39;, &#39;removed&#39;, &quot;only one flow intermittency event over the winter&quot;),
+    c(&#39;CA_0003544&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000004&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000009&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000010&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000012&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000013&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000004&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000021&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000022&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000026&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000029&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000038&#39;, &#39;removed&#39;, &quot;only one flow intermittency event, temporary dewatering by dam&quot;),
+    c(&#39;CN_0000043&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000047&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;CN_0000062&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;ES_0000078&#39;, &#39;removed&#39;, &quot;changed flow permanence, first 20 years with 0 flow&quot;),
+    c(&#39;ES_0000087&#39;, &#39;removed&#39;, &quot;0 flow seems driven by exceptional drought, not throughout record&quot;),
+    c(&#39;ES_0000388&#39;, &#39;removed&#39;, &quot;too many data gaps to determine long-term flow permanence; and looks regulated&quot;),
+    c(&#39;ES_0000444&#39;, &#39;removed&#39;, &quot;only one flow intermittency event&quot;),
+    c(&#39;ES_0000525&#39;, &#39;removed&#39;, &quot;very discontinued record. Seems to have changed flow permanence&quot;),
+    c(&#39;ES_0000581&#39;, &#39;removed&#39;, &quot;appears unreliable&quot;),
+    c(&#39;ES_0000676&#39;, &#39;inspected&#39;, &quot;flow regulated, but originally IRES&quot;),
+    c(&#39;ES_0000729&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;ES_0000784&#39;, &#39;removed&#39;, &quot;same as ES_0000785&quot;),
+    c(&#39;ES_0000785&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;ES_0000786&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow, probably gaps in data&quot;),
+    c(&#39;ES_0000794&#39;, &#39;removed&#39;, &quot;same as ES_0000832&quot;),
+    c(&#39;ES_0000816&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow&quot;),
+    c(&#39;ES_0000818&#39;, &#39;removed&#39;, &quot;same as ES_0000785 and ES_0000784, which are not intermittent&quot;),
+    c(&#39;ES_0000856&#39;, &#39;removed&#39;, &quot;only one flow intermittency event&quot;),
+    c(&#39;ES_0000892&#39;, &#39;removed&#39;, &quot;appears perennial with only one period of flow intermittency, data gaps&quot;),
+    c(&#39;ES_0000906&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow&quot;),
+    c(&#39;ES_0000910&#39;, &#39;removed&#39;, &quot;only one flow intermittency event&quot;),
+    c(&#39;ES_0000910&#39;, &#39;removed&#39;, &quot;only one flow intermittency event&quot;),
+    c(&#39;ES_0000958&#39;, &#39;removed&#39;, &quot;only one flow intermittency event, abrupt decrease&quot;),
+    c(&#39;ES_0000986&#39;, &#39;removed&#39;, &quot;only one flow intermittency event, abrupt decrease&quot;),
+    c(&#39;ES_0000996&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;ES_0001020&#39;, &#39;removed&#39;, &quot;too many data gaps to determine long-term flow permanence&quot;),
+    c(&#39;ES_0001052&#39;, &#39;removed&#39;, &quot;regulated, changed flow permanence&quot;),
+    c(&#39;ES_0001082&#39;, &#39;removed&#39;, &quot;regulated, changed flow permanence&quot;),
+    c(&#39;ES_0001085&#39;, &#39;removed&#39;, &quot;only one flow intermittency event at the end&quot;),
+    c(&#39;ES_0001116&#39;, &#39;removed&#39;, &quot;only one year of flow intermittency events at the end&quot;),
+    c(&#39;ES_0001162&#39;, &#39;removed&#39;, &quot;abrupt decreases to 0 flow&quot;),
+    c(&#39;FI_0000107&#39;, &#39;removed&#39;, &quot;lake inlet, maybe just become standing water when high water level&quot;),
+    c(&#39;FI_0000156&#39;, &#39;removed&#39;, &quot;no 0 flow for first 60% of record&quot;),
+    c(&#39;FR_0000052&#39;, &#39;removed&#39;, &quot;no 0 flow for first 20 years of record&quot;),
+    c(&#39;HU_0000017&#39;, &#39;removed&#39;, &quot;only one 0 flow occurence in 25 years&quot;),
+    c(&#39;IN_0000014&#39;, &#39;removed&#39;, &quot;no 0 flow occurrence in first 25 years&quot;),
+    c(&#39;IN_0000023&#39;, &#39;removed&#39;, &quot;no 0 flow occurrence in first 20 years&quot;),
+    c(&#39;IN_0000045&#39;, &#39;removed&#39;, &quot;no 0 flow occurrence in first 20 years&quot;),
+    c(&#39;IN_0000046&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000050&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000063&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000064&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000105&#39;, &#39;removed&#39;, &quot;regulated -- no records pre-1968 time of dam building&quot;),
+    c(&#39;IN_0000113&#39;, &#39;removed&#39;, &quot;only one 0 flow occurence&quot;),
+    c(&#39;IN_0000124&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000125&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000134&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000159&#39;, &#39;removed&#39;, &quot;regulated -- no records pre-1968 time of dam building&quot;),
+    c(&#39;IN_0000170&#39;, &#39;removed&#39;, &quot;only one 0 flow occurence&quot;),
+    c(&#39;IN_0000190&#39;, &#39;inspected&#39;, &quot;looked regulated but isn&#39;t in the end&quot;),
+    c(&#39;IN_0000255&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000105&#39;, &#39;removed&#39;, &quot;regulated -- no records pre-1968 time of dam building&quot;),
+    c(&#39;IN_0000280&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;IN_0000309&#39;, &#39;inspected&#39;, &quot;before building of reservoir in 1988&quot;),
+    c(&#39;IN_0000312&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;MZ_0000010&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;NA_0000050&#39;, &#39;removed&#39;, &quot;unreliable record, data gaps and interpolated values&quot;),
+    c(&#39;NO_0000018&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;NO_0000028&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;NO_0000030&#39;, &#39;removed&#39;, &quot;only one 0 flow occurence&quot;),
+    c(&#39;NO_0000044&#39;, &#39;removed&#39;, &quot;0 flow values only at the beginning, probably data gaps&quot;),
+    c(&#39;NO_0000090&#39;, &#39;removed&#39;, &quot;0 flow values at the beginning probably data gaps, otherwise only one 0 flow event&quot;),
+    c(&#39;RU_0000189&#39;, &#39;removed&#39;, &quot;only one 0 flow occurence&quot;),
+    c(&#39;RU_0000265&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;RU_0000358&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;SE_0000058&#39;, &#39;removed&#39;, &quot;downstream of dam, changed flow permanence. and experiences ice&quot;),
+    c(&#39;TZ_0000018&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;US_0005106&#39;, &#39;removed&#39;, &quot;probably changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;US_0005874&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;US_0005876&#39;, &#39;removed&#39;, &quot;probably changed flow permanence from perennial to non-perennial&quot;),
+    #&#39;US_0001855&#39;, #maybe rounded values --- checked
+    #&#39;US_0001861&#39;, #maybe rounded values --- checked
+    #&#39;US_0001868&#39;, #maybe rounded avlues --- checked
+    c(&#39;US_0002247&#39;, &#39;removed&#39;, &quot;regulated, GRDC 4149415 upstream not intermittent&quot;),
+    c(&#39;US_0002248&#39;, &#39;removed&#39;, &quot;regulated, just downstream of US_0002247&quot;),
+    c(&#39;US_0002791&#39;, &#39;removed&#39;, &quot;on usgs website: close proximity to the Ohio River. During periods of high water on the Ohio River, the computed discharge at this site may be incorrectly displayed due to the backwater effect created.&quot;),
+    #&#39;US_0003591&#39;, #maybe rounded values --- checked
+    # &#39;US_0003774&#39;, #maybe rounded values --- checked
+    # &#39;US_0003836&#39;, #maybe rounded values --- checked
+    # &#39;US_0004023&#39;, #maybe rounded values --- checked
+    # &#39;US_0004216&#39;, #maybe rounded values --- checked
+    # &#39;US_0004232&#39;, #maybe rounded values --- checked
+    # &#39;US_0004658&#39;, #maybe rounded values --- checked
+    c(&#39;US_0004773&#39;, &#39;removed&#39;, &quot;regulated, no records prior to reservoir buiding&quot;),
+    c(&#39;US_005099&#39;, &#39;inspected&#39;, &quot;confirmed dry bed on satellite imagery&quot;),
+    # &#39;US_0005161&#39;, #maybe rounded values --- checked
+    # &#39;US_0005177&#39;, #maybe rounded values --- checked
+    c(&#39;US_0005303&#39;, &#39;inspected&#39;, &quot;looks fine on usgs website and imagery. just small&quot;),
+    c(&#39;US_0005596&#39;, &#39;inspected&#39;, &quot;looks fine on usgs website and imagery. just small&quot;),
+    c(&#39;US_0005597&#39;, &#39;inspected&#39;, &quot;looks fine on usgs website and imagery. just small&quot;),
+    # &#39;US_0005622&#39;, #maybe rounded values --- checked
+    # &#39;US_0005623&#39;, #maybe rounded values --- checked
+    # &#39;US_0005684&#39;, #maybe rounded values --- checked
+    # &#39;US_0005687&#39;, #maybe rounded values --- checked
+    c(&#39;US_0005732&#39;, &#39;removed&#39;, &quot;regulated by Lake Arcadia reservoir, changed flow permanence&quot;),
+    #&#39;US_0005859&#39;, #maybe rounded values --- checked
+    #&#39;US_0005879&#39;, #maybe rounded values --- checked
+    # &#39;US_0006073&#39;, #maybe rounded values --- checked
+    c(&#39;US_0006103&#39;, &#39;removed&#39;, &quot;regulated, changed flow permanence&quot;),
     # &#39;US_0006109&#39;, #maybe rounded values --- check
     # &#39;US_0006154&#39;, #maybe rounded values --- check
-    &#39;US_0006155&#39;, #currently regulated but used to be intermittent but same as 6156 so remove
-    #&#39;US_0006156&#39;, #currently regulated but used to be intermittent so keep
-    #&#39;US_0006301&#39;, #maybe rounded values --- check
-    #&#39;US_0006327&#39;, #maybe rounded values --- check
-    #&#39;US_0006387&#39;, #maybe rounded values --- check
-    #&#39;US_0006206&#39;, #all good, confirmed dry with imagery
-    #&#39;US_0006574&#39;, #maybe regulated? ---checked all good
-    #&#39;US_0006975&#39;, #maybe rounded values --- check
-    #&#39;US_0006984&#39;, #maybe rounded values --- check
-    #&#39;US_0006985&#39;, #maybe rounded values --- check
-    #&#39;US_0006986&#39;, #maybe rounded values --- check
-    &#39;US_0008607&#39;, #regulated. 1978 intermittency started after building reservoir
-    &#39;US_0008687&#39;, #regulated. intermittency started after bui;lding reserovir 1935
-    # &#39;US_0008726&#39;, #maybe rounded values --- check
-    # &#39;US_0008779&#39;, #maybe rounded values --- check
-    &#39;ZA_0000008&#39;, #remove
-    &#39;ZA_0000084&#39; #remove
-  )
+    c(&#39;US_0006155&#39;, &#39;removed&#39;, &quot;regulated, did not change flow permanence but same as 0006156&quot;),
+    c(&#39;US_0006156&#39;, &#39;inspected&#39;, &quot;regulated, but did not change flow permanence&quot;),
+    c(&#39;US_0006206&#39;, &#39;inspected&#39;, &quot;looks fine on usgs website and imagery&quot;),
+    #&#39;US_0006301&#39;, #maybe rounded values --- checked
+    #&#39;US_0006327&#39;, #maybe rounded values --- checked
+    #&#39;US_0006387&#39;, #maybe rounded values --- checked
+    c(&#39;US_0006396&#39;, &#39;removed&#39;, &quot;erroneous values pre-1960&quot;),
+    c(&#39;US_0006440&#39;, &#39;removed&#39;, &quot;probably changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;US_0006537&#39;, &#39;removed&#39;, &quot;changed flow permanence from perennial to non-perennial&quot;),
+    c(&#39;US_0006574&#39;, &#39;inspected&#39;, &quot;suspected regulation, but doesn&#39;t seem to be the case&quot;),
+    #&#39;US_0006975&#39;, #maybe rounded values --- checked
+    #&#39;US_0006984&#39;, #maybe rounded values --- checked
+    #&#39;US_0006985&#39;, #maybe rounded values --- checked
+    #&#39;US_0006986&#39;, #maybe rounded values --- checked
+    c(&#39;US_0008607&#39;, &#39;inspected&#39;, &quot;regulated since 1978, schanged flow permanence from perennial to non-perennial&quot;),
+    c(&#39;US_0008687&#39;, &#39;inspected&#39;, &quot;regulated since 1935, schanged flow permanence from perennial to non-perennial&quot;),
+    # &#39;US_0008726&#39;, #maybe rounded values --- checked
+    # &#39;US_0008779&#39;, #maybe rounded values --- checked
+    c(&#39;ZA_0000074&#39;, &#39;removed&#39;, &quot;abrupt decrease to 0 flow, probably gaps in data&quot;),
+    c(&#39;ZA_0000268&#39;, &#39;removed&#39;, &quot;probably changed flow permanence&quot;),
+    c(&#39;ZA_0000084&#39;, &#39;removed&#39;, &quot;probably changed flow permanence&quot;),
+    c(&#39;ZA_0000270&#39;, &#39;removed&#39;, &quot;changed flow permanence&quot;)
+  ) %&gt;%
+    do.call(rbind, .) %&gt;%
+    as.data.table %&gt;%
+    setnames(c(&#39;gsim_no&#39;, &#39;flag&#39;, &#39;comment&#39;))
 
   # readformatGSIMmon(
   #   GSIMstatsdt[gsim_no == &#39;US_0000546&#39;, path]) %&gt;%
   #   .[MIN != 0, min(MIN)]
-
+  # sort(GSIMtoremove_unstableIR)
+  # &#39;ES_0000806&#39; %in% GSIMstatsdt$gsim_no
+  # GSIMstatsdt[gsim_no == &#39;ES_0000818&#39;, ]
 
   #-----  Check flags in winter IR for GSIM
   wintergaugesall_GSIM &lt;- plot_winterir(
@@ -808,35 +851,26 @@ We applied the described GSIM selection criteria to balance the relative amount 
   #&#39;RU_0000391&#39;, &#39;RU_0000393&#39;, &#39;RU_00000395&#39;, &#39;RU_0000436&#39;,
   #&#39;RU_0000470&#39;, &#39;US_0008687&#39;)
   check &lt;- readformatGSIMmon(GSIMstatsdt[gsim_no == &#39;US_0008687&#39;,path])
-
-  #Remove CN_
-  GSIMtoremove_winterIR &lt;- c(&#39;CA_0003544&#39;, #erroneous patterns (abnormally high values)
-                             &#39;CA_0003473&#39;, #sudden peak — unsure about estimated discharge under ice conditions
-                             &#39;CN_0000047&#39;, #Anomalous change from near 0 discharge to 150 m3/s, no explanation)
-                             &#39;NO_0000018&#39;, #Record for 18 years without a 0, 0s every month for last two years before discontinuation
-                             &#39;RU_0000391&#39;, #Stopped recording during the winter the last ~10 years. Maybe questionable winter data
-                             &#39;RU_0000393&#39;, #Didn&#39;t record during the winter for the first 20 years. Maybe questionable winter data
-                             &#39;RU_0000436&#39;, #Same
-                             &#39;RU_0000470&#39;, #Same
-                             &#39;US_0008687&#39; #Just downstream of reservoir which appears to have caused intermittence
-  )
+  
+  #Remove 
+  GSIMtoremove_winterIR &lt;- list(
+    c(&#39;CA_0003473&#39;, &#39;removed&#39;, &quot;sudden peak — unsure about estimated discharge under ice conditions&quot;),
+    c(&#39;CN_0000047&#39;, &#39;removed&#39;, &quot;Anomalous change from near 0 discharge to 150 m3/s, no explanation&quot;),
+    c(&#39;RU_0000391&#39;, &#39;removed&#39;, &quot;Stopped recording during the winter the last ~10 years. Maybe questionable winter data&quot;),
+    c(&#39;RU_0000393&#39;, &#39;removed&#39;, &quot;Didn&#39;t record during the winter for the first 20 years. Maybe questionable winter data&quot;),
+    c(&#39;RU_0000436&#39;, &#39;removed&#39;, &quot;Didn&#39;t record during the winter for the first 20 years. Maybe questionable winter data&quot;),
+    c(&#39;RU_0000470&#39;, &#39;removed&#39;, &quot;Didn&#39;t record during the winter for the first 20 years. Maybe questionable winter data&quot;)
+  ) %&gt;%
+    do.call(rbind, .) %&gt;%
+    as.data.table %&gt;%
+    setnames(c(&#39;gsim_no&#39;, &#39;flag&#39;, &#39;comment&#39;))
 
   #-----  Check flags in coastal IR for GSIM
   GSImcoastalirall &lt;- plot_coastalir(in_gaugep = in_gaugep, dt = GSIMstatsdt,
                                      dbname = &#39;gsim&#39;, inp_resdir = inp_resdir,
                                      yearthresh = 1800, plotseries = plotseries)
 
-
-  #Already checked CA_0006122
-  GSIMtoremove_coastalIR &lt;- c(&#39;NO_0000044&#39;,
-                              &#39;NO_0000090&#39;)
-
-
-  #------ Remove stations with unstable intermittent flow regime
-  #Remove those which have at least one day per year of zero-flow day but instances
-  #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
-  GSIMtoremove_unstableIR &lt;- GSIMstatsdt[
-    (mDur_o1800 &gt;= 1) &amp; (!movinginter_o1800), gsim_no]
+  #Already removed suspect ones
 
   ### Analyze GRDC data ####################################
   GRDCstatsdt &lt;- rbindlist(in_GRDCgaugestats)
@@ -844,150 +878,135 @@ We applied the described GSIM selection criteria to balance the relative amount 
   #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
   GRDCtoremove_allinteger &lt;- GRDCstatsdt[integerperc_o1800 &gt;= 0.99 &amp;
                                            intermittent_o1800 == 1, GRDC_NO]
-
+  
+  #Remove those which have at least one day per year of zero-flow day but instances
+  #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
+  GRDCtoremove_unstableIR &lt;- GRDCstatsdt[
+    (mDur_o1800 &gt;= 1) &amp; (!movinginter_o1800) &amp;
+      !(GRDC_NO %in% c(1160115, 1160245, 4146400)), GRDC_NO]
+  
   #Outliers from examining plots of ir time series (those that were commented out were initially considered)
-  GRDCtoremove_o1800_irartifacts &lt;- c(
-    1134300, #remove - Appears to have been a change in flow permanence, but too much missing data
-    1159830, #check missing values - probably perennial
-    1160785, #remove - changed flow permanence
-    1160800, #remove - changed flow permanence
-    1160850, #remove - changed flow permanence
-    1160881, #remove - changed flow permanence
-    1196141, #remove - doesn&#39;t look reliable, hard to assess long term flow permanence
-    1199410, #remove - changed flow permanence
-    1259500, #remove - hard to assess long term flow permanence
-    1428500, #remove - changed flow permanence
-    1434200, #remove - almost all integers, impossible to tell flow permanence
-    1434300, #remove - almost all integers
-    1491815, #remove - changed flow permanence
-    1591110, #remove - doesn&#39;t look reliable, changed flow permanence
-    3652050, #remove - looks naturally perennial
-    3652200, #remove - looks natural perennial (first 15 years)
-    4208372, #remove
-    4208655, #remove - insufficient data to tell flow permanence
-    4208855, #remove - insufficient data to tell flow permanence
-    4208857, #remove - probably not intermittent only occured once - missing years suggest perennial too
-    4213566, #remove - probably perennial
-    4214297, #remove - insufficient data to tell flow permanence
-    4214298, #remove - probably perennial
-    4769200, ##remove - insufficient data to tell flow permanence
-    5204170, #remove - probably changed flow permanence
-    5405095, ##remove - hard to tell whether actually intermittent (change at beginning, maybe regulated?)
-    5708200 #remove - probably perennial
-  )
+  GRDCtoremove_o1800_irartifacts &lt;- list(
+    c(1134300, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial, large data gaps&#39;),
+    c(1159830, &#39;removed&#39;, &#39;only one occurence of 0 flow values&#39;),
+    c(1134300, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial, large data gaps&#39;),
+    c(1160785, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1160800, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1160850, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1160881, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1196141, &#39;removed&#39;, &quot;doesn&#39;t look reliable, hard to assess long term flow permanence&quot;),
+    c(1199410, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1259500, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1428500, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1434200, &#39;removed&#39;, &#39;almost all integers&#39;),
+    c(1434300, &#39;removed&#39;, &#39;almost all integers&#39;),
+    c(1491815, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(1591110, &#39;removed&#39;, &quot;doesn&#39;t look reliable, changed flow permanence from perennial to non-perennial&quot;),
+    c(3652050, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(3652200, &#39;removed&#39;, &#39;changed flow permanence from perennial to non-perennial&#39;),
+    c(4208372, &#39;removed&#39;, &#39;abrupt decreases to 0 flow, probably data gaps&#39;),
+    c(4208655, &#39;removed&#39;, &#39;insufficient data to tell flow permanence&#39;),
+    c(4208855, &#39;removed&#39;, &#39;insufficient data to tell flow permanence&#39;),
+    c(4208857, &#39;removed&#39;, &#39;only 1 occurrence of 0 flow values&#39;),
+    c(4213566, &#39;removed&#39;, &#39;only 1 occurrence of 0 flow values&#39;),
+    c(4214297, &#39;removed&#39;, &#39;only 1 occurrence of 0 flow values&#39;),
+    c(4214298, &#39;removed&#39;, &#39;only 1 occurrence of 0 flow values&#39;),
+    c(4769200, &#39;removed&#39;, &#39;only 1 occurrence of 0 flow values&#39;),
+    c(5204170, &#39;removed&#39;, &#39;changed flow permanence&#39;),
+    c(5204170, &#39;removed&#39;, &#39;changed flow permanence&#39;),
+    c(5405095, &#39;removed&#39;, &#39;changed flow permanence&#39;),
+    c(5708200, &#39;removed&#39;, &#39;changed flow permanence&#39;)
+  ) %&gt;%
+    do.call(rbind, .) %&gt;%
+    as.data.table %&gt;%
+    setnames(c(&#39;gsim_no&#39;, &#39;flag&#39;, &#39;comment&#39;))
 
-  GRDCtoremove_o1961_irartifacts &lt;- c(#1104800, #Keep
-    1134500, #Goes from 1 cm3/s to 0. Occurs only one time in entire record.
-    1159302, #Anomalous zero values
-    1159303, #weird patterns, isolated 0s, sudden jumps and capped at 77
-    #1159320, #0 values for the first 14 years but doesn&#39;t affect post-1961
-    #1159325, #0 values for most record. probably episodic and due to series of agricultural ponds
-    1159510, #0 values for most record, on same segment as 1159511 but weird record, remove.
-    #1159512, #0 values for first 4 years. Otherwise no real reason to doubt.
-    #1159520, #values seem capped after 1968, otherwise seem fine. Could just be rating curve
-    1160101, #0 values are erroneous (goes from 1-10 m3/s to 0 then right back up )
-    1160310, #Only at the beginning of record. Now regulated. Probably dried because of dam building or natural regime
-    1160340, #pretty definitely erroneous. Missing data must have been labeled as 0.
-    #1160378, #just downstream of dam. reservoir fully dry on satellite imagery, so keep as intermittent even when not regulated
-    #1160420, #decreases to 0 appear a bit sudden but ok
-    1160427, #0s at beginning of record, must be missing. Wouldn&#39;t be considered intermittent without that.
-    1160435, #discard. 0s are mostly missing data. unreliable
-    1160440, #only 0 values
-    1160470, #Maybe discard. change of rating curve in 1947, mostly missing data until 1980 but truly intermittent based on imagery
-    #1160510, #sudden shift in regime 1974. maybe change in bed morphology or dam building
-    1160511, #unreliable, remove
-    #1160540, #only 0 - nodata for first 15 years. seemingly good data post 1979. Keep.
-    #1160580, #change of regime post-1974 from intermittent to perennial. not sure why. on same river as 1160510
-    #1160635, #0 values post-1985 seem abrupt but enough values otherwise to make it intermittent
-    1160650, #0 values are outliers
-    1160670, #0 values are outliers due to dam just upstream
-    #1160675, #Some outliers but otherwise most 0 values seem believable
-    1160701, #0 values look like outliers
-    1160756, #most 0 values look like outliers
-    1160770, #only happened once. maybe outlier zeros
-    1160780, #unreliable record. remove
-    #1160785, #some 0 values look like outliers but most seem believable
-    #1160790, #weird record pre 1963 but does not affect much. rating curve must have changed
-    1160795, #most 0 values look like outliers
-    1160825, #first 2 years of data are 0s, some other outlying 0s but enough believable ones to be intermittent
-    1160840, #only 2 zero values are believable, others are outliers
-    #1160850, #unsure
-    1160880, #outlying 0 values. Tugela river. Perennial
-    1160900, #most 0 values look like outliers
-    1160911, #Remove. only one zero-flow vlaues appears right
-    1160971, #check record. most zero-flow values look outliers.
-    1160975, #Remove. unreliable
-    1196100, #Half of the zero-flow values are outliers
-    1196102, #Remove, unreliable
-    #1196160, #Some outlying 0 values but most are good
-    1197500, #Remove, unreliable
-    1197540, #Check, abrupt 0 values. probably remove
-    1197591, #Check, abrupt 0 values. probably remove
-    1197700, #Check, abrupt 0 values. probably remove
-    #1197740, #several outlying 0 flow values, but most are believable
-    1199100, #Most 0s are outliers
-    1199200, #Remove
-    #1199410, #a few outliers pre-1990 but otherwise good
-    1259800, #Remove, 0 values come from integer-based record
-    1286690, #Remove, it seems that values were rounded to second decimal
-    1289230, #Change in regime past 1963, only one outlier zero flow value after, remove
-    1428400, #0 values come from integer-based record
-    1434810, #0 values come from integer-based record
-    #1491870, #some outliers but most 0s are believable
-    1494100, #outlier 0s
-    #1496351, #regulated but naturally intermittent
-    1591720, #buggy, some values also look interpolated
-    1591730, #anomalous drops
-    1733600, #0 values come from integer-based record and outlier
-    1837410, #Check, abrupt 0 values. probably remove
-    #1837430, #Essentially the same as 1837410. Naturally intermittent before dam
-    #1896501, #Faulty values but intermittent
-    1897550, #outlier 0s
-    1898501, #outlier 0s
-    1992400, #nearly half of 0s are seemingly outliers
-    1992600, #Outlier 0 values
-    2549230, #Remove
-    2588500, #Remove
-    2588551, #Remove
-    2588630, #Remove
-    2588640, #Remove
-    2588708, #Remove
-    2588820, #Remove
-    2589230, #Remove
-    2589370, #Remove
-    2591801, #Remove
-    2694450, #Remove
-    2917100, #Remove
-    2969081, #Remove
-    2999920, #0s come from integer-vased values
-    3627900, #Remove
-    #3650460, #some issues but enough believable intermittent ones
-    3650470, #0s come from integer-based values
-    #3650475, #earlier values pre-1973 are erroneous but post-2002 are valid 0s
-    #3650610, #integers pre-1960s but still intermittent after
-    3650640, #lots of outliers. remove
-    3650649, #change of flow regime due to dam building but intermittent before
-    3650690, #weird values but intermittent
-    3650928, #weird. remove
-    3652135, #some outliers, but enough 0s otherwise
+  GRDCtoremove_o1961_irartifacts &lt;- list(
+    c(1134500, &#39;removed&#39;, &#39;only 1 occurrence of 0 flow values&#39;),
+    c(1159302, &#39;removed&#39;, &#39;abrupt decreases to 0 flow values&#39;),
+    c(1159302, &#39;removed&#39;, &#39;unreliable record, isolated 0s, sudden jumps and capped at 77&#39;),
+    c(1159320, &#39;inspected&#39;, &quot;0 values for the first 14 years but still apparently originally IRES&quot;),
+    c(1159325, &#39;inspected&#39;, &quot;0 values for most record. probably episodic and due to series of agricultural ponds&quot;),
+    c(1159510, &#39;inspected&#39;, &quot;0 values for most record, on same segment as 1159511 but seems unreliable&quot;),
+    c(1159520, &#39;inspected&#39;, &quot;values seem capped after 1968, otherwise seem fine. Could just be rating curve&quot;),
+    c(1160101, &#39;removed&#39;, &#39;abrupt decreases to 0 flow values&#39;),
+    c(1160340, &#39;removed&#39;, &#39;abrupt decreases to 0 flow values&#39;),
+    c(1160378, &#39;inspected&#39;, &#39;appears IRES before regulation, reservoir fully dry on satellite imagery, so keep as intermittent even when not regulated&#39;),
+    c(1160420, &#39;removed&#39;, &#39;decrease to 0 appears a bit abrupt but ok&#39;),
+    c(1160435, &#39;removed&#39;, &#39;unreliable record, abrupt decreases to 0, capped&#39;),
+    c(1160470, &#39;removed&#39;, &#39;unreliable record, probably change of rating curve in 1947, mostly missing data until 1980 but truly intermittent based on imagery&#39;),
+    c(1160540, &#39;inspected&#39;, &#39;only 0 - nodata for first 15 years. seemingly good data post 1979 and IRES&#39;),
+    c(1160635, &#39;inspected&#39;, &#39;0 values post-1985 seem abrupt but enough values otherwise to make it intermittent&#39;),
+    c(1160670, &#39;removed&#39;, &#39;regulated&#39;),
+    c(1160675, &#39;removed&#39;, &#39;some outliers but otherwise most 0 values seem believable&#39;),
+    c(1160780, &#39;removed&#39;, &#39;unreliable record, abrupt decreases to 0 flow values, large data gaps&#39;),
+    c(1160795, &#39;removed&#39;, &#39;abrupt decreases to 0 flow values&#39;),
+    c(1160840, &#39;removed&#39;, &#39;only 2 zero flow values are believable, others are outliers&#39;),
+    c(1160850, &#39;removed&#39;, &#39;changed flow permanence&#39;),
+    c(1160880, &#39;removed&#39;, &#39;unreliable record. Tugela river, perennial&#39;),
+    c(1160900, &#39;removed&#39;, &#39;most 0 values look like outliers, abrupt decreases&#39;),
+    c(1160911, &#39;removed&#39;, &#39;most 0 values look like outliers, abrupt decreases&#39;),
+    c(1160971, &#39;removed&#39;, &#39;most 0 values look like outliers, abrupt decreases&#39;),
+    c(1160975, &#39;removed&#39;, &#39;most 0 values look like outliers, abrupt decreases&#39;),
+    c(1196102, &#39;removed&#39;, &#39;unreliable record, large data gaps, hard to tell original flow permanence&#39;),
+    c(1196160, &#39;inspected&#39;, &#39;some outlying 0 flow values but most are good&#39;),
+    c(1197500, &#39;removed&#39;, &#39;only one flow intermittency event, abrupt decrease to 0&#39;),
+    c(1197540, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1197591, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1197700, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1197740, &#39;removed&#39;, &#39;some outlying 0 flow values but most are good&#39;),
+    c(1199100, &#39;removed&#39;, &#39;most 0 values look like outliers&#39;),
+    c(1199200, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1199410, &#39;inspected&#39;, &#39;some outlying 0 flow values but most are good&#39;),
+    c(1259800, &#39;removed&#39;, &#39;0 values come from integer-based part of the record&#39;),
+    c(1286690, &#39;removed&#39;, &#39;changed flow permanence, record too short to determine original flow permanence&#39;),
+    c(1259800, &#39;removed&#39;, &#39;changed flow permanence, only one 0 flow value post 1963&#39;),
+    c(1428400, &#39;removed&#39;, &#39;0 values come from integer-based part of the record&#39;),
+    c(1434810, &#39;removed&#39;, &#39;0 values come from integer-based part of the record&#39;),
+    c(1491870, &#39;removed&#39;, &#39;some outlying 0 flow values but most are good&#39;),
+    c(1494100, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1494100, &#39;inspected&#39;, &#39;regulated but naturally intermittent&#39;),
+    c(1591730, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1733600, &#39;removed&#39;, &#39;0 values come from integer-based part of the record and outliers&#39;),
+    c(1837410, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1837430, &#39;inspected&#39;, &#39;nearly same as 1837410. Naturally intermittent before dam&#39;),
+    c(1897550, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1898501, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(1992400, &#39;removed&#39;, &#39;most 0 values look like outliers&#39;),
+    c(2588500, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2588551, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2588630, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2588640, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2588708, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2588820, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2589230, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2589370, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2591801, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2694450, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2969081, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(2999920, &#39;removed&#39;, &#39;0 values come from integer-based part of the record&#39;),
+    c(3650460, &#39;inspected&#39;, &#39;some outlying 0 flow values but most are good&#39;),
+    c(3650470, &#39;removed&#39;, &#39;0 values come from integer-based part of the record&#39;),
+    c(3650610, &#39;removed&#39;, &#39;integers pre-1960s but still intermittent after&#39;),
+    c(3650640, &#39;removed&#39;, &#39;abrupt decreases to 0&#39;),
+    c(3650649, &#39;inspected&#39;, &#39;change of flow regime due to dam building but intermittent before&#39;),
+    c(3650690, &#39;inspected&#39;, &#39;abrupt decreases to 0&#39;),
+    c(3650928, &#39;removed&#39;, &#39;most 0 values look like outliers&#39;),
+    c(3652135, &#39;removed&#39;, &#39;only one valid 0-flow event&#39;),
+
+    ###################### TO CONTINUE FORMATTING FOR DISPLAY ######################################
     3844460, #Remove
     #4101451, #station downstream also has 0s
     4103700, #zero values are outliers
     #4113304, #Not super representative of current regime
-    4122150, #just downstream of dam.
-    4148955, #just downstream of dam which made it intermittent. May even be tidally influenced
-    4149411, #Remove
     #4150605, #just downstream of lwesville dam in Dallas. previously intermittent as well but will be removed anyways as &gt;50% dor
     #4151513, #Looks regulated but will be removed as &gt; 50% regulated #################### good example for showing effect of regulation
-    4152120, #regulated. intermittency occured right at the building of Alamo Lake on the Bill William
     4208195, #0s stem from interpolation
     #4213540, #one outlier, rest is good although occurred only once in 1965..
     #4213675, #looks funny but just downstream of natural lake
     4213905, #Regulated. hence the intermittency
-    4213911, #Is regulated, remove
     4214075, ##Remove
     4234300, #remove. regulated
-    4243610, #remove, regulated ############################ Good example of regulation
     4351710, #Remove. 0s due to outlier and integer-based values
     4355500, #Remove. outlier values. regulated
     4357510, #Remove
@@ -999,35 +1018,31 @@ We applied the described GSIM selection criteria to balance the relative amount 
     #5101290, #valkues before 2000 aren&#39;t great. But 0 values post 2000 are believable
     5101305, #most 0 values are wrong
     5101380, #Remove
-    5101381, #Remove
-    5109110, #Remove
     5109200, #Remove, 0 values at beginning, interpolations used, not reliable
     5109230, #Remove
-    5109251, #Remove
     5202140, #Remove
     5202145, #Most 0s look erroneous
     5202228, #Regulated? Remove
-    5302229, #Remove
     5302251, #Remove
     5302261, #Remove
 
     #5405046, #canal through adelaide - sturt river
     #5405095, #looks wierd but intermittent it is
-    5606130, #Remove
     5608100, #Remove
     5803160, #Remove
     5864500, #Remove. rounded to 10L/s
     5870100, #remove, rounded to 100L/S
     6119100, #Remove, rounded to 10L/s
     #6128220, #Weird. occurred only once but seems believable
-    6140700, #Remove, perfect example of what an integer-based record involves
-    6401800, #Remove, became regulated
     6442300, ##Remove, perfect example of what an integer-based record involves
     6444250, #Remove
     6444350, #Remove
     6444400, #Check, abrupt 0 values
     6935570 #Remove, rounded to 10L/s
-  )
+  ) %&gt;%
+    do.call(rbind, .) %&gt;%
+    as.data.table %&gt;%
+    setnames(c(&#39;gsim_no&#39;, &#39;flag&#39;, &#39;comment&#39;))
 
   #plotGRDCtimeseries(GRDCstatsdt[GRDC_NO == 4101450,])
 
@@ -1066,7 +1081,6 @@ We applied the described GSIM selection criteria to balance the relative amount 
     3628200, #remove- lower values may be 0s but rating curve is off
     3652030, #remove- 0s in missing years and low flows in other years may also be 0s
     4115225, #remove -looks like it became regulated and may have otherwised become intermittent
-    4146610, #remove- low flows may be 0s but rating curve is off
     4151801, #remove - regulated and may otherwise go dry Rio Grande
     4152651, #remove - regulated by blue mesa reservoir, may have been intermittent otherwise ######### good example
     4208610, #remove - too much missing data but if not would be intermittent ###################good example of that
@@ -1120,11 +1134,6 @@ We applied the described GSIM selection criteria to balance the relative amount 
 
 
   #------ Remove stations with unstable intermittent flow regime
-  #Remove those which have at least one day per year of zero-flow day but instances
-  #of no zero-flow day within a 20-year window — except for three gauges that have a slight shift in values but are really IRES
-  GRDCtoremove_unstableIR &lt;- GRDCstatsdt[
-    (mDur_o1800 &gt;= 1) &amp; (!movinginter_o1800) &amp;
-      !(GRDC_NO %in% c(1160115, 1160245, 4146400)), GRDC_NO]
 
   #Before cleaning
   GRDCtoremove_all &lt;- unique(c(GRDCtoremove_allinteger,
