@@ -1,6 +1,5 @@
 library(drake)
 source('R/IRmapping_packages.R')
-source('R/IRmapping_functions.R')
 source('R/IRmapping_plan.R')
 
 #memory.limit(size=50000)

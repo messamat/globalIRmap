@@ -3,12 +3,12 @@ library(drake)
 r_make()
 
 drake::vis_drake_graph(plan, targets_only = T)
-predict_runtime(plan, from_scratch = TRUE) #Predict how long it would take to re-run plan
+#predict_runtime(plan, from_scratch = TRUE) #Predict how long it would take to re-run plan
 
 
 cached()
 drake::drake_cache("C:\\globalIRmap\\src/globalIRmap/.drake")$unlock()
-##########drake::clean(list = cached_unplanned(plan), garbage_collection = TRUE)
+drake::drake_cache("E:\\Mathis/src/globalIRmap/.drake")$unlock()
 
 history_last <- drake_history(analyze = FALSE) %>%
   setDT %>%
@@ -17,6 +17,7 @@ history_last <- drake_history(analyze = FALSE) %>%
   .[, .SD[.N,], by=target]
 
 cache <- drake_cache()
+
 rfbm_regr<- cache$get_value(history_last[target=='rfbm_regr',hash])
 rfbm_classif<- cache$get_value(history_last[target=='rfbm_classif',hash])
 bmcheck_classif <- cache$get_value(
@@ -36,4 +37,6 @@ check <- vec_c(
   readd(s[2], character_only = TRUE),
   readd(s[3], character_only = TRUE)
 )
+
+#drake::clean(destroy = T, garbage_collection = T)
 
