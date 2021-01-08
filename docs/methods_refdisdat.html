@@ -11,7 +11,7 @@
 
 
 
-<title>Reference stream gauging stations</title>
+<title>Reference streamflow gauging stations</title>
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -299,7 +299,7 @@ $(document).ready(function () {
       <a href="methods_workflow.html">Analysis workflow</a>
     </li>
     <li>
-      <a href="methods_refdisdat.html">Reference stream gauging stations</a>
+      <a href="methods_refdisdat.html">Reference streamflow gauging stations</a>
     </li>
   </ul>
 </li>
@@ -327,7 +327,7 @@ $(document).ready(function () {
 
 
 
-<h1 class="title toc-ignore">Reference stream gauging stations</h1>
+<h1 class="title toc-ignore">Reference streamflow gauging stations</h1>
 
 </div>
 
@@ -443,16 +443,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5d228a8a6361ce6a3b290db7c32adf5bce649050targetblank5d228a8a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/5d228a8a6361ce6a3b290db7c32adf5bce649050" target="_blank">5d228a8</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree10e5aa9f84a84764eb006f5a5d34cf76bd608c95targetblank10e5aa9a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/10e5aa9f84a84764eb006f5a5d34cf76bd608c95" target="_blank">10e5aa9</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5d228a8a6361ce6a3b290db7c32adf5bce649050targetblank5d228a8a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree10e5aa9f84a84764eb006f5a5d34cf76bd608c95targetblank10e5aa9a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/5d228a8a6361ce6a3b290db7c32adf5bce649050" target="_blank">5d228a8</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/10e5aa9f84a84764eb006f5a5d34cf76bd608c95" target="_blank">10e5aa9</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -488,9 +488,11 @@ Unstaged changes:
     Modified:   R/IRmapping_functions.R
     Modified:   R/IRmapping_plan.R
     Modified:   _drake.R
+    Modified:   analysis/_site.yml
     Modified:   drake_cache.csv
     Modified:   globalIRmap.Rproj
     Modified:   shinyapp/globalIRmap_gaugesel/app.R
+    Modified:   shinyapp/globalIRmap_gaugesel/www/shinygdat.fst
 
 </code></pre>
 <p>
@@ -529,6 +531,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/10e5aa9f84a84764eb006f5a5d34cf76bd608c95/analysis/methods_refdisdat.Rmd" target="_blank">10e5aa9</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-08
+</td>
+<td>
+wflow_publish(“analysis/methods_refdisdat.Rmd”)
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/844dd6b9e116a59092d303696277fcf467edf27f/docs/methods_refdisdat.html" target="_blank">844dd6b</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-08
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -762,16 +798,59 @@ Start building up workflowr website, start incorporating mandrake (but wait as v
 <p>Two streamflow gauging station datasets were used as the source of training and cross-validation data for study models — the World Meteorological Organization Global Runoff Data Centre (GRDC) database (n ≈ 10,000) and a complementary subset of the Global Streamflow Indices and Metadata archive (GSIM, n ≈ 25,000), a compilation of twelve free-to-access national and international streamflow gauging station databases.<br />
 Whereas the GRDC offers daily water discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.</p>
 <p>A GSIM station was included only if:<br />
-i) it was not already part of the GRDC database,<br />
-ii) it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and if it was located either<br />
-iii) on an IRES or<br />
-iv) in a river basin which did not already contain a GRDC station (assessed based on level 5 sub-basins of the global BasinATLAS database52, average sub-basin area = 2.9 x 104 km2).<br />
+1. it was not already part of the GRDC database,<br />
+2. it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and if it was located either<br />
+3. on an IRES or<br />
+4. in a river basin which did not already contain a GRDC station (assessed based on level 5 sub-basins of the global BasinATLAS database52, average sub-basin area = 2.9 x 104 km2).<br />
 We applied the described GSIM selection criteria to balance the relative amount of non-perennial vs. perennial records and the spatial distribution of stations in the model training dataset.</p>
-<p>Each station in the combined dataset was geographically associated with a reach in the RiverATLAS stream network and every discharge time series was quality-checked through statistical and manual outlier detection (see Supplementary Information B1 for details on these procedures). Non-perennial gauging stations were only included in the dataset if they were free of anomalous zero-flow values (e.g. from instrument malfunction, gauge freezing, tidal flow reversal). We also excluded stations whose streamflow was potentially dominated by reservoir outflow regulation (i.e. with a degree of regulation &gt; 50% or whose discharge time series exhibited an obvious alteration from natural flow permanence, see Supplementary Information B1), as flow regulating structures may change the flow class of a river either from perennial to non-perennial or vice-versa depending on their mode and rules of operation. We further narrowed our selection by adding only gauging stations with streamflow time series spanning at least 10 years — excluding years with more than 20 days of missing records for the calculation of this criterion and in subsequent analysis. Finally, we classified stations as non-perennial if their recorded discharge dropped to zero at least one day per year on average over the years of record, and as perennial otherwise. Stations with at least one zero-flow day per year on average (i.e. non-perennial) but without a zero-flow day during 20 consecutive valid years of data (those with ≤ 20 missing days), anywhere in their record, were deemed either to have experienced a shift in flow intermittence class (regardless of the direction of the shift) or to have ceased to flow due to exceptional conditions of drought and were also excluded.</p>
+</div>
+<div id="processing-and-selecting-gauging-stations-data" class="section level1">
+<h1>Processing and selecting gauging stations data</h1>
+<p>Each station in the combined dataset was geographically associated with a reach in the RiverATLAS stream network and every discharge time series was quality-checked through statistical and manual outlier detection (see Supplementary Information B1 for details on these procedures).</p>
+<p>Non-perennial gauging stations were only included in the dataset if they were free of anomalous zero-flow values (e.g. from instrument malfunction, gauge freezing, tidal flow reversal). We also excluded stations whose streamflow was potentially dominated by reservoir outflow regulation (i.e. with a degree of regulation &gt; 50% or whose discharge time series exhibited an obvious alteration from natural flow permanence, see Supplementary Information B1), as flow regulating structures may change the flow class of a river either from perennial to non-perennial or vice-versa depending on their mode and rules of operation. We further narrowed our selection by adding only gauging stations with streamflow time series spanning at least 10 years — excluding years with more than 20 days of missing records for the calculation of this criterion and in subsequent analysis. Finally, we classified stations as non-perennial if their recorded discharge dropped to zero at least one day per year on average over the years of record, and as perennial otherwise. Stations with at least one zero-flow day per year on average (i.e. non-perennial) but without a zero-flow day during 20 consecutive valid years of data (those with ≤ 20 missing days), anywhere in their record, were deemed either to have experienced a shift in flow intermittence class (regardless of the direction of the shift) or to have ceased to flow due to exceptional conditions of drought and were also excluded.</p>
 <p>Based on these selection criteria, the training dataset contained data for 3,967 perennial river reaches and for 1,388 non-perennial reaches, with 45 and 34 years of daily streamflow data on average, respectively, across all continents (except Antarctica).</p>
 </div>
-<div id="map-of-selected-and-discarded-gauges" class="section level1">
-<h1>Map of selected and discarded gauges</h1>
+<div id="map-of-gauging-stations-included-or-exluded-from-the-analysis" class="section level1">
+<h1>Map of gauging stations included or exluded from the analysis</h1>
+<div id="loading-of-the-map-can-take-several-minutes-please-wait-and-read-the-instructions-below" class="section level3">
+<h3>Loading of the map can take several minutes, please wait and read the instructions below</h3>
+</div>
+<div id="what-does-this-show" class="section level3">
+<h3>What does this show?</h3>
+<p>On this map are shown all global gauging stations that were reliably matched to the RiverATLAS global digital river network.</p>
+</div>
+<div id="what-do-the-colors-mean" class="section level3">
+<h3>What do the colors mean?</h3>
+<ul>
+<li><p><strong>Blue-colored points</strong> show perennial stations (&lt; 1 zero-flow day per year on average across the record)</p></li>
+<li><p><strong>Red-colored points</strong> show non-perennial stations (&gt;= 1 zero-flow day per year on average across the record)</p></li>
+<li><p><strong>Semi-transparent points</strong> show stations which were kept and included for the training and testing of predictive models.</p></li>
+<li><p><strong>Opaque points</strong> show stations which were excluded from further analysis due to one of the various reasons explained in the previous sections.</p></li>
+</ul>
+</div>
+<div id="how-do-i-use-this-map" class="section level3">
+<h3>How do I use this map?</h3>
+<ul>
+<li><strong>To pan</strong>, hold the left button and move the mouse.<br />
+</li>
+<li><strong>To zoom in or out</strong>, use your mouse wheel (or the equivalent on a pad) or press the + and - symbols on the upper left of the map.<br />
+</li>
+<li><strong>To add or remove a layer</strong>, hover your mouse over the stacked squares in the lower right of the map and click or unclick the corresponding check box. Any combination of blue-red and opaque-transparent points can be added or removed.<br />
+</li>
+<li><strong>To get information on a station</strong>, hover with your mouse over the corresponding point:
+<ul>
+<li>the first line shows which dataset this record comes from (GRDC or GSIM) and the corresponding uniquer identifier for this station.</li>
+<li>the second line shows whether this station was included in the analysis (“kept”), manually “inspected” for erroneous daily discharge values, or altogether “removed” from further analysis.</li>
+<li>the third line gives a brief explanation as to why the station was removed.<br />
+</li>
+</ul></li>
+<li><strong>To see a hydrograph for a station</strong>, left-click the corresponding point. This feature is only available for stations with at least 10 years of valid data. Two types of graphs may be displayed:
+<ul>
+<li><em>For a GRDC station</em>: the graph shows the time series of daily streamflow values for that station, excluding calendar years with more than 20 missing daily records. The y-axis is square-root transformed. Individual points show daily values, blue lines link daily values (which may result in unusual patterns due to missing years), green points are non-zero flow daily values statistically flagged as potential outliers (see flagging process in Supplementary Information B1b), red points are zero-flow flow values, black points are zero-flow values flagged as potential outliers.<br />
+</li>
+<li><em>For a GSIM station</em>: daily streamflow records from GSIM stations are unavailable. Therefore, the graph shows the mean (blue points), ± 2SD (light blue background shading), minimum and maximum monthly discharge (black points), excluding calendar years with more than 20 missing daily record. The y-axis is square-root transformed. Red points show minimum monthly discharge values equal to 0, purple points show months for which all daily discharge values are equal to 0.</li>
+</ul></li>
+</ul>
 <iframe src="https://messamat.shinyapps.io/globalIRmap_gaugesel?showcase=0" width="100%" height="800px">
 </iframe>
 <br>
@@ -811,6 +890,7 @@ loaded via a namespace (and not attached):
 [25] glue_1.4.0       evaluate_0.14    rmarkdown_2.3    stringi_1.4.6   
 [29] compiler_4.0.2   pillar_1.4.4     backports_1.1.10 httpuv_1.5.4    
 [33] renv_0.9.3       pkgconfig_2.0.3 </code></pre>
+</div>
 </div>
 </div>
 
