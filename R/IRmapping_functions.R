@@ -1838,7 +1838,7 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
     coord_cartesian(expand=FALSE, clip="off") +
     theme_classic() +
     theme(legend.position = 'none',
-          text = element_text(size=9),
+          text = element_text(size=10),
           plot.background = element_blank(),
           axis.text.x = element_text(),
           axis.ticks.x = element_line(color = c(rep(NA, len/2 - 1),
@@ -4434,26 +4434,35 @@ extrapolate_networklength <- function(inp_riveratlas,
 
   #------Test approach on a single basin
   fit_rivlengam <- function(dt_format, pfaf_id) {
-    gamsubdat <- dt_format[dis_m3_pyr >= min_cutoff & (get(grouping_var) == pfaf_id),][
-      (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),]
-    gamfit <- mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
-                        method = "REML",
-                        data=gamsubdat)
+    gamsubdat <- dt_format[(get(grouping_var) == pfaf_id),]
+    gamsubdatsub <- gamsubdat[(dis_m3_pyr >= min_cutoff) &
+                                (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),]
+    
+    gamfit <- mgcv::gam(
+      log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
+      method = "REML",
+      data=gamsubdatsub
+    )
+    
     print(summary(gamfit))
-    preds <- data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01))
-    preds$cumL <- 10^predict(gamfit, data.frame(dis_m3_pyr=seq(0.01, 1000, 0.01)))
+    preds <- data.frame(
+      dis_m3_pyr=seq(0.01, 
+                     quantile(gamsubdat$dis_m3_pyr, 0.95), 0.01))
+    preds$cumL <- 10^predict(gamfit, preds)
 
     ggplot(gamsubdat, aes(x=dis_m3_pyr, y=cumL)) +
-      geom_step(size=1.5) +
-      geom_step(data=dt_format[(get(grouping_var) == pfaf_id),],
-                size=1.5, alpha=1/3) +
+      geom_step(data=gamsubdat, size=1.5, color='black', alpha=1/3) +
+      geom_step(data=gamsubdatsub, size=1.5, color='black') +
       geom_line(data=preds, color='red') +
-      scale_x_log10(name=bquote('Naturalized long-term mean annual discharge'~(m^3~s^-1)),
-                    limits=c(min(gamsubdat$dis_m3_pyr)/2,
+      geom_line(data=preds[preds$dis_m3_pyr<=0.1,], color='blue') +
+      scale_x_log10(name=bquote('Naturalized long-term \nmean annual discharge'~(m^3~s^-1)),
+                    limits=c(0.01,
                              2*max(gamsubdat$dis_m3_pyr))) +
       scale_y_log10(name='Cumulative river length (km)') +
       annotation_logticks() +
-      theme_classic()
+      theme_classic() + 
+      theme(text=element_text(size=12),
+            axis.title.x = element_text(vjust=-2))
   }
   plot_62_18 <- fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="62_18")
   plot_14_17 <- fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="14_17")
@@ -4797,16 +4806,19 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
         preds <- fit_basIRESgam(dt=gamsubdat)
 
         ggplot(gamsubdat, aes(x=dislogbin, y=100*percinter_bin, group=1)) +
-          geom_step(size=1.5, stat='identity', alpha=1/3) +
+          geom_step(size=1, stat='identity') +
           geom_step(data=preds, color='red') +
           geom_step(data=preds[dislogbin <= min(gamsubdat$dislogbin),],
                     aes(y=100*percinter_bin_adjust, group=1),color='blue') +
           scale_x_log10(name=bquote(
-            'Binned naturalized long-term mean annual discharge'~(m^3~s^-1)),
-            limits=c(0.001, 10000)) +
-          scale_y_continuous(name='Prevalence of intermittence within bin (% of length)') +
+            'Binned naturalized long-term \nmean annual discharge'~(m^3~s^-1)),
+            limits=c(0.01, 2*max(gamsubdat$dis_m3_pyr))) +
+          scale_y_continuous(name='Prevalence of intermittence \nwithin bin (% of length)') +
           annotation_logticks(sides='b') +
-          theme_classic()
+          theme_classic() + 
+          theme(text=element_text(size=12),
+                axis.title.x = element_text(vjust=-2))
+        
       },  error=function(cond) {
         message(cond)
         ggplot(gamsubdat, aes(x=dislogbin, y=percinter_bin)) +
@@ -5352,6 +5364,12 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                        interthresh = 0.5, yearthresh) {
+  
+  SenCapstr <- function(y) {
+    paste0(toupper(substring(y, 1,1)), 
+           tolower(substring(y, 2, 100)))
+  }
+  
   #Plot numeric variables
   in_gpredsdt[, DApercsdiff := abs(
     (area_correct-UPLAND_SKM)/mean(c(area_correct, UPLAND_SKM))), by=GAUGE_NO]
@@ -5367,9 +5385,15 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   predmelt_num <- in_gpredsdt[
     , which(as.vector(unlist(lapply(in_gpredsdt, is.numeric)))), with=F] %>%
     cbind(in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800',
-                   predcol, uncertcol))
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', predcol, uncertcol)) 
 
+  predmelt_num[, IPRclass := fcase(
+    intermittent_o1800 == "0" & get(predcol) < 0.5, 'True: perennial | Pred: perennial',
+    intermittent_o1800 == "0" & get(predcol) >= 0.5, 'True: perennial | Pred: non-perennial',
+    intermittent_o1800 == "1" & get(predcol) < 0.5, 'True: non-perennial | Pred: perennial',
+    intermittent_o1800 == "1" & get(predcol) >= 0.5, 'True: non-perennial | Pred: non-perennial'
+    )]
+  
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
     .[, .(varcode, varname)] %>%
@@ -5385,8 +5409,12 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)'] %>%
     .[varcode=='dor_pc_pva', varname :='Degree of regulation'] %>%
     .[, varname := str_wrap(varname, 30)]
-
+  
   levels(predmelt_num$variable) <-  varlabels$varname
+  
+  varlabels[, varname := SenCapstr(varname)]
+  
+  #levels(predmelt_num$variable) <-  varlabels[varname %in% predmelt_num$variable, varname]
   varstoplot_continuous <- varlabels[varcode %in% c('totalYears_kept_o1800',
                                                     'mDur_o1800',
                                                     'mFreq_o1800',
@@ -5397,46 +5425,42 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                                              'dis_m3_pyr',
                                              'dor_pc_pva'),]
 
-  colorpal <- c('#1f78b4', '#ff7f00')
-  rectdf <- data.table(
-    xmin=rep(0, 4),
-    xmax=rep(Inf, 4),
-    ymin=c(-1, interthresh-1, 0, interthresh),
-    ymax=c(interthresh-1, 0, interthresh, 1),
-    fillpal = rep(colorpal, 2)
-  )
-
+  colorpal_continuous = c("#FFAA00", "#a80000", "#004DA8", "#7AB6F5")
+  
+  
+  #plotdt = predmelt_num[variable %in% "DApercdiff",]
+  
   ggIPR_util <- function(plotdt, logx = FALSE, legend=FALSE) {
     p <- ggplot(plotdt) +
-      geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
-                                 ymin=ymin, ymax=ymax, fill=fillpal),
-                alpha=1/4) +
+      # geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
+      #                            ymin=ymin, ymax=ymax, fill=fillpal),
+      #           alpha=1/4) +
+      geom_point(aes(x=value, y=get(uncertcol), color=IPRclass),
+                 alpha = 1/3) +
       scale_y_continuous(limits=c(-1, 1), expand=c(0,0)) +
-      scale_fill_manual(values=colorpal,
-                        name='Predicted regime',
-                        labels = c('Perennial', 'Intermittent')) +
-      geom_point(aes(x=value, y=get(uncertcol), color=intermittent_o1800),
-                 alpha = 1/8) +
+      # scale_fill_manual(values=colorpal,
+      #                   name='Predicted regime',
+      #                   labels = c('Perennial', 'Intermittent')) +
+
+      scale_color_manual(values=colorpal_continuous) +
+      labs(x='Value', y='Intermittence Prediction Residuals (IPR)') +
       geom_hline(yintercept=0, alpha=1/2) +
-      new_scale_fill() +
-      geom_smooth(aes(x=value, y=get(uncertcol), color=intermittent_o1800),
-                  method='gam', formula = y ~ s(x, k=3)) +
+      #new_scale_color() +
+      # geom_smooth(aes(x=value, y=get(uncertcol), color=intermittent_o1800),
+      #             method='gam', formula = y ~ s(x, k=3)) +
       # annotate("text", x = Inf-5, y = 0.5, angle = 90,
       #          label = "Pred:Int, Obs:Per",
       #          color = colorpal[[1]]) +
       # annotate("text", x = Inf-5, y = -0.5, angle = 90,
       #          label = "Pred:Per, Obs:Int",
       #          color = colorpal[[2]]) +
-      scale_color_manual(values=colorpal,
-                         name='Observed regime',
-                         labels = c('Perennial', 'Intermittent')) +
-      labs(x='Value', y='Intermittency Prediction Residuals (IPR)') +
       #scale_x_sqrt(expand=c(0,0)) +
       coord_cartesian(expand=FALSE, clip='off') +
       facet_wrap(~variable, scales='free', ncol=3,
                  labeller=as_labeller(varlabels)) +
       theme_classic() +
-      theme(legend.position = c(0.85, 0.2))
+      theme(legend.position = c(0.85, 0.2),
+            legend.title = element_blank())
 
     if (logx) {
       p <- p + scale_x_continuous(
@@ -5473,7 +5497,15 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
 
-  rectdf_cat <- copy(rectdf)[,xmin:=-Inf]
+  
+  colorpal <- c('#1f78b4', '#ff7f00')
+  rectdf_cat <- data.table(
+    xmin=rep(-Inf, 4),
+    xmax=rep(Inf, 4),
+    ymin=c(-1, interthresh-1, 0, interthresh),
+    ymax=c(interthresh-1, 0, interthresh, 1),
+    fillpal = rep(colorpal, 2)
+  ) 
   gaugeIPR_catplot <-
     ggplot(predmelt_cat) +
     geom_rect(data=rectdf_cat, aes(xmin=xmin, xmax=xmax,
@@ -6691,7 +6723,7 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
                               binfunc = 'manual',
                               binarg =  binarg,
                               binlabels = binlabels,
-                              datname = 'Snelder') %>%
+                              datname = 'France') %>%
     .[, binsumlength := binsumlength/1000]
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
@@ -6714,7 +6746,7 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
     list(
       plot = ggcompare(datmerge, binarg) +
         geom_rect(aes(xmin=-Inf, xmax=1.5, ymin=0, ymax=Inf),
-                  fill='white', alpha=0.09) +
+                  fill='grey', alpha=0.09) +
         theme(axis.title.y = element_blank(),
               axis.title.x = element_blank(),
               legend.title = element_blank()),
@@ -6937,7 +6969,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                                  binfunc = 'manual',
                                  binarg =  binarg,
                                  binlabels = binlabels,
-                                 datname = 'U.S. NHD') %>%
+                                 datname = 'U.S.') %>%
     .[, binsumlength := binsumlength]
 
   #Compute bin statistics excluding "artificial flow path"
@@ -6950,7 +6982,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                                           binfunc = 'manual',
                                           binarg =  binarg,
                                           binlabels = binlabels,
-                                          datname = 'U.S. NHD') %>%
+                                          datname = 'U.S.') %>%
     .[, binsumlength := binsumlength]
 
   #Compute bin statistics for river networks
@@ -6979,7 +7011,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
     list(
       plot = ggcompare(datmerge_all, binarg=binarg[]) +
         geom_rect(aes(xmin=-Inf, xmax=1.5, ymin=0, ymax=Inf),
-                  fill='white', alpha=0.09) +
+                  fill='grey', alpha=0.09) +
         scale_y_continuous(breaks=c(0,25,75,100)) +
         coord_cartesian(ylim=c(0,120), expand=c(0,0)) +
         theme(axis.title.y = element_blank(),
@@ -7031,7 +7063,11 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
                               binfunc = 'manual',
                               binarg =  binarg,
                               binlabels = binlabels,
+<<<<<<< HEAD
                               datname = 'Geofabric')
+=======
+                              datname = 'Australia') 
+>>>>>>> 6cb10e6409f45487dd606342d2b15b2c4218ee93
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'UPLAND_SKM',
@@ -7044,7 +7080,7 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
                                 datname = 'Global')
 
   datmerge <- rbind(tidyperc_au, tidyperc_riv) %>%
-    .[, dat:=factor(dat, levels=c('Global', 'Geofabric'))] %>%
+    .[, dat:=factor(dat, levels=c('Global', 'Australia'))] %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
   print('Percentage intermittence for Australia')
@@ -7055,7 +7091,7 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
 
   return(
     list(
-      plot = ggcompare(datmerge, binarg, insetx = 0.9, insety = 0.97),
+      plot = ggcompare(datmerge, binarg, insetx = 0.85, insety = 0.9),
       data = datmerge
     )
   )
