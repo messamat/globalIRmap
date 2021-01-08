@@ -1,5 +1,5 @@
 ---
-title: "Reference stream gauging stations"
+title: "Reference streamflow gauging stations"
 output: 
   workflowr::wflow_html:
 editor_options:
@@ -15,17 +15,44 @@ Two streamflow gauging station datasets were used as the source of training and 
 Whereas the GRDC offers daily water discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.  
 
 A GSIM station was included only if:  
-i) it was not already part of the GRDC database,     
-ii) it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and if it was located either   
-iii) on an IRES or   
-iv) in a river basin which did not already contain a GRDC station (assessed based on level 5 sub-basins of the global BasinATLAS database52, average sub-basin area = 2.9 x 104 km2).   
+1. it was not already part of the GRDC database,     
+2. it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and if it was located either   
+3. on an IRES or   
+4. in a river basin which did not already contain a GRDC station (assessed based on level 5 sub-basins of the global BasinATLAS database52, average sub-basin area = 2.9 x 104 km2).     
 We applied the described GSIM selection criteria to balance the relative amount of non-perennial vs. perennial records and the spatial distribution of stations in the model training dataset.  
 
-Each station in the combined dataset was geographically associated with a reach in the RiverATLAS stream network and every discharge time series was quality-checked through statistical and manual outlier detection (see Supplementary Information B1 for details on these procedures). Non-perennial gauging stations were only included in the dataset if they were free of anomalous zero-flow values (e.g. from instrument malfunction, gauge freezing, tidal flow reversal). We also excluded stations whose streamflow was potentially dominated by reservoir outflow regulation (i.e. with a degree of regulation > 50% or whose discharge time series exhibited an obvious alteration from natural flow permanence, see Supplementary Information B1), as flow regulating structures may change the flow class of a river either from perennial to non-perennial or vice-versa depending on their mode and rules of operation. We further narrowed our selection by adding only gauging stations with streamflow time series spanning at least 10 years — excluding years with more than 20 days of missing records for the calculation of this criterion and in subsequent analysis. Finally, we classified stations as non-perennial if their recorded discharge dropped to zero at least one day per year on average over the years of record, and as perennial otherwise. Stations with at least one zero-flow day per year on average (i.e. non-perennial) but without a zero-flow day during 20 consecutive valid years of data (those with ≤ 20 missing days), anywhere in their record, were deemed either to have experienced a shift in flow intermittence class (regardless of the direction of the shift) or to have ceased to flow due to exceptional conditions of drought and were also excluded.  
+# Processing and selecting gauging stations data
+Each station in the combined dataset was geographically associated with a reach in the RiverATLAS stream network and every discharge time series was quality-checked through statistical and manual outlier detection (see Supplementary Information B1 for details on these procedures).   
+
+Non-perennial gauging stations were only included in the dataset if they were free of anomalous zero-flow values (e.g. from instrument malfunction, gauge freezing, tidal flow reversal). We also excluded stations whose streamflow was potentially dominated by reservoir outflow regulation (i.e. with a degree of regulation > 50% or whose discharge time series exhibited an obvious alteration from natural flow permanence, see Supplementary Information B1), as flow regulating structures may change the flow class of a river either from perennial to non-perennial or vice-versa depending on their mode and rules of operation. We further narrowed our selection by adding only gauging stations with streamflow time series spanning at least 10 years — excluding years with more than 20 days of missing records for the calculation of this criterion and in subsequent analysis. Finally, we classified stations as non-perennial if their recorded discharge dropped to zero at least one day per year on average over the years of record, and as perennial otherwise. Stations with at least one zero-flow day per year on average (i.e. non-perennial) but without a zero-flow day during 20 consecutive valid years of data (those with ≤ 20 missing days), anywhere in their record, were deemed either to have experienced a shift in flow intermittence class (regardless of the direction of the shift) or to have ceased to flow due to exceptional conditions of drought and were also excluded.  
 
 Based on these selection criteria, the training dataset contained data for 3,967 perennial river reaches and for 1,388 non-perennial reaches, with 45 and 34 years of daily streamflow data on average, respectively, across all continents (except Antarctica).
 
-# Map of selected and discarded gauges
+# Map of gauging stations included or exluded from the analysis
+### Loading of the map can take several minutes, please wait and read the instructions below
+
+### What does this show?
+On this map are shown all global gauging stations that were reliably matched to the RiverATLAS global digital river network.
+
+### What do the colors mean?
+* **Blue-colored points** show perennial stations (< 1 zero-flow day per year on average across the record)
+* **Red-colored points** show non-perennial stations (>= 1 zero-flow day per year on average across the record)
+
+* **Semi-transparent points** show stations which were kept and included for the training and testing of predictive models.
+* **Opaque points** show stations which were excluded from further analysis due to one of the various reasons explained in the previous sections.
+
+### How do I use this map?
+* **To pan**, hold the left button and move the mouse.    
+* **To zoom in or out**, use your mouse wheel (or the equivalent on a pad) or press the + and - symbols on the upper left of the map.  
+*  **To add or remove a layer**, hover your mouse over the stacked squares in the lower right of the map and click or unclick the corresponding check box. Any combination of blue-red and opaque-transparent points can be added or removed.  
+* **To get information on a station**, hover with your mouse over the corresponding point:
+    + the first line shows which dataset this record comes from (GRDC or GSIM) and the corresponding uniquer identifier for this station.
+    + the second line shows whether this station was included in the analysis ("kept"), manually "inspected" for erroneous daily discharge values, or altogether "removed" from further analysis.
+    + the third line gives a brief explanation as to why the station was removed.  
+* **To see a hydrograph for a station**, left-click the corresponding point. This feature is only available for stations with at least 10 years of valid data. Two types of graphs may be displayed:  
+  + *For a GRDC station*: the graph shows the time series of daily streamflow values for that station, excluding calendar years with more than 20 missing daily records. The y-axis is square-root transformed. Individual points show daily values, blue lines link daily values (which may result in unusual patterns due to missing years), green points are non-zero flow daily values statistically flagged as potential outliers (see flagging process in Supplementary Information B1b), red points are zero-flow flow values, black points are zero-flow values flagged as potential outliers.  
+  + *For a GSIM station*: daily streamflow records from GSIM stations are unavailable. Therefore, the graph shows the mean (blue points), ± 2SD (light blue background shading), minimum and maximum monthly discharge (black points), excluding calendar years with more than 20 missing daily record. The y-axis is square-root transformed. Red points show minimum monthly discharge values equal to 0, purple points show months for which all daily discharge values are equal to 0.
+
 ```{r shiny-app, echo=FALSE, out.width = '100%'}
 knitr::include_app("https://messamat.shinyapps.io/globalIRmap_gaugesel",
                    height = "800px")
