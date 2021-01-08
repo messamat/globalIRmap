@@ -2,6 +2,8 @@ rootdir <- rprojroot::find_root(rprojroot::has_dir('shinyapp')) #Set root workin
 setwd(rootdir)
 shinydat <- file.path(rootdir, 'shinyapp', 'globalIRmap_gaugesel', 'www')
 
+
+source('R/IRmapping_packages.R')
 library(shiny)
 library(leaflet)
 library(leafpop)
@@ -10,9 +12,7 @@ library(fst)
 cacheddat <- file.path(shinydat, 'shinygdat.fst')
 
 if (!file.exists(cacheddat)) {
-    source('R/IRmapping_packages.R')
     source('R/IRmapping_functions.R')
-
 
     #Create data.table with gauge id, characteristics, X, Y, reason for removal, and embedded image
     loadd(gaugep)
@@ -32,7 +32,7 @@ if (!file.exists(cacheddat)) {
         GSIMtoremove_unstableIR <- data.table(
             gsim_no = GSIMstatsdt[(mDur_o1800 >= 1) & (!movinginter_o1800), gsim_no],
             flag = 'removed',
-            comment = 'changed flow intermittency class'
+            comment = 'automatic filtering: at least one no-flow day/year on average but no zero-flow event during >= 20 years'
         )
 
         #------ Remove stations based on examination of plots and data series
@@ -281,7 +281,7 @@ if (!file.exists(cacheddat)) {
             GRDC_NO = GRDCstatsdt[integerperc_o1800 >= 0.99 &
                                       intermittent_o1800 == 1, GRDC_NO],
             flag = 'removed',
-            comment = 'at least 99% integer values'
+            comment = 'All integer discharge values'
         )
 
         #Remove those which have at least one day per year of zero-flow day but instances
@@ -290,7 +290,7 @@ if (!file.exists(cacheddat)) {
             GRDC_NO = GRDCstatsdt[(mDur_o1800 >= 1) & (!movinginter_o1800) &
                                       !(GRDC_NO %in% c(1160115, 1160245, 4146400)), GRDC_NO],
             flag = 'removed',
-            comment = 'changed flow intermittency class'
+            comment = 'automatic filtering: at least one no-flow day/year on average but no zero-flow event during >= 20 years'
         )
 
         #Outliers from examining plots of ir time series (those that were commented out were initially considered)
@@ -594,7 +594,8 @@ if (!file.exists(cacheddat)) {
                            GSIMstatsdt_clean,
                            use.names=TRUE, fill=T)
 
-        return(list(plots=plots, data=databound,
+        return(list(#plots=plots,
+                    data=databound,
                     flags=rbind(GRDCflags, GSIMflags,
                                 use.names=TRUE, fill=T)))
     }
@@ -615,8 +616,8 @@ if (!file.exists(cacheddat)) {
 
     gaugep_flags[, (geocols) := as.data.table(st_coordinates(gaugep_flags$geometry))] %>%
         .[, flag := factor(flag, levels=c(NA, 'inspected', 'removed'))] %>%
-        .[dor_pc_pva>=500, `:=`(flag = 'removed',
-                                comment = 'degree of regulation >= 50%')] %>% #Remove those with more than 50% DOR
+        .[dor_pc_pva>=5000, `:=`(flag = 'removed',
+                                comment = 'excessive degree of regulation')] %>% #Remove those with more than 50% DOR
         .[totalYears_kept_o1800<10, `:=`(flag = 'removed',
                                          comment = '< 10 valid years of data')] %>%
         .[, geometry := NULL] %>%
@@ -627,26 +628,34 @@ if (!file.exists(cacheddat)) {
     gaugep_flags <- read_fst(cacheddat) %>% setDT
 }
 
-######################### SHINYAPP #############################################
+
 pal <- colorFactor(
     palette = "Set1",
     domain = unique(gaugep_flags$flag))
 
-gaugep_flags[, hoverlabs := paste(
-    sep = "<br/>",
-    fifelse(is.na(gsim_no), paste('GRDC_NO:',GRDC_NO), paste('GSIM_NO:',gsim_no)),
-    fifelse(is.na(flag), 'kept', as.character(flag)),
-    comment)
+gitplots_rooturl <- "https://github.com/messamat/globalIRmap/blob/master/shinyapp/globalIRmap_gaugesel/www/plots/"
+
+gaugep_flags[, `:=`(
+    hoverlabs = paste(
+        sep = "<br/>",
+        fifelse(is.na(gsim_no), paste('GRDC_NO:',GRDC_NO), paste('GSIM_NO:',gsim_no)),
+        paste0('Flag: ', fifelse(is.na(flag), 'kept', as.character(flag))),
+        paste0('Reason: ',comment)),
+    graphurl = paste0(gitplots_rooturl, GAUGE_NO, ".png?raw=true")
+)
 ]
 
+gperkept<- gaugep_flags[(intermittent_o1800 == 0) &
+                            (is.na(flag) | flag != 'removed'),]
+girkept <- gaugep_flags[(intermittent_o1800 == 1) &
+                            (is.na(flag) | flag != 'removed'),]
+gperremoved <- gaugep_flags[(intermittent_o1800 == 0 | is.na(intermittent_o1800))
+                            & flag == 'removed',]
+girremoved <- gaugep_flags[(intermittent_o1800 == 1 | is.na(intermittent_o1800))
+                           & flag == 'removed',]
 
-ui <- navbarPage(
-    windowTitle="Global gauge selection for mapping non-perennial rivers and streams",
-    title=HTML('<div><a href="link" target="_blank">article link</a></div>'), #Link to online article
-    theme="simplex.css", # for shinyapps.io
-    #theme="https://bootswatch.com/simplex/bootstrap.css", #for local/RStudio and shiny-server
-    #shinytheme() from shinythemes package must be avoided because it conflicts with bsModal in shinyBS.
-    id="nav",
+######################### SHINYAPP #############################################
+ui <- bootstrapPage(
 
     tabPanel(
         "World", value="wrld",
@@ -660,13 +669,13 @@ ui <- navbarPage(
                 ".tooltip-inner {text-align: left}"), #Left-align tooltips that display upon hover
 
             leafletOutput("Worldmap", width = "100%", height = "100%"),
-            absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
-                          draggable = FALSE, top = 60, left = "auto", right = 20, bottom = "auto",
-                          width = 330, height = "auto",
-                          wellPanel(
-                              p(HTML("<strong>Hydrograph</strong>"))
-                          )
-            ),
+            # absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
+            #               draggable = FALSE, top = 60, left = "auto", right = 20, bottom = "auto",
+            #               width = 330, height = "auto",
+            #               wellPanel(
+            #                   p(HTML("<strong>Hydrograph</strong>"))
+            #               )
+            # ),
             tags$div(id="cite2",
                      HTML('<a href="insert link"
                       target="_blank">Messager et al. (2021) "Global prevalence of non-perenniall rivers and streams - in review"</a>')
@@ -674,6 +683,8 @@ ui <- navbarPage(
         )
     )
 )
+
+
 
 server <- function(input, output, session) {
     #Custom function to make circle legends from https://stackoverflow.com/questions/37446283/creating-legend-with-circles-leaflet-r
@@ -694,53 +705,51 @@ server <- function(input, output, session) {
                              options = providerTileOptions(opacity=0.75)) %>%
             addProviderTiles(providers$Esri.OceanBasemap, group = "World Physical",
                              options = providerTileOptions(opacity=0.75)) %>%
-            addCircleMarkers(data=  gaugep_flags[(intermittent_o1800 == 0) &
-                                                     (is.na(flag) | flag != 'removed'),],
+            addCircleMarkers(data= gperkept,
                              weight = 0, radius=3, lng = ~X, lat = ~Y,
                              label = ~lapply(hoverlabs, HTML),
-                             popup = popupImage("https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/Mount_Eden.jpg/640px-Mount_Eden.jpg",
-                                                src = "remote"),
-                             group='kept - perennial', color='blue',fillOpacity = 0.3) %>%
-            addCircleMarkers(data=  gaugep_flags[(intermittent_o1800 == 1) &
-                                                     (is.na(flag) | flag != 'removed'),],
+                             popup = popupImage(gperkept$graphurl, src = "remote",
+                                                width = 500, height = 500),
+                             group='used in modeling - perennial', color='blue',fillOpacity = 0.3) %>%
+            addCircleMarkers(data=girkept,
                              weight = 0, radius=3, lng = ~X, lat = ~Y,
                              label = ~lapply(hoverlabs, HTML),
-                             group="kept - non-perennial", color='red',fillOpacity = 0.3) %>%
-            addCircleMarkers(data=  gaugep_flags[(intermittent_o1800 == 0 | is.na(intermittent_o1800))
-                                                 & flag == 'removed',],
+                             popup = popupImage(girkept$graphurl, src = "remote",
+                                                width = 500, height = 500),
+                             group="used in modeling - non-perennial", color='red',fillOpacity = 0.3) %>%
+            addCircleMarkers(data=gperremoved,
                              weight = 0, radius=3, lng = ~X, lat = ~Y,
                              label = ~lapply(hoverlabs, HTML),
-                             group="removed - perennial or undertermined", color='blue',fillOpacity = 1) %>%
-            addCircleMarkers(data=  gaugep_flags[(intermittent_o1800 == 1) & flag == 'removed',],
+                             popup = popupImage(gperremoved$graphurl, src = "remote",
+                                                width = 500, height = 500),
+                             group="excluded from modeling - perennial or undertermined", color='blue',fillOpacity = 1) %>%
+            addCircleMarkers(data=girremoved,
                              weight = 0, radius=3, lng = ~X, lat = ~Y,
                              label = ~lapply(hoverlabs, HTML),
-                             group="removed - non-perennial", color='red',fillOpacity = 1) %>%
+                             popup = popupImage(girremoved$graphurl, src = "remote",
+                                                width = 500, height = 500),
+                             group="excluded from modeling  - non-perennial", color='red',fillOpacity = 1) %>%
             addLayersControl(
-                position="bottomleft",
-                overlayGroups = c("kept - perennial",
-                                  "kept - non-perennial",
-                                  "removed - perennial or undertermined",
-                                  "removed - non-perennial"),
-                options = layersControlOptions(collapsed = FALSE))
-
+                position="bottomright",
+                overlayGroups = c("used in modeling - perennial",
+                                  "used in modeling - non-perennial",
+                                  "excluded from modeling  - perennial or undertermined",
+                                  "excluded from modeling  - non-perennial"),
+                options = layersControlOptions(collapsed = FALSE)) %>%
+            addLegend(colors=c('blue', 'red'),
+                      position="topright",
+                      labels=c("excluded from modeling  - perennial",
+                               "excluded from modeling  - non-perennial"),
+                      opacity = 1
+            ) %>%
+            addLegend(colors=c('blue', 'red'),
+                      position="topright",
+                      labels=c("used in modeling  - perennial",
+                               "used in modeling - non-perennial"),
+                      opacity = 0.3
+            )
     })
 }
 
 
 shinyApp(ui, server)
-
-#Render image based on directory of graphs in github
-#server <- function(input, output, session) {
-#    # Send a pre-rendered image, and don't delete the image after sending it
-#    output$preImage <- renderImage({
-#        # When input$n is 3, filename is ./images/image3.jpeg
-#        filename <- normalizePath(file.path('./images',
-#                                            paste('image', input$n, '.jpeg', sep='')))
-#
-#        # Return a list containing the filename and alt text
-#        list(src = filename,
-#             alt = paste("Image number", input$n))
-#
-#    }, deleteFile = FALSE)
-#}
-
