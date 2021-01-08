@@ -28,7 +28,7 @@ Based on these selection criteria, the training dataset contained data for 3,967
 # Map of selected and discarded gauges
 ```{r shiny-app, echo=FALSE, out.width = '100%'}
 knitr::include_app("https://messamat.shinyapps.io/globalIRmap_gaugesel",
-                   height = "600px")
+                   height = "800px")
 ```
 
 
