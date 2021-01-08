@@ -26,8 +26,9 @@ Each station in the combined dataset was geographically associated with a reach 
 Based on these selection criteria, the training dataset contained data for 3,967 perennial river reaches and for 1,388 non-perennial reaches, with 45 and 34 years of daily streamflow data on average, respectively, across all continents (except Antarctica).
 
 # Map of selected and discarded gauges
-```{r shiny-app, echo=FALSE, out.width = '100%', out.height = '150%'}
-knitr::include_app("https://messamat.shinyapps.io/globalIRmap_gaugesel")
+```{r shiny-app, echo=FALSE, out.width = '100%'}
+knitr::include_app("https://messamat.shinyapps.io/globalIRmap_gaugesel",
+                   height = "600px")
 ```
 
 
