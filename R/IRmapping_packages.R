@@ -32,6 +32,9 @@ suppressPackageStartupMessages(library(bigstatsr))
 #remotes::install_github("zeehio/facetscales")
 suppressPackageStartupMessages(library(facetscales))
 
+#remotes::install_github("matthewstrasiotto/mandrake", INSTALL_opts = c("--no-multiarch"))
+suppressPackageStartupMessages(library(mandrake))
+
 
 suppressPackageStartupMessages(library(cowplot))
 suppressPackageStartupMessages(library(data.table))

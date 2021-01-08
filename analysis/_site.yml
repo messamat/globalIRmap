@@ -1,7 +1,7 @@
 name: "globalIRmap"
 output_dir: ../docs
 navbar:
-  title: globalIRmap
+  title: Global mapping of intermittent rivers and ephemeral streams
   left:
   - text: Home
     href: index.html
@@ -9,10 +9,16 @@ navbar:
     href: about.html
   - text: License
     href: license.html
+  - text: Data and methods
+    menu:
+    - text: "Analysis workflow"
+      href: methods_workflow.html
+    - text: "Reference stream gauging stations"
+      href: methods_refdisdat.html
   - text: Results
     menu:
     - text: "Model diagnostics"
-      href: diagnostics.html
+      href: results_diagnostics.html
 output:
   workflowr::wflow_html:
     toc: yes

@@ -275,7 +275,7 @@ $(document).ready(function () {
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
       </button>
-      <a class="navbar-brand" href="index.html">globalIRmap</a>
+      <a class="navbar-brand" href="index.html">Global mapping of intermittent rivers and ephemeral streams</a>
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
@@ -290,13 +290,28 @@ $(document).ready(function () {
 </li>
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
+    Data and methods
+     
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+    <li>
+      <a href="methods_workflow.html">Analysis workflow</a>
+    </li>
+    <li>
+      <a href="methods_refdisdat.html">Reference stream gauging stations</a>
+    </li>
+  </ul>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
     Results
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="diagnostics.html">Model diagnostics</a>
+      <a href="results_diagnostics.html">Model diagnostics</a>
     </li>
   </ul>
 </li>
@@ -337,7 +352,7 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2020-04-16
+<strong>Last updated:</strong> 2021-01-06
 </p>
 <p>
 <strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
@@ -347,7 +362,7 @@ $(document).ready(function () {
 </p>
 <p>
 This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis was created with <a
-  href="https://github.com/jdblischak/workflowr">workflowr</a> (version 1.6.1). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
+  href="https://github.com/jdblischak/workflowr">workflowr</a> (version 1.6.2). The <em>Checks</em> tab describes the reproducibility checks that were applied when the results were created. The <em>Past versions</em> tab lists the development history.
 </p>
 <hr>
 </div>
@@ -428,16 +443,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree7e553282ba40bcbaea3c508378853dede662c867targetblank7e55328a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/7e553282ba40bcbaea3c508378853dede662c867" target="_blank">7e55328</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree2fdc092553d567b0a07d9616471f141eea0e1b35targetblank2fdc092a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/2fdc092553d567b0a07d9616471f141eea0e1b35" target="_blank">2fdc092</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree7e553282ba40bcbaea3c508378853dede662c867targetblank7e55328a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree2fdc092553d567b0a07d9616471f141eea0e1b35targetblank2fdc092a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/7e553282ba40bcbaea3c508378853dede662c867" target="_blank">7e55328</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/2fdc092553d567b0a07d9616471f141eea0e1b35" target="_blank">2fdc092</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -451,12 +466,26 @@ Ignored files:
     Ignored:    .drake/drake/
     Ignored:    .drake/keys/
     Ignored:    .drake/scratch/
-    Ignored:    packrat/lib-R/
-    Ignored:    packrat/lib-ext/
-    Ignored:    packrat/lib/
+    Ignored:    renv/library/
+    Ignored:    renv/staging/
+
+Untracked files:
+    Untracked:  .Rbuildignore
+    Untracked:  Compare_models_20201026.Rmd
+    Untracked:  figtabres.docx
+    Untracked:  figtabres_20201220_1.docx
+    Untracked:  log/
+    Untracked:  schema.ini
+    Untracked:  tabs_quick.Rmd
+    Untracked:  tabs_quick.docx
+    Untracked:  tabs_quick.html
+    Untracked:  test.html
 
 Unstaged changes:
-    Modified:   workflowr_commands.R
+    Modified:   IntermittentAnalysis_MasterScript_reproduced.R
+    Modified:   R/IRmapping_functions.R
+    Modified:   _drake.R
+    Modified:   globalIRmap.Rproj
 
 </code></pre>
 <p>
@@ -495,6 +524,57 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/f1d9dcf0abf909916216d0b51f409b8ccb7691d5/analysis/about.Rmd" target="_blank">f1d9dcf</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-06
+</td>
+<td>
+Start building up workflowr website, start incorporating mandrake (but wait as very unstable still), plan gauge selection documentation
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/f1d9dcf0abf909916216d0b51f409b8ccb7691d5/docs/about.html" target="_blank">f1d9dcf</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-06
+</td>
+<td>
+Start building up workflowr website, start incorporating mandrake (but wait as very unstable still), plan gauge selection documentation
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/a77a5aed84393702ca6ffd86675fb5c1c000d8a7/docs/about.html" target="_blank">a77a5ae</a>
+</td>
+<td>
+Mathis Loïc Messager
+</td>
+<td>
+2020-04-16
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 html
@@ -604,31 +684,45 @@ Start workflowr project.
 </div>
 </div>
 </div>
-<p><strong>Global mapping of intermittent rivers and ephemeral streams</strong></p>
-<p># Authors</p>
+<div id="global-prevalence-of-non-perennial-rivers-and-streams" class="section level1">
+<h1><strong>Global prevalence of non-perennial rivers and streams</strong></h1>
+<div id="manuscript-under-review" class="section level3">
+<h3>Manuscript under review</h3>
+</div>
+<div id="this-research-compendium-is-still-under-development" class="section level3">
+<h3>!!This research compendium is still under development!!</h3>
+</div>
+</div>
+<div id="authors" class="section level1">
+<h1>Authors</h1>
 <p><strong>Mathis Loïc Messager</strong> (<a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a>) <a href="https://orcid.org/0000-0002-3051-8068"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" /></a><br />
-Charlotte Cockburn Thibault Datry Bernhard Lehner</p>
+<strong>Bernhard Lehner</strong> (<a href="mailto:bernhard.lehner@mcgill.ca" class="email">bernhard.lehner@mcgill.ca</a>) <a href="https://orcid.org/0000-0003-3712-2581"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" /></a><br />
+<strong>Charlotte Cockburn</strong><br />
+<strong>Nicolas Lamouroux</strong><br />
+<strong>Hervé Pella</strong><br />
+<strong>Ton Snelder</strong><br />
+<strong>Klement Tockner</strong> <a href="https://orcid.org/0000-0002-0038-8151"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" /></a><br />
+<strong>Tim Trautmann</strong> <a href="https://orcid.org/0000-0001-8652-6836"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" /></a><br />
+<strong>Caitlin Watt</strong><br />
+<strong>Thibault Datry</strong> (<a href="mailto:thibault.datry@inrae.fr" class="email">thibault.datry@inrae.fr</a>) <a href="https://orcid.org/0000-0003-1390-6736"><img src="https://orcid.org/sites/default/files/images/orcid_16x16.png" /></a></p>
+</div>
 <div id="contents" class="section level1">
 <h1>Contents</h1>
-<p>This repository contains the research compendium of the above mentioned paper.</p>
-<ul>
-<li><a href="">Paper</a></li>
-<li><a href="">Appendices</a></li>
-</ul>
+<p>This repository contains the research compendium for: [citation] - <a href="">Paper - link to be added</a> - <a href="">Appendices - link to be added</a></p>
 </div>
 <div id="how-to-use" class="section level1">
 <h1>How to use</h1>
 <div id="read-the-code-access-the-data" class="section level2">
 <h2>Read the code, access the data</h2>
-<p>See the <a href=""><code>code</code></a> directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript. The raw data is stored on <a href="">Zenodo</a> and <a href="">HydroSHEDS</a> and will be downloaded when starting the analysis.</p>
+<p>See the <a href="https://github.com/messamat/globalIRmap"><code>code</code></a> directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript. The raw data is stored on <a href="">Repository link to be added</a> and <a href="https://hydrosheds.org/">HydroSHEDS</a> and will be downloaded when starting the analysis.</p>
 </div>
 <div id="install-the-r-package" class="section level2">
 <h2>Install the R package</h2>
 <p><a href=""><img src="" alt="Build Status" /></a></p>
-<p>This repository is organized as an R package, providing functions and raw data to reproduce and extend the analysis reported in the publication. Note that this package has been written explicitly for this project and may not be suitable for general use.</p>
+<p>This repository is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. Note that this package has been written explicitly for this project and may not be suitable for general use.</p>
 <p>This project is setup with a <a href="https://github.com/ropensci/drake">drake workflow</a>, ensuring reproducibility. Intermediate targets/objects will be stored in a hidden <code>.drake</code> directory.</p>
-<p>The R library of this project is managed by <a href="https://rstudio.github.io/packrat/">packrat</a>. This makes sure that the exact same package versions are used when recreating the project. When calling <code>packrat::restore()</code>, all required packages will be installed with their specific version.</p>
-<p>Please note that this project was built with R version X.X.X on a Windows 10 operating system. The packrat packages from this project <strong>are not compatible with R versions prior version 3.5.0.</strong> (In general, it should be possible to reproduce the analysis on any other operating system.)</p>
+<p>The R library of this project is managed by <a href="https://rstudio.github.io/renv/articles/renv.html">renv</a>. This makes sure that the exact same package versions are used when recreating the project. When calling <code>renv::restore()</code>, all required packages will be installed with their specific version.</p>
+<p>Please note that this project was built with R version 4.0.3 on a Windows 10 operating system. The renv packages from this project <strong>are not compatible with R versions prior to version 3.6.0.</strong></p>
 <p>To clone the project, a working installation of <code>git</code> is required. Open a terminal in the directory of your choice and execute:</p>
 <pre class="sh"><code>git clone git@github.com:messamat/globalIRmap.git</code></pre>
 <p>Then start R in this directory and run</p>
@@ -638,7 +732,7 @@ r_make() # recreates the analysis</code></pre>
 </div>
 <div id="structure-of-the-analysis" class="section level1">
 <h1>Structure of the analysis</h1>
-<p>In the <code>drake</code> philosophy, every R object is a “target” with dependencies. This repository contains more targets than actually needed to replicate the associated publication.</p>
+<p>In the <code>drake</code> philosophy, every R object is a “target” with dependencies. This repository contains more targets than actually needed to replicate the associated publication. <strong>Future task: create a simplified workflow to strictly reproduce main results</strong></p>
 <p>If you want to replicate the publication, you need to build the following targets: - - - -</p>
 <div id="other-practical-notes" class="section level4">
 <h4>Other practical notes</h4>
@@ -649,7 +743,7 @@ r_make() # recreates the analysis</code></pre>
 <ul>
 <li><p>The <a href="https://github.com/messamat/globalIRmap/issues">issues tracker</a> is the place to report problems or ask questions</p></li>
 <li><p>See the repository <a href="https://github.com/messamat/globalIRmap/commits/master">history</a> for a fine-grained view of progress and changes.</p></li>
-<li><p>The structure of this compendium is based on the work of <a href="http://www.carlboettiger.info/">Carl Boettiger</a>, <a href="https://github.com/benmarwick">Ben Marwick</a>, <a href="https://github.com/pat-s">Patrick Schratz</a> and the <a href="https://github.com/jdblischak/workflowr">workflowr</a> package.</p></li>
+<li><p>The structure of this compendium is based on the work of <a href="https://github.com/pat-s">Patrick Schratz</a>, <a href="http://www.carlboettiger.info/">Carl Boettiger</a>, <a href="https://github.com/benmarwick">Ben Marwick</a>, and the <a href="https://github.com/jdblischak/workflowr">workflowr</a> package.</p></li>
 </ul>
 <br>
 <p>
@@ -659,7 +753,7 @@ r_make() # recreates the analysis</code></pre>
 </p>
 <div id="workflowr-sessioninfo" class="collapse">
 <pre class="r"><code>sessionInfo()</code></pre>
-<pre><code>R version 3.6.2 (2019-12-12)
+<pre><code>R version 4.0.2 (2020-06-22)
 Platform: x86_64-w64-mingw32/x64 (64-bit)
 Running under: Windows 10 x64 (build 18363)
 
@@ -673,16 +767,21 @@ locale:
 [5] LC_TIME=English_United States.1252    
 
 attached base packages:
-[1] stats     graphics  grDevices utils     datasets  methods   base     
+[1] stats     graphics  grDevices datasets  utils     methods   base     
+
+other attached packages:
+[1] workflowr_1.6.2
 
 loaded via a namespace (and not attached):
- [1] workflowr_1.6.1 Rcpp_1.0.3      rprojroot_1.3-2 packrat_0.5.0  
- [5] digest_0.6.25   later_1.0.0     R6_2.4.1        backports_1.1.5
- [9] git2r_0.26.1    magrittr_1.5    evaluate_0.14   stringi_1.4.6  
-[13] rlang_0.4.4     fs_1.4.0        promises_1.1.0  whisker_0.4    
-[17] rmarkdown_2.1   tools_3.6.2     stringr_1.4.0   glue_1.3.1     
-[21] httpuv_1.5.2    xfun_0.12       yaml_2.2.1      compiler_3.6.2 
-[25] htmltools_0.4.0 knitr_1.28     </code></pre>
+ [1] Rcpp_1.0.4.6     rstudioapi_0.11  whisker_0.4      knitr_1.29      
+ [5] magrittr_1.5     R6_2.4.1         rlang_0.4.7      stringr_1.4.0   
+ [9] tools_4.0.2      xfun_0.17        git2r_0.27.1     htmltools_0.4.0 
+[13] ellipsis_0.3.0   rprojroot_1.3-2  yaml_2.2.1       digest_0.6.25   
+[17] tibble_3.0.1     lifecycle_0.2.0  crayon_1.3.4     later_1.0.0     
+[21] vctrs_0.3.4      promises_1.1.0   fs_1.5.0         glue_1.4.0      
+[25] evaluate_0.14    rmarkdown_2.3    stringi_1.4.6    compiler_4.0.2  
+[29] pillar_1.4.4     backports_1.1.10 httpuv_1.5.4     renv_0.9.3      
+[33] pkgconfig_2.0.3 </code></pre>
 </div>
 </div>
 

@@ -8,51 +8,61 @@ editor_options:
   chunk_output_type: console
 ---
   
-  **Global mapping of intermittent rivers and ephemeral streams**
-  
-  # Authors
-  
-  **Mathis Loïc Messager** (mathis.messager@mail.mcgill.ca) [![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-3051-8068)    
-  Charlotte Cockburn
-  Thibault Datry
-  Bernhard Lehner
+# **Global prevalence of non-perennial rivers and streams**
+### Manuscript under review
+### !!This research compendium is still under development!!
+ 
+# Authors
+**Mathis Loïc Messager** (mathis.messager@mail.mcgill.ca) [![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-3051-8068)    
+**Bernhard Lehner** (bernhard.lehner@mcgill.ca)
+[![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0003-3712-2581)      
+**Charlotte Cockburn**  
+**Nicolas Lamouroux**  
+**Hervé Pella**  
+**Ton Snelder**  
+**Klement Tockner**
+[![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-0038-8151)  
+**Tim Trautmann**
+[![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0001-8652-6836)  
+**Caitlin Watt**  
+**Thibault Datry** (thibault.datry@inrae.fr)
+[![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0003-1390-6736)  
+
 
 # Contents
 
-This repository contains the research compendium of the above mentioned paper. 
-
-- [Paper]()
-- [Appendices]()
+This repository contains the research compendium for: [citation]
+- [Paper - link to be added]()
+- [Appendices - link to be added]()
 
 # How to use
 
 ## Read the code, access the data
 
-See the [`code`]() directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript.
-The raw data is stored on [Zenodo]() and [HydroSHEDS]() and will be downloaded when starting the analysis. 
+See the [`code`](https://github.com/messamat/globalIRmap) directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript.
+The raw data is stored on [Repository link to be added]() and [HydroSHEDS](https://hydrosheds.org/) and will be downloaded when starting the analysis. 
 
 ## Install the R package
 
 [![Build Status]()]()
 
-This repository is organized as an R package, providing functions and raw data to reproduce and extend the analysis reported in the publication. 
+This repository is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. 
 Note that this package has been written explicitly for this project and may not be suitable for general use. 
 
 This project is setup with a [drake workflow](https://github.com/ropensci/drake), ensuring reproducibility.
 Intermediate targets/objects will be stored in a hidden `.drake` directory.
 
-The R library of this project is managed by [packrat](https://rstudio.github.io/packrat/).
+The R library of this project is managed by [renv](https://rstudio.github.io/renv/articles/renv.html).
 This makes sure that the exact same package versions are used when recreating the project.
-When calling `packrat::restore()`, all required packages will be installed with their specific version.
+When calling `renv::restore()`, all required packages will be installed with their specific version.
 
-Please note that this project was built with R version X.X.X on a Windows 10 operating system.
-The packrat packages from this project **are not compatible with R versions prior version 3.5.0.**
-  (In general, it should be possible to reproduce the analysis on any other operating system.)
+Please note that this project was built with R version 4.0.3 on a Windows 10 operating system.
+The renv packages from this project **are not compatible with R versions prior to version 3.6.0.**
 
 To clone the project, a working installation of `git` is required.
 Open a terminal in the directory of your choice and execute:
   
-  ```sh
+```sh
 git clone git@github.com:messamat/globalIRmap.git
 ```
 
@@ -67,6 +77,7 @@ r_make() # recreates the analysis
 
 In the `drake` philosophy, every R object is a "target" with dependencies.
 This repository contains more targets than actually needed to replicate the associated publication.
+**Future task: create a simplified workflow to strictly reproduce main results**
 
 If you want to replicate the publication, you need to build the following targets:
   -
@@ -82,4 +93,4 @@ If you want to replicate the publication, you need to build the following target
 
 * See the repository [history](https://github.com/messamat/globalIRmap/commits/master) for a fine-grained view of progress and changes.
 
-* The structure of this compendium is based on the work of [Carl Boettiger](http://www.carlboettiger.info/), [Ben Marwick](https://github.com/benmarwick), [Patrick Schratz](https://github.com/pat-s) and the [workflowr](https://github.com/jdblischak/workflowr) package.
+* The structure of this compendium is based on the work of [Patrick Schratz](https://github.com/pat-s), [Carl Boettiger](http://www.carlboettiger.info/), [Ben Marwick](https://github.com/benmarwick), and the [workflowr](https://github.com/jdblischak/workflowr) package.
