@@ -1,17 +1,15 @@
-rootdir <- rprojroot::find_root(rprojroot::has_dir('shinyapp')) #Set root working directory
-setwd(rootdir)
-shinydat <- file.path(rootdir, 'shinyapp', 'globalIRmap_gaugesel', 'www')
-
-
-source('R/IRmapping_packages.R')
+library(data.table)
 library(shiny)
 library(leaflet)
 library(leafpop)
 library(fst)
 
+shinydat <- file.path('shinyapp', 'globalIRmap_gaugesel', 'www') #If run within globalIRmap R project
+shinydat <- 'www' #If deployed online
 cacheddat <- file.path(shinydat, 'shinygdat.fst')
 
 if (!file.exists(cacheddat)) {
+    source('R/IRmapping_packages.R')
     source('R/IRmapping_functions.R')
 
     #Create data.table with gauge id, characteristics, X, Y, reason for removal, and embedded image
@@ -633,7 +631,8 @@ pal <- colorFactor(
     palette = "Set1",
     domain = unique(gaugep_flags$flag))
 
-gitplots_rooturl <- "https://github.com/messamat/globalIRmap/blob/master/shinyapp/globalIRmap_gaugesel/www/plots/"
+gitplots_rooturl <- "https://github.com/messamat/GSIMires/blob/main/plots/"
+
 
 gaugep_flags[, `:=`(
     hoverlabs = paste(
@@ -735,7 +734,7 @@ server <- function(input, output, session) {
                                   "used in modeling - non-perennial",
                                   "excluded from modeling  - perennial or undertermined",
                                   "excluded from modeling  - non-perennial"),
-                options = layersControlOptions(collapsed = FALSE)) %>%
+                options = layersControlOptions(collapsed = TRUE)) %>%
             addLegend(colors=c('blue', 'red'),
                       position="topright",
                       labels=c("excluded from modeling  - perennial",

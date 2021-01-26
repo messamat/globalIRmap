@@ -23,7 +23,7 @@ Finds the index, for each row, of the previous row with a non-zero value
 }
 \examples{
 test1 <- c(1,1,1,0,0,0,0,1,1)
-zero_lomf(test)
+zero_lomf(test1)
 test2 <- c(0,0,0,0,0,1,1,0,1)
 zero_lomf(test2, first=FALSE)
 zero_lomf(test2, first=TRUE)

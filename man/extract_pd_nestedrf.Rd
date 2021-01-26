@@ -4,7 +4,14 @@
 \alias{extract_pd_nestedrf}
 \title{Extract partial dependence (and performance) from a trained RF learner.}
 \usage{
-extract_pd_nestedrf(learner_id = 1, in_rftuned, datdf, selcols, ngrid)
+extract_pd_nestedrf(
+  learner_id = 1,
+  in_rftuned,
+  datdf,
+  selcols,
+  nvariate,
+  ngrid
+)
 }
 \arguments{
 \item{learner_id}{(integer) Index of the outer resampling instance to be
@@ -55,6 +62,6 @@ Can add an example down the line, add source.
 }
 
 \seealso{
-\link{weighted_vimportance_nestedrf},
-\link{ggpd}
+\code{\link{weighted_vimportance_nestedrf}},
+\code{\link{ggpd_bivariate}}
 }

@@ -37,7 +37,7 @@ diny <- function(year) {
 #'
 #' @examples
 #' test1 <- c(1,1,1,0,0,0,0,1,1)
-#' zero_lomf(test)
+#' zero_lomf(test1)
 #' test2 <- c(0,0,0,0,0,1,1,0,1)
 #' zero_lomf(test2, first=FALSE)
 #' zero_lomf(test2, first=TRUE)
@@ -54,47 +54,91 @@ zero_lomf <- function(x, first=TRUE) {
 }
 
 #------ readformatGRDC -----------------
+#' Read and pre-format GRDC data
+#'
+#' Reads text file of daily discharge data for a single GRDC station.
+#' Creates columns for year, month, and date of last non-zero flow day +
+#' computes yearly number of days of missing data
+#'
+#' @param path (character) path to the text file of daily discharge data in
+#'   standard GRDC format.
+#'
+#' @return \link[data.table]{data.table} of daily discharge data with additional columns
+#'
+#' @export
+
 readformatGRDC<- function(path) {
+  #extract GRDC unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
 
-  gaugetab <- cbind(fread(path, header=T, skip = 40, sep=";",
-                          colClasses=c('character', 'character', 'numeric',
-                                       'numeric', 'integer')),
+  #Read GRDC text data
+  gaugetab <- cbind(fread(path, header = T, skip = 40, sep=";",
+                          colClasses = c('character', 'character', 'numeric',
+                                         'numeric', 'integer')),
                     GRDC_NO = gaugeno)%>%
     setnames('YYYY-MM-DD', 'dates') %>%
     setorder(GRDC_NO, dates)
 
-  gaugetab[, year:=as.numeric(substr(dates, 1, 4))] %>% #Create year column and total number of years on record
-    .[, prevflowdate := gaugetab[zero_lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
-    .[Original != 0, prevflowdate:=NA] #If non-zero flow, set prevlowfate to NA
+  #Format data
+  gaugetab[, `:=`(year = as.numeric(substr(dates, 1, 4)), #Create year column
+                  month = as.numeric(substr(dates, 6, 7)), #create month column
+                  integervalue = fifelse(Original == round(Original), 1, 0) #Flag integer discharge values]
+  )]
 
-  #Compute number of missing days per year
+  #For each record, compute date of last non-zero flow day
+  gaugetab[, prevflowdate := gaugetab[zero_lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
+    .[Original != 0, prevflowdate:=NA] #If non-zero flow, set prevflowdate to NA
+
+  #Compute number of missing days per year, excluding NoData values
   gaugetab[!(Original %in% c(-999, -99, -9999, 99, 999, 9999) | is.na(Original)),
            `:=`(missingdays = diny(year)-.N,
                 datadays = .N),
            by= 'year']
 
-  gaugetab[,`:=`(month = as.numeric(substr(dates, 6, 7)), #create a month column
-                 integervalue = fifelse(Original == round(Original), 1, 0) #Flag integer discharge values
-  )]
-
   return(gaugetab)
 }
 
 #------ readformatGSIMmon -----------------
+#' Read and pre-format GSIM monthly data
+#'
+#' Reads text file of monthly discharge indices for a single GSIM station.
+#' Creates columns for year, month, and season (to join with seasonal indices)
+#' Estimate the minimum possible number of monthly zero-flow days based on indices
+#'
+#' compute yearly number of days of missing data
+#'
+#' @param path (character) path to the text file of monthly discharge data in
+#'   standard GSIM format (.mon file).
+#'
+#' @details the monthly minimum number of zero flow days n0 is estimated as follows: \cr
+#'     1. If MAX == 0, then n0 = n.available
+#'     2. else if MIN7 == 0, then n0 = 7
+#'     3. else if MIN == 0, then n0 = 1,
+#'     4. else n0 = 0
+#'
+#'     For more information on GSIM, see [Gudmundsson et al. (2018)](https://essd.copernicus.org/articles/10/787/2018/).
+#'
+#' @return \link[data.table]{data.table} of monthly indices, with additional
+#' attributes including the estimated minimum number of zero-flow days "mDur_minmo"
+#'
+#' @export
+
 readformatGSIMmon <- function(path) {
+  #extract GSIM unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
+
+  #Read GSIM text data
   gaugetab <- cbind(fread(path, header=T, skip = 21, sep=",",
                           colClasses=c('Date', rep('numeric', 8),
                                        'integer', 'integer')),
                     gsim_no = gaugeno) %>%
-    setnames(new=gsub('[\\\t]|["]', '', names(.))) %>%
+    setnames(new=gsub('[\\\t]|["]', '', names(.))) %>% #Remove tab in field names
     setorder(date) %>%
-    .[, ':='(year = as.numeric(substr(date, 1, 4)),
-             month = as.numeric(substr(date, 6, 7)))] %>%
+    .[, ':='(year = as.numeric(substr(date, 1, 4)), #Create year column
+             month = as.numeric(substr(date, 6, 7)))] %>% #Create month column
     .[data.table(month=c(12, 1:11),
                  season=rep(c('DJF', 'MAM', 'JJA', 'SON'), each=3)),
-      on='month']
+      on='month']  #Create season column (first create a data.table with two columns (month, season) then join it)
 
   #Compute minimum number of zero-flow days for each month
   gaugetab[, mDur_minmo := fcase(MAX==0L, n.available,
@@ -111,16 +155,45 @@ readformatGSIMmon <- function(path) {
 }
 
 #------ readformatGSIMsea -----------------
+#' Read and pre-format GSIM seasonal data
+#'
+#' Reads text file of seasonal discharge indices for a single GSIM station.
+#' Creates columns for year, month, and season
+#' Estimate the minimum possible number of monthly zero-flow days based on indices
+#'
+#' @param path (character) path to the text file of seasonal discharge data in
+#'   standard GSIM format (.mon file).
+#'
+#' @details the monthly minimum number of zero flow days n0 is estimated with
+#' percentile statistics like:
+#'     if P90==0, then n0 = as.integer(floor(0.9*n.available)),
+#'     if else P80==0, then n0 = as.integer(floor(0.8*n.available)),
+#'     if else P70 ...
+#'     ...
+#'     else if MIN7 == 0, then n0 = 7
+#'     else if MIN == 0, then n0 = 1,
+#'     else n0 = 0
+#'
+#' For more information on GSIM, see [Gudmundsson et al. (2018)](https://essd.copernicus.org/articles/10/787/2018/).
+#'
+#' @return \link[data.table]{data.table} of monthly indices, with additional attributes including
+#' the estimated minimum number of zero-flow days "mDur_minmo"
+#'
+#' @export
+
 readformatGSIMsea <- function(path) {
+  #extract GSIM unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
+
+  #Read GSIM text data
   gaugetab <- cbind(fread(path, header=T, skip = 21, sep=",",
                           colClasses=c('Date', rep('numeric', 17),
                                        'integer', 'integer')),
                     gsim_no = gaugeno) %>%
-    setnames(new=gsub('[\\\t]|["]', '', names(.))) %>%
+    setnames(new=gsub('[\\\t]|["]', '', names(.))) %>% #Remove tab in field names
     setorder(date) %>%
-    .[, ':='(year = as.numeric(substr(date, 1, 4)),
-             month = as.numeric(substr(date, 6, 7)))] %>%
+    .[, ':='(year = as.numeric(substr(date, 1, 4)), #Create year column
+             month = as.numeric(substr(date, 6, 7)))] %>% #Create month column
     .[data.table(month=c(2, 5, 8, 11),
                  season=c('DJF', 'MAM', 'JJA', 'SON')),
       on='month']
@@ -142,7 +215,40 @@ readformatGSIMsea <- function(path) {
   )]
   return(gaugetab)
 }
+
+
 #------ flagGRDCoutliers ------
+#' Flag GRDC outliers
+#'
+#' Flag potential outliers in daily discharge records for a given GRDC gauging
+#' station following the criteria developed for GSIM by
+#' [Gudmundsson et al. (2018)](https://essd.copernicus.org/articles/10/787/2018/).
+#'
+#' @param in_gaugetab \link[data.table]{data.table} containing formatted daily
+#' discharge record from GRDC gauging station (as formatted by \code{\link{readformatGRDC}}.
+#'
+#' @details Criteria to flag a daily discharge value (Qt) as a potential outlier include:
+#' \itemize{
+#'   \item Negative values (Qt < 0)
+#'   \item At least ten identical consecutive discharge values (for Qt > 0)
+#'   \item |log(Qt + 0.01) - mean| are larger than the mean values of log(Q + 0.01)
+#'   plus or minus 6 times the standard deviation of log(Q + 0.01) computed for
+#'   that calendar day for the entire length of the series. The mean and SD are
+#'   computed for a 5-day window centred on the calendar day to ensure that a
+#'   sufficient amount of data is considered. The log-transformation is used to
+#'   account for the skewness of the distribution of daily streamflow values.
+#'   \item Qt for which Original != Calculated discharge in GRDC record
+#' }
+#'
+#' @return \link[data.table]{data.table} of daily discharge records with additional
+#' columns for outlier flags
+#'
+#' @source Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+#'   Streamflow Indices and Metadata Archive (GSIM) – Part 2: Quality control,
+#'   time-series indices and homogeneity assessment. Earth System Science Data,
+#'   10(2), 787–804. https://doi.org/10.5194/essd-10-787-2018
+#'
+#' @export
 flagGRDCoutliers <- function(in_gaugetab) {
   in_gaugetab %>%
     .[Original %in% c(-999, -99, -9999, 999, 9999), Original := NA] %>%
@@ -176,6 +282,38 @@ flagGRDCoutliers <- function(in_gaugetab) {
 }
 
 #------ plotGRDCtimeseries ----------------------
+#' Plot a GRDC time series
+#'
+#' Creates a plot of daily discharge ({m^3}/s) for a GRDC gauging station,
+#' with flags for 0-flow values and potential outliers.
+#' Save plot to png if path is provided.
+#'
+#' @param GRDCgaugestats_record \link[data.table]{data.table} of formatted daily
+#' discharge records for a single GRDC station. In this project, e.g. the output
+#' from \code{\link{comp_GRDCdurfreq}}. Must contain at least five columns:
+#' \code{GRDC_NO, dates, Original, flag_mathis, missingdays} \cr
+#' Alternatively, a named list or vector with
+#' a column called "path" towards a standard GRDC text file containing daily discharge
+#' records for a single gauging station.
+#' @param outpath (character) path for writing output png plot (default is no plotting).
+#' @param maxgap (integer) threshold number of missing daily records to consider a calendar year unfit for analysis.
+#' @param showmissing (logical) whether to show records in years with number of missing daily records beyond \code{maxgap}.
+#'
+#' @details the output graphs show the time series of daily streamflow values
+#' for the station. For the flagging criteria, see documentation for \code{\link{flagGRDCoutliers}}.
+#' \itemize{
+#'   \item The y-axis is square-root transformed.
+#'   \item Individual points show daily discharge values (in {m^3}/s).
+#'   \item blue lines link daily values (which may result in unusual patterns due to missing years).
+#'   \item red points are zero-flow flow values.
+#'   \item green points are non-zero flow daily values statistically flagged as potential outliers .
+#'   \item black points are zero-flow values flagged as potential outliers.
+#' }
+#'
+#' @return plot
+#'
+#' @export
+
 plotGRDCtimeseries <- function(GRDCgaugestats_record,
                                outpath=NULL, maxgap = 366,  showmissing = FALSE) {
   #Read and format discharge records
@@ -231,6 +369,32 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
 }
 
 #------ plotGSIMtimeseries ----------------------
+#' Plot a GSIM time series
+#'
+#' Creates a plot of monthly discharge ({m^3}/s) for a GSIM gauging stations
+#' Save plot to png if path is provided.
+#'
+#' @param GSIMgaugestats_record a data containing structure  with
+#' a column called "path" towards a standard montly GSIM text file containing.
+#' In this project, e.g. the output from \code{\link{comp_GSIMdurfreq}}.
+#' @param outpath (character) path for writing output png plot (default is no plotting).
+#' @param maxgap (integer) threshold number of missing daily records to consider a calendar year unfit for analysis.
+#' @param showmissing (logical) whether to show records in years with number of missing daily records beyond \code{maxgap}.
+#'
+#' @details Daily streamflow records from GSIM stations are unavailable. Therefore,
+#' the graph shows the following:
+#' \itemize{
+#'   \item The y-axis is square-root transformed.
+#'   \item Blue points: mean monthly discharge
+#'   \item Light blue background shading: mean ± 2SD monthly discharge
+#'   \item Black points: minimum and maximum monthly discharge
+#'   \item Red points show minimum monthly discharge values equal to 0
+#'   \item Purple points show months for which all daily discharge values are equal to 0.
+#' }
+#'
+#' @return plot
+#'
+#' @export
 plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
                                showmissing = FALSE) {
   #Read and format discharge records
@@ -296,8 +460,29 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
     return(rawplot)
   }
 }
+
 #------ checkGRDCzeroes --------
-#Function to plot and subset two weeks on each side of every zero-flow period in record
+#' Check zero-flow values in GRDC discharge record
+#'
+#' Plot and subset a given period (in days) on each side of every zero-flow
+#' period in record for a given GRDC station. The output is a plot with a panel
+#' showing discharge for each zero-flow period.
+#'
+#' @param GRDCstatsdt formatted data.table including a "path" column to access
+#' GRDC standard daily discharge record text file for the gauging station of interest.
+#' @param in_GRDC_NO GRDC unique identifier of the station to be investigated.
+#' @param period (integer) number of days on each side of zero-flow values to subset.
+#' @param yearthresh (integer) minimum year from which to analyze discharge record
+#' @param maxgap (integer) threshold number of missing daily records to consider a calendar year unfit for analysis.
+#' @param in_scales (character) should panel scales be fixed ("fixed", the default),
+#' free ("free"), or free in one dimension ("free_x", "free_y")?
+#' @param labelvals (logical) whether to label individual discharge values
+#'
+#' @return \link[data.table]{data.table} subset of GRDCstatsdt, including only
+#' records for zero-flow days +- period
+#'
+#' @export
+#'
 checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
                             maxgap, in_scales='free_x', labelvals) {
   check <- readformatGRDC(GRDCstatsdt[GRDC_NO ==  in_GRDC_NO, path]) %>%
@@ -333,6 +518,18 @@ checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
 }
 
 #------ ggalluvium_gaugecount -------
+#' Alluvium plot of gauge count over time
+#'
+#' Utility function: create an [alluvial plot](https://corybrunson.github.io/ggalluvial/)
+#' of the number of streamflow gauging stations over time.
+#'
+#'
+#' @param dtformat formatted data.table (generated in \code{\link{analyzemerge_gaugeir}}).
+#' @param alluvvar grouping ID to identify unique records
+#'
+#' @return plot
+#'
+#' @export
 ggalluvium_gaugecount <- function(dtformat, alluvvar) {
   p <- ggplot(dtformat,
               aes(x = variable, stratum = value, alluvium = get(alluvvar),
@@ -351,6 +548,31 @@ ggalluvium_gaugecount <- function(dtformat, alluvvar) {
 }
 
 #------ plot_winterir -------
+#' Plot winter-only intermittent rivers
+#'
+#' Utility function: plot discharge time series for GRDC or GSIM gauging stations
+#' that have been deemed to monitor winter-only intermittent rivers.
+#'
+#' @param dt formatted data.table (generated in \code{\link{analyzemerge_gaugeir}}).
+#' @param dbname (character) 'GRDC' or 'GSIM". Will determine whether to use \code{\link{plotGRDCtimeseries}}
+#' or \code{\link{plotGSIMtimeseries}}
+#' @param inp_resdir (character) path to directory where to save plots. A directory will be
+#' created called " 'winterir_rawplots_o(yearthresh)_(date)'
+#' @param yearthresh (integer) minimum year from which to plot discharge record
+#' @param plotseries (logical) whether to generate plots
+#'
+#' @details “Winter-only” non-perennial gauging stations were defined as those
+#' whose stream record contained less than one zero-flow day per year on average
+#' during months with long-term mean air temperature over 10°C (averaged across
+#' the local catchment immediately draining to the river reach, according to
+#' WorldClim 2). In other words, “winter-only” non-perennial gauging stations
+#' were those which would not have qualified as non-perennial according to our
+#' criterion if only non-winter months were taken into account.
+#'
+#' @return subset of input dt only including winter-only intermittent irvers
+#'
+#' @export
+
 plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE) {
   #Get data subset
   wintergauges <- dt[get(paste0('winteronlyir_o', yearthresh)) == 1 &
@@ -392,19 +614,43 @@ plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE)
 }
 
 #------ plot_coastalir -------
+#' Plot coastal intermittent rivers
+#'
+#' Utility function: plot discharge time series for GRDC or GSIM gauging stations
+#' that have been deemed to be near marine waters.
+#'
+#' @param in_gaugep \link[sf]{sf} object of gauges with column called class99_19_rsp9_buf3k1
+#' indicating whether the gauge is located within 3 km of marine waters.
+#' @param dt formatted data.table (generated in \code{\link{analyzemerge_gaugeir}}).
+#' @param yearthresh (integer) minimum year from which to plot discharge record
+#' @param dbname (character) 'GRDC' or 'GSIM". Will determine whether to use \code{\link{plotGRDCtimeseries}}
+#' or \code{\link{plotGSIMtimeseries}}
+#' @param inp_resdir (character) path to directory where to save plots. A directory will be
+#' created called " 'winterir_rawplots_o(yearthresh)_(date)'
+#' @param plotseries (logical) whether to generate plots
+#'
+#' @details so-called marine stations were defined as those within 3 km of a coastline.
+#'
+#' @return subset of input dt only including only intermittent rivers within 3 km of a coastline
+#'
+#' @export
+
 plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
                            dbname = 'grdc', inp_resdir = inp_resdir,
                            plotseries = TRUE) {
-
+  #Get column name of uniquer identifiers
   idno <- fifelse(str_to_upper(dbname) == 'GRDC', 'GRDC_NO', 'gsim_no')
 
+  #Select gauges within 3 km of a coastline of the given database (GRDC or GSIM)
+  #and with at least 10 valid years of data
   coastalgauges <- in_gaugep[!is.na(in_gaugep$class99_19_rsp9_buf3k1) &
                                !is.na(as.data.frame(in_gaugep)[,idno]),] %>%setDT
 
-  coastalir <- dt[get(paste0('winteronlyir_o', yearthresh)) == 1 &
-                    get(paste0('totalYears_kept_o', yearthresh)) >= 10 &
+
+  coastalir <- dt[get(paste0('totalYears_kept_o', yearthresh)) >= 10 &
                     get(idno) %in% coastalgauges[,get(idno)],]
 
+  #Create output directory for plots
   resdir_coastalirplots <- file.path(inp_resdir,
                                      paste0(str_to_upper(dbname),
                                             'coastalir_rawplots_o',
@@ -702,6 +948,7 @@ threshold_misclass <- function(i=0.5, in_preds) {
 }
 
 #------ threshold_dat ----------------
+################################################################################ TO DOCUMENT
 threshold_dat <- function(bmres) {
   bmres_dt <- as.data.table(bmres) %>%
     .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
@@ -892,7 +1139,7 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
 #' If \link[mlr3learners.partykit]{mlr_learners_classif.cforest} is provided,
 #' \code{p-value} is ignored for now.
 #'
-#' @seealso \link{weighted_vimportance_nestedrf}
+#' @seealso \code{\link{weighted_vimportance_nestedrf}}
 #' @section documentation to-do:
 #' Can add an example down the line, add source.
 #' @export
@@ -999,10 +1246,10 @@ extract_impperf_nestedrf <- function(in_rflearner, in_task,
 #' }
 #'
 #' @details
-#' See \link{extract_impperf_nestedrf} for more details on computations.
+#' See \code{\link{extract_impperf_nestedrf}} for more details on computations.
 #'
-#' @seealso \link{extract_impperf_nestedrf} and \link{ggvimp} and
-#' \link{benchmark_featsel}
+#' @seealso \code{\link{extract_impperf_nestedrf}} and \code{\link{ggvimp}} and
+#' \code{\link{benchmark_featsel}}
 #'
 #' @section Warning:
 #' Does not accept error measure for weighting
@@ -1076,8 +1323,8 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 #' Also accept learners of class \link[mlr3pipelines]{GraphLearner}. \cr
 #' Uses \link[edarf]{partial_dependence} for computing.
 #'
-#' @seealso \link{weighted_vimportance_nestedrf},
-#'  \link{ggpd_bivariate}
+#' @seealso \code{\link{weighted_vimportance_nestedrf}},
+#'  \code{\link{ggpd_bivariate}}
 #'
 #' @section Warning:
 #' Has only been tested on \link[mlr3learners]{mlr_learners_classif.ranger}
@@ -1281,9 +1528,9 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
 
 #Not used
 #------ durfreq_parallel -----------------
-#' Parallel wrapper for \link{comp_durfreq}
+#' Parallel wrapper for \code{\link{comp_durfreq}}
 #'
-#' Wrapper to run \link{comp_durfreq} (which computes the annual mean number of zero
+#' Wrapper to run \code{\link{comp_durfreq}} (which computes the annual mean number of zero
 #' flow days and frequency of zero-flow periods for a streamflow time series)
 #' in parallel across a list of time series (paths).
 #'
@@ -1295,7 +1542,7 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
 #' rather than subsetting
 #'
 #' @return data.table with each row a gauging station and columns inherited
-#' from \link{comp_durfreq}
+#' from \code{\link{comp_durfreq}}
 #'
 #' @export
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
@@ -1985,7 +2232,7 @@ read_monthlydis <- function(in_path) {
 #' @param in_monthlydischarge data frame of naturalized monthly discharge for
 #' every river reach in HydroSHEDS
 #'
-#' @return object of class sf
+#' @return object of class \link[sf]{sf}
 #'
 #' @details The distance from the river network must have been determined
 #' beforehand and be an attribute of the gauge stations point data called
@@ -4437,16 +4684,16 @@ extrapolate_networklength <- function(inp_riveratlas,
     gamsubdat <- dt_format[(get(grouping_var) == pfaf_id),]
     gamsubdatsub <- gamsubdat[(dis_m3_pyr >= min_cutoff) &
                                 (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),]
-    
+
     gamfit <- mgcv::gam(
       log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
       method = "REML",
       data=gamsubdatsub
     )
-    
+
     print(summary(gamfit))
     preds <- data.frame(
-      dis_m3_pyr=seq(0.01, 
+      dis_m3_pyr=seq(0.01,
                      quantile(gamsubdat$dis_m3_pyr, 0.95), 0.01))
     preds$cumL <- 10^predict(gamfit, preds)
 
@@ -4460,7 +4707,7 @@ extrapolate_networklength <- function(inp_riveratlas,
                              2*max(gamsubdat$dis_m3_pyr))) +
       scale_y_log10(name='Cumulative river length (km)') +
       annotation_logticks() +
-      theme_classic() + 
+      theme_classic() +
       theme(text=element_text(size=12),
             axis.title.x = element_text(vjust=-2))
   }
@@ -4815,10 +5062,10 @@ extrapolate_IRES <- function(in_rivpred = rivpred,
             limits=c(0.01, 2*max(gamsubdat$dis_m3_pyr))) +
           scale_y_continuous(name='Prevalence of intermittence \nwithin bin (% of length)') +
           annotation_logticks(sides='b') +
-          theme_classic() + 
+          theme_classic() +
           theme(text=element_text(size=12),
                 axis.title.x = element_text(vjust=-2))
-        
+
       },  error=function(cond) {
         message(cond)
         ggplot(gamsubdat, aes(x=dislogbin, y=percinter_bin)) +
@@ -5364,12 +5611,12 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                        interthresh = 0.5, yearthresh) {
-  
+
   SenCapstr <- function(y) {
-    paste0(toupper(substring(y, 1,1)), 
+    paste0(toupper(substring(y, 1,1)),
            tolower(substring(y, 2, 100)))
   }
-  
+
   #Plot numeric variables
   in_gpredsdt[, DApercsdiff := abs(
     (area_correct-UPLAND_SKM)/mean(c(area_correct, UPLAND_SKM))), by=GAUGE_NO]
@@ -5385,7 +5632,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   predmelt_num <- in_gpredsdt[
     , which(as.vector(unlist(lapply(in_gpredsdt, is.numeric)))), with=F] %>%
     cbind(in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
-    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', predcol, uncertcol)) 
+    melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', predcol, uncertcol))
 
   predmelt_num[, IPRclass := fcase(
     intermittent_o1800 == "0" & get(predcol) < 0.5, 'True: perennial | Pred: perennial',
@@ -5393,7 +5640,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     intermittent_o1800 == "1" & get(predcol) < 0.5, 'True: non-perennial | Pred: perennial',
     intermittent_o1800 == "1" & get(predcol) >= 0.5, 'True: non-perennial | Pred: non-perennial'
     )]
-  
+
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
     .[, .(varcode, varname)] %>%
@@ -5409,11 +5656,11 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)'] %>%
     .[varcode=='dor_pc_pva', varname :='Degree of regulation'] %>%
     .[, varname := str_wrap(varname, 30)]
-  
+
   levels(predmelt_num$variable) <-  varlabels$varname
-  
+
   varlabels[, varname := SenCapstr(varname)]
-  
+
   #levels(predmelt_num$variable) <-  varlabels[varname %in% predmelt_num$variable, varname]
   varstoplot_continuous <- varlabels[varcode %in% c('totalYears_kept_o1800',
                                                     'mDur_o1800',
@@ -5426,10 +5673,10 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                                              'dor_pc_pva'),]
 
   colorpal_continuous = c("#FFAA00", "#a80000", "#004DA8", "#7AB6F5")
-  
-  
+
+
   #plotdt = predmelt_num[variable %in% "DApercdiff",]
-  
+
   ggIPR_util <- function(plotdt, logx = FALSE, legend=FALSE) {
     p <- ggplot(plotdt) +
       # geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
@@ -5497,7 +5744,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
 
-  
+
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf_cat <- data.table(
     xmin=rep(-Inf, 4),
@@ -5505,7 +5752,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     ymin=c(-1, interthresh-1, 0, interthresh),
     ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
-  ) 
+  )
   gaugeIPR_catplot <-
     ggplot(predmelt_cat) +
     geom_rect(data=rectdf_cat, aes(xmin=xmin, xmax=xmax,
@@ -7063,11 +7310,7 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
                               binfunc = 'manual',
                               binarg =  binarg,
                               binlabels = binlabels,
-<<<<<<< HEAD
-                              datname = 'Geofabric')
-=======
-                              datname = 'Australia') 
->>>>>>> 6cb10e6409f45487dd606342d2b15b2c4218ee93
+                              datname = 'Australia')
 
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'UPLAND_SKM',

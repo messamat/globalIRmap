@@ -1,0 +1,12 @@
+name: globalIRmap_gaugesel
+title: globalIRmap_gaugesel
+username:
+account: messamat
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3452462
+bundleId: 4073127
+url: https://messamat.shinyapps.io/globalIRmap_gaugesel/
+when: 1610125478.22804
+asMultiple: FALSE
+asStatic: FALSE

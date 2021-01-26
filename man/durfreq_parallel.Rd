@@ -2,15 +2,12 @@
 % Please edit documentation in R/IRmapping_functions.R
 \name{durfreq_parallel}
 \alias{durfreq_parallel}
-\title{Parallel wrapper for \link{comp_durfreq}}
+\title{Parallel wrapper for \code{\link{comp_durfreq}}}
 \usage{
 durfreq_parallel(pathlist, maxgap, monthsel_list = NULL, reverse = FALSE)
 }
 \arguments{
 \item{pathlist}{vector or list of paths to time series formatted GRDC-style}
-
-\item{maxgap}{maximum number of days with missing data beyond which a year is
-not used in the computation of statistics}
 
 \item{monthsel_list}{named list with names being the gauge ID (e.g. GRDC_NO)
 and values the selected months to compute the statistics over.}
@@ -20,10 +17,10 @@ rather than subsetting}
 }
 \value{
 data.table with each row a gauging station and columns inherited
-from \link{comp_durfreq}
+from \code{\link{comp_durfreq}}
 }
 \description{
-Wrapper to run \link{comp_durfreq} (which computes the annual mean number of zero
+Wrapper to run \code{\link{comp_durfreq}} (which computes the annual mean number of zero
 flow days and frequency of zero-flow periods for a streamflow time series)
 in parallel across a list of time series (paths).
 }

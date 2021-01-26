@@ -34,7 +34,7 @@ p-value across resampling instances (e.g. folds and repetitions) weighted by
 resampling prediction accuracy.
 }
 \details{
-See \link{extract_impperf_nestedrf} for more details on computations.
+See \code{\link{extract_impperf_nestedrf}} for more details on computations.
 }
 \section{Warning}{
 
@@ -50,6 +50,6 @@ Can add an example down the line, add source.
 }
 
 \seealso{
-\link{extract_impperf_nestedrf} and \link{ggvimp} and
-\link{benchmark_featsel}
+\code{\link{extract_impperf_nestedrf}} and \code{\link{ggvimp}} and
+\code{\link{benchmark_featsel}}
 }

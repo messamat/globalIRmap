@@ -13,7 +13,7 @@ navbar:
     menu:
     - text: "Analysis workflow"
       href: methods_workflow.html
-    - text: "Reference stream gauging stations"
+    - text: "Reference streamflow gauging stations"
       href: methods_refdisdat.html
   - text: Results
     menu:

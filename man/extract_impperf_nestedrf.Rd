@@ -6,6 +6,7 @@
 \usage{
 extract_impperf_nestedrf(
   in_rflearner,
+  in_task,
   imp = TRUE,
   perf = TRUE,
   pvalue = TRUE,
@@ -58,5 +59,5 @@ Can add an example down the line, add source.
 }
 
 \seealso{
-\link{weighted_vimportance_nestedrf}
+\code{\link{weighted_vimportance_nestedrf}}
 }

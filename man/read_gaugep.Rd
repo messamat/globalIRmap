@@ -4,9 +4,17 @@
 \alias{read_gaugep}
 \title{Read gauge points}
 \usage{
-read_gaugep(in_filestructure, dist)
+read_gaugep(
+  inp_GRDCgaugep,
+  inp_GSIMgaugep,
+  inp_riveratlas2,
+  in_monthlydischarge = NULL
+)
 }
 \arguments{
+\item{in_monthlydischarge}{data frame of naturalized monthly discharge for
+every river reach in HydroSHEDS}
+
 \item{in_filestructure}{named list containing path to point data for gauging
 stations, named \code{in_gaugep}}
 
@@ -14,7 +22,7 @@ stations, named \code{in_gaugep}}
 stations are excluded.}
 }
 \value{
-object of class sf
+object of class \link[sf]{sf}
 }
 \description{
 Import streamgauging station spatial data and attributes, only keeping those

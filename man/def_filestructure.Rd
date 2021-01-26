@@ -2,7 +2,7 @@
 % Please edit documentation in R/IRmapping_functions.R
 \name{def_filestructure}
 \alias{def_filestructure}
-\title{Parallel wrapper for comp_durfreq}
+\title{Define file structure}
 \usage{
 def_filestructure()
 }
