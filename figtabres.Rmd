@@ -344,6 +344,26 @@ remove(res_featsel_cv_all)
 gc()
 ```    
 
+#Basin-level accuracy and bias plots
+```{r CV-basplots, echo=FALSE}
+loadd(basinBACC)
+
+png(paste0(file.path(resdir, 'figures//basacc_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=3, height=3, units='in', res=1000)
+basinBACC$plot_acc
+dev.off()
+
+png(paste0(file.path(resdir, 'figures//basbias_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=3, height=3, units='in', res=1000)
+basinBACC$plot_bias
+dev.off()
+
+gc()
+```
+
+
 #Comparison of results with regional-national estimates
 ```{r comparison, echo = FALSE, fig.width = 5, fig.height = 11,  dpi=600}
 getdisplay_totalest <- function(target, subtarget='data', minbin=2) {

@@ -66,7 +66,6 @@ zero_lomf <- function(x, first=TRUE) {
 #' @return \link[data.table]{data.table} of daily discharge data with additional columns
 #'
 #' @export
-
 readformatGRDC<- function(path) {
   #extract GRDC unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
@@ -121,8 +120,12 @@ readformatGRDC<- function(path) {
 #' @return \link[data.table]{data.table} of monthly indices, with additional
 #' attributes including the estimated minimum number of zero-flow days "mDur_minmo"
 #'
+#' @source Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+#'   Streamflow Indices and Metadata Archive (GSIM) – Part 2: Quality control,
+#'   time-series indices and homogeneity assessment. Earth System Science Data,
+#'   10(2), 787–804. https://doi.org/10.5194/essd-10-787-2018
+#'
 #' @export
-
 readformatGSIMmon <- function(path) {
   #extract GSIM unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
@@ -179,8 +182,12 @@ readformatGSIMmon <- function(path) {
 #' @return \link[data.table]{data.table} of monthly indices, with additional attributes including
 #' the estimated minimum number of zero-flow days "mDur_minmo"
 #'
+#' @source Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+#'   Streamflow Indices and Metadata Archive (GSIM) – Part 2: Quality control,
+#'   time-series indices and homogeneity assessment. Earth System Science Data,
+#'   10(2), 787–804. https://doi.org/10.5194/essd-10-787-2018
+#'
 #' @export
-
 readformatGSIMsea <- function(path) {
   #extract GSIM unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
@@ -313,7 +320,6 @@ flagGRDCoutliers <- function(in_gaugetab) {
 #' @return plot
 #'
 #' @export
-
 plotGRDCtimeseries <- function(GRDCgaugestats_record,
                                outpath=NULL, maxgap = 366,  showmissing = FALSE) {
   #Read and format discharge records
@@ -393,6 +399,11 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
 #' }
 #'
 #' @return plot
+#'
+#' @source Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+#'   Streamflow Indices and Metadata Archive (GSIM) – Part 2: Quality control,
+#'   time-series indices and homogeneity assessment. Earth System Science Data,
+#'   10(2), 787–804. https://doi.org/10.5194/essd-10-787-2018
 #'
 #' @export
 plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
@@ -482,7 +493,6 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
 #' records for zero-flow days +- period
 #'
 #' @export
-#'
 checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
                             maxgap, in_scales='free_x', labelvals) {
   check <- readformatGRDC(GRDCstatsdt[GRDC_NO ==  in_GRDC_NO, path]) %>%
@@ -572,7 +582,6 @@ ggalluvium_gaugecount <- function(dtformat, alluvvar) {
 #' @return subset of input dt only including winter-only intermittent irvers
 #'
 #' @export
-
 plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE) {
   #Get data subset
   wintergauges <- dt[get(paste0('winteronlyir_o', yearthresh)) == 1 &
@@ -634,7 +643,6 @@ plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE)
 #' @return subset of input dt only including only intermittent rivers within 3 km of a coastline
 #'
 #' @export
-
 plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
                            dbname = 'grdc', inp_resdir = inp_resdir,
                            plotseries = TRUE) {
@@ -698,7 +706,6 @@ plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
 #' (based on number of days in months)
 #'
 #' @export
-
 comp_ymean<- function(in_dt, fieldex, mstart, outcol) {
   refd <- data.table(month=c('01', '02', '03', '04', '05', '06',
                              '07', '08', '09', '10', '11', '12'),
@@ -749,7 +756,6 @@ comp_ymean<- function(in_dt, fieldex, mstart, outcol) {
 #'   1-15.
 #'
 #' @export
-
 comp_derivedvar <- function(in_dt, copy=FALSE) {
   if (copy) {
     in_dt2 <- copy(in_dt)
@@ -906,7 +912,6 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
 #' dummy continuous variables)
 #'
 #' @export
-
 threshold_misclass <- function(i=0.5, in_preds) {
   #---- Get confusion matrix ----
   if (inherits(in_preds, 'PredictionClassif')) {
@@ -948,14 +953,31 @@ threshold_misclass <- function(i=0.5, in_preds) {
 }
 
 #------ threshold_dat ----------------
-################################################################################ TO DOCUMENT
+#' Threshold data (deprecated)
+#'
+#' Compute Balanced accuracy (BACC) after classifying the predictions from a
+#' probability ml model into binary classes for every probability threshold value
+#' between 0.4 and 0.6 in 0.01 increments. \cr
+#'
+#' Utility function used within \code{\link{formatmisclass_bm}}.
+#' Not currently used in final analysis.
+#'
+#' @param bmres \link[mlr3]{BenchmarkResult}
+#'
+#' @return
+#'
+#'
+#' @export
 threshold_dat <- function(bmres) {
+  #Format the benchmark result as a data.table
   bmres_dt <- as.data.table(bmres) %>%
     .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
     .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
     .[, resampling_id := unlist(lapply(resampling, function(x) x$id))] %>%
     unique(by='uhash')
 
+  #If regression task, format the predictions so that they match the format
+  # of a classification task.
   if (bmres$task_type == 'regr') {
     preds <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
       preds <- bmres_dt$prediction[[rsmp_i]] %>%
@@ -973,7 +995,7 @@ threshold_dat <- function(bmres) {
     }
   }
 
-  outtab <- lapply(1:bmres$n_resample_results, function(rsmp_i) {
+  outtab <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
     print(rsmp_i)
     rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
 
@@ -1024,7 +1046,6 @@ threshold_dat <- function(bmres) {
 #' strategy.
 #'
 #' @export
-
 get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
   #Adapt whether return resample result or output from selecttrain_rf
   if (inherits(in_rftuned, 'list')) {
@@ -1056,7 +1077,7 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
       print("Only one resampling result, ignoring spatial_rsp argument...")
       rsmp_res <- in_rftuned$rf_outer
     }
-    #If in_rftuned is alreadyh a ResampleResult, simply return it
+    #If in_rftuned is already a ResampleResult, simply return it
   } else if (inherits(in_rftuned, "ResampleResult")) {
     rsmp_res <- in_rftuned
   }
@@ -1086,7 +1107,6 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
 #' ```
 #'
 #' @export
-
 weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
   if (na.rm) {
     x <-  na.omit(x)
@@ -1143,7 +1163,6 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
 #' @section documentation to-do:
 #' Can add an example down the line, add source.
 #' @export
-
 extract_impperf_nestedrf <- function(in_rflearner, in_task,
                                      imp = TRUE, perf = TRUE,
                                      pvalue = TRUE, pvalue_permutn = 100) {
@@ -1258,7 +1277,6 @@ extract_impperf_nestedrf <- function(in_rflearner, in_task,
 #' @section documentation to-do:
 #' Can add an example down the line, add source.
 #' @export
-
 weighted_vimportance_nestedrf <- function(rfresamp,
                                           pvalue = TRUE, pvalue_permutn = 100) {
   varnames <- rfresamp$task$feature_names
@@ -1333,7 +1351,6 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 #' Can add an example down the line, add source.
 #'
 #' @export
-
 extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
                                 selcols, nvariate, ngrid) {
   in_mod <- as.data.table(in_rftuned)[eval(learner_id),] #Go through data.table format to have access to both tasks and learners
@@ -1409,7 +1426,6 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
 #' fread_cols(iris, c('Sepal.Length', 'Sepal.Width')
 #'
 #' @export
-
 fread_cols <- function(file_name, cols_tokeep) {
   #Only read the first row from the file
   header <- fread(file_name, nrows = 1, header = FALSE)
@@ -1450,9 +1466,6 @@ fread_cols <- function(file_name, cols_tokeep) {
 #' ```
 #'
 #' @export
-
-#When given an mlr3 task with binary classification target, gets which class is minority and the ratio
-
 get_oversamp_ratio <- function(in_task) {
   return(
     in_task$data()[, .N, by=get(in_task$target_names)] %>%
@@ -1495,6 +1508,8 @@ get_oversamp_ratio <- function(in_task) {
 #'
 #' @return a \link[mlr3]{TaskRegr}
 #'
+#' @seealso \code{\link{create_tasks}}
+#'
 #' @examples
 #' ```{r}
 #' in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
@@ -1503,30 +1518,40 @@ get_oversamp_ratio <- function(in_task) {
 #' ```
 #'
 #' @export
-
-
 convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
+  #Whether the minority class needs to be oversampled to match the number of observation in the majority class
   if (oversample) {
+    #Identify minority class and compute ratio between the number of observations
+    #in the majority and the minority classes
     oversamp_ratio <- get_oversamp_ratio(in_task)
+
+    #Subset the dataset underlying the task to only keep records for the minority class
     mino_subdat <- in_task$data()[
-      eval(in_task$target_names) == oversamp_ratio$minoclass,] #Get part of the underlying dataset of the minority class
+      eval(in_task$target_names) == oversamp_ratio$minoclass,]
+
+    #Get number of obs for the minority class
     nmino <- mino_subdat[,.N]
+
+    #Sample minority observation indices with replacement to make up for the difference
+    #in number of observations for maj and min classes
     oversamp_index <- sample(nmino, nmino*(oversamp_ratio$ratio-1), replace=T)
 
+    #Actually sample records and bind them to the original data
     newdat <- rbind(in_task$data(),
                     mino_subdat[oversamp_index,]) %>%
-      .[, eval(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))]
+      .[, eval(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))] #Convert target to numeric ((required for regression))
+
   } else {
+    #If no oversampling, just convert target to numeric (required for regression)
     newdat <- in_task$data()[, eval(in_task$target_names) :=
                                as.numeric(as.character(get(in_task$target_names)))]
   }
-
+  #Create regression task
   return(mlr3::TaskRegr$new(id =in_id,
                             backend = newdat,
                             target = in_task$target_names))
 }
 
-#Not used
 #------ durfreq_parallel -----------------
 #' Parallel wrapper for \code{\link{comp_durfreq}}
 #'
@@ -1572,9 +1597,31 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
 }
 
 #------ rsmp_bbrier ----------------
+#' Resample binary brier score
+#'
+#' Compute the binary brier score (Brier, 1950) for binary classification
+#' predictions from a single \link[mlr3]{ResampleResult} extracted from an mlr3
+#'  \code{\link[mlr3]{BenchmarkResult}}. \cr
+#' This is a utility function.
+#'
+#' @param bmres \link[mlr3]{BenchmarkResult} from either a binary classification
+#' model or a regression model bounded between 0 and 1.
+#' @param rsmp_i (integer) index of the resample result to process.
+#'
+#' @return (numeric) binary brier score
+#'
+#' @details See the [mlr3 reference website](https://mlr3.mlr-org.com/reference/mlr_measures_classif.bbrier.html)
+#'  for a definition of the Brier score for binary classification.
+#'
+#' @source Brier, G. W. (1950). Verification of forecasts expressed in terms of
+#' probability. Monthly Weather Review, 78(1), 1\–3.
+#'
+#' @export
 rsmp_bbrier <- function(bmres, rsmp_i) {
-  rsmp <- bmres$resample_result(rsmp_i)
-  rsmp_pred<- rsmp$prediction()
+  rsmp <- bmres$resample_result(rsmp_i) #Get resample result
+  rsmp_pred<- rsmp$prediction() #Get predictions for resample result
+
+  #Compute binary brier score
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) -
                      rsmp_pred$prob[,'1'])^2)/length(rsmp_pred$row_ids)
@@ -1588,6 +1635,25 @@ rsmp_bbrier <- function(bmres, rsmp_i) {
 }
 
 #------ rsmp_auc ----------------
+#' Resample AUC
+#'
+#' Compute the Area Under the ROC Curve or AUC (Hanley and McNiel, 1982) for binary
+#' classification predictions from a single \link[mlr3]{ResampleResult} extracted
+#' from an mlr3 \code{\link[mlr3]{BenchmarkResult}}. \cr
+#' This is a utility function.
+#'
+#' @inheritParams rsmp_bbrier
+#'
+#' @return (numeric) auc
+#'
+#' @details See the [mlr3 reference website](https://mlr3.mlr-org.com/reference/mlr_measures_classif.auc.html)
+#'  for a definition of the AUC.
+#'
+#' @source Hanley, J. A., & McNeil, B. J. (1982). The meaning and use of the
+#' area under a receiver operating characteristic (ROC) curve. Radiology.
+#' https://doi.org/10.1148/radiology.143.1.7063747
+#'
+#' @export
 rsmp_auc <- function(bmres, rsmp_i) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
@@ -1596,6 +1662,26 @@ rsmp_auc <- function(bmres, rsmp_i) {
 }
 
 #------ rsmp_bacc ----------------
+#' Resample BACC
+#'
+#' Compute the Balanced class ACCuracy (Brodersen, Ong, Stephan, & Buhmann, 2010)
+#' from a single \link[mlr3]{ResampleResult} extracted from an mlr3
+#' \code{\link[mlr3]{BenchmarkResult}}. \cr
+#' This is a utility function.
+#'
+#' @inheritParams rsmp_bbrier
+#'
+#' @return (numeric) bacc
+#'
+#' @details See the [mlr3 reference website](https://mlr3.mlr-org.com/reference/mlr_measures_classif.bacc.html)
+#'  for a definition of the BACC.
+#'
+#' @source Brodersen, K. H., Ong, C. S., Stephan, K. E., & Buhmann, J. M. (2010).
+#' The balanced accuracy and its posterior distribution. Proceedings -
+#' International Conference on Pattern Recognition, 3121–3124.
+#' https://doi.org/10.1109/ICPR.2010.764
+#'
+#' @export
 rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred <- rsmp$prediction()
@@ -1619,6 +1705,22 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
 
 
 #------ rsmp_sen ---------
+#' Resample sensitivity
+#'
+#' Compute the sensitivity (proportion of correctly classified non-perennial stations)
+#' from a single \link[mlr3]{ResampleResult} extracted from an mlr3
+#' \code{\link[mlr3]{BenchmarkResult}}. \cr
+#' This is a utility function.
+#'
+#' @inheritParams rsmp_bbrier
+#'
+#' @return (numeric) sensitivity
+#'
+#' @details Sensitivity is also sometimes called recall. It measures the proportion o
+#' of positives that are correctly identified. [Wikipedia](https://en.wikipedia.org/wiki/Sensitivity_and_specificity)
+#' actually has a nice explanation for it.
+#'
+#' @export
 rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
@@ -1641,6 +1743,22 @@ rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
 }
 
 #------ rsmp_spe ---------
+#' Resample specificity
+#'
+#' Compute the specificity (proportion of correctly classified perennial stations)
+#' from a single \link[mlr3]{ResampleResult} extracted from an mlr3
+#' \code{\link[mlr3]{BenchmarkResult}}. \cr
+#' This is a utility function.
+#'
+#' @inheritParams rsmp_bbrier
+#'
+#' @return (numeric) specificity
+#'
+#' @details Specificity measures the proportion of negatives that are correctly
+#' identified. [Wikipedia](https://en.wikipedia.org/wiki/Sensitivity_and_specificity)
+#' actually has a nice explanation for it.
+#'
+#' @export
 rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
@@ -1662,6 +1780,19 @@ rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
 }
 
 #------ bm_paramstime ----------------
+#' Benchmark result parameters and time
+#'
+#' Get the parameters, their values or the range of tested values through tuning +
+#' the running time for each resample result in a \code{\link[mlr3]{BenchmarkResult}}.
+#' \cr
+#' This is a utility function.
+#'
+#' @param bmres \link[mlr3]{BenchmarkResult} from either a binary classification
+#' model or a regression model bounded between 0 and 1.
+#'
+#' @return \link[data.table]{data.table} of parameter values for each resample results
+#'
+#' @export
 bm_paramstime <- function(bmres) {
 
   lrns_dt <- as.data.table(bmres) %>%
@@ -1804,6 +1935,30 @@ bm_paramstime <- function(bmres) {
 }
 
 #------ bm_msrtab ----------------
+#' Benchmark result performance measures table
+#'
+#' Get hyperparameters and performance measures for every \link[mlr3]{ResampleResult}
+#' in a \link[mlr3]{BenchmarkResult} of classification models.
+#'
+#' @param bmres \link[mlr3]{BenchmarkResult} from either a binary classification
+#' model or a regression model bounded between 0 and 1.
+#' @param interthresh (numeric) between 0 and 1 (inclusive), threshold to compute
+#' sensitivity, specificity, and balanced accuracy. If not provided, specificity
+#' and sensitivity will be provided for a 0.5 threshold and the highest BACC
+#' for thresholds ranging from 0.45 to 0.55 will be provided.
+#'
+#' @return \link[data.table]{data.table} of model hyperparameters and
+#' measure performance values for each \link[mlr3]{ResampleResult}.
+#'
+#' @details performance measures include Binary brier score (bbrier),
+#' Area Under the ROC Curve (AUC), sensitivity, specificity, and Balanced
+#' classification ACCuracy (BACC).
+#'
+#' @seealso \code{\link{bm_paramstime}}, \code{\link{rsmp_bbrier}},
+#' \code{\link{rsmp_auc}}, \code{\link{rsmp_sen}}, \code{\link{rsmp_spe}},
+#' \code{\link{rsmp_bacc}}
+#'
+#' @export
 bm_msrtab <- function(bmres, interthresh=NULL) {
   print('Getting bbrier')
   bbrier_vec <- lapply(1:bmres$n_resample_results, function(i) {
@@ -1870,6 +2025,28 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
 }
 
 #------ reset_tuning ----------------------
+#' Reset AutoTuner
+#'
+#' Create a new \link[mlr3tuning]{AutoTuner} based on the \link[mlr3]{Learner}
+#' and other hyperparameters for an input AutoTuner, but replace with a new
+#' \link[mlr3]{Task}.
+#'
+#' @param in_autotuner \link[mlr3tuning]{AutoTuner} (single or list)
+#' @param in_task new \link[mlr3]{Task} to feed into the \link[mlr3tuning]{AutoTuner}.
+#' @param in_lrnid ID for the \link[mlr3]{Learner} to select if a list of \link[mlr3tuning]{AutoTuner} was provided.
+#'
+#' @return \link[data.table]{data.table} of model hyperparameters and
+#' measure performance values for each \link[mlr3]{ResampleResult}.
+#'
+#' @details performance measures include Binary brier score (bbrier),
+#' Area Under the ROC Curve (AUC), sensitivity, specificity, and Balanced
+#' classification ACCuracy (BACC).
+#'
+#' @seealso \code{\link{bm_paramstime}}, \code{\link{rsmp_bbrier}},
+#' \code{\link{rsmp_auc}}, \code{\link{rsmp_sen}}, \code{\link{rsmp_spe}},
+#' \code{\link{rsmp_bacc}}
+#'
+#' @export
 reset_tuning <- function(in_autotuner, in_task, in_lrnid = NULL) {
   if (inherits(in_autotuner, 'list') & !is.null(in_lrnid)) {
     in_autotuner <- in_autotuner[[
@@ -1889,7 +2066,19 @@ reset_tuning <- function(in_autotuner, in_task, in_lrnid = NULL) {
 
   return(autotuner_new)
 }
+
 #------ format_modelcompdat --------------
+#' Format model computational metadata
+#'
+#' Format model Learner names for each learner in a \link[mlr3]{BenchmarkResult}. \cr
+#' Utility function.
+#'
+#' @param bmres \link[mlr3]{BenchmarkResult}
+#' @param typecomp (character) one of 'classif1', 'regr1', 'classif2'. Type of model.
+#'
+#' @return \link[data.table]{data.table} of BenchmarkResult with formatted model names
+#'
+#' @export
 format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2')) {
   if (typecomp == 'classif1') {
     bmres[, `:=`(selection = 'Algorithm',
@@ -1921,10 +2110,21 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
   } else {
     stop('typecomp is not recognized')
   }
+
+  return(bmres)
 }
 
 #------ sfformat_wintri ----------------------
-#Convert st to sf and transform to Winkel Trippel projection
+#' Format to sf and project to Winkel Tripel
+#'
+#' Convert an object (e.g. data.frame or data.table) to simple feature (spatial object)
+#' and project it to [Winkel Tripel](https://en.wikipedia.org/wiki/Winkel_tripel_projection).
+#'
+#' @param in_sp object to be converted into an object class \code{sf}
+#'
+#' @return \code{[sf](https://r-spatial.github.io/sf/articles/sf1.html)} object
+#'
+#' @export
 sfformat_wintri <- function(in_sp) {
   crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
 
@@ -1933,24 +2133,70 @@ sfformat_wintri <- function(in_sp) {
   )
 }
 
-
-
 #------ bin_dt -----------------
-#Bin a data_table on a given variable - see tabulate global summary
-bin_dt <- function(in_dt, binvar, valuevar, binfunc, binarg,
-                   bintrans=NULL, na.rm=FALSE) {
+#' Bin data.table
+#'
+#' Bins a data.table over a numeric column.
+#'
+#' @param in_dt \link[data.table]{data.table} to bin.
+#' @param binvar (character) column that will be used to define bins.
+#' @param binfunc (character) binning approach. One of 'manual', 'equal_length', 'equal_freq'.
+#' @param binarg (numeric) binning argument, depends on binning approach (\code{binfunc}).
+#' @param bintrans (character or numeric) transformation of \code{binvar}, default is NULL.
+#' @param ndigits (integer) number of decimals to keep for displaying formatted bin limits
+#' @param na.rm (logical) whether to include NAs.
+#' @param valuevar (character) if na.rm = FALSE, column to use to detect NAs and remove records.
+#'
+#' @return input \link[data.table]{data.table} with four new columns:
+#' \itemize{
+#'   \item bin - bin number (1 being the lowest value bin)
+#'   \item bin_lmin - bin lower limit
+#'   \item bin_lmax - bin higher limit
+#'   \item bin_lformat - formatted character of bin limits
+#'   (format: \code{round(bin_lmin, ndigits) - round(bin_lmax, ndigits))
+#' }
+#'
+#' @details inspired from [rbin package](https://github.com/rsquaredacademy/rbin).
+#' Differences include that it concentrates all binning approaches within a single
+#' function and works on a data.table.
+#'
+#' binfunc: \cr
+#' \itemize{
+#'   \item 'manual' - bin continuous data manually. \code{binarg} sets the inner bin limits,
+#'  such that the final table will have \code{length(binarg) + 1} bins. The lower end of the
+#'  first bin is automatically set to be the minimum value in \code{binvar} and the upper end of
+#'  the last bin is set to be the maximum value in \code{binvar}
+#'
+#'   \item 'equal_length' - Bin continuous data such that each bin has the same \code{binvar} interval length.
+#'   If \code{bintrans} is not \code{NULL}, then interval length is computed on transformed scale.
+#'   \code{binarg} (automatically rounded to the nearest integer) sets the number of bins.
+#'
+#'   \item 'equal_freq' - Bin continuous data such that each bin has the same number of records.
+#'   \code{binarg} (automatically rounded to the nearest integer) sets the number of bins.
+#' }
+#'
+#' bintrans: can either be 'log' (for natural log) or a numeric exponent to transform
+#' according to x^bintrans.
+#'
+#' @seealso for examples, see applications in \code{\link{bin_misclass}},
+#' \code{\link{eval_watergap}}, \code{\link{tabulate_globalsummary}},
+#' \code{\link{formathistab}}, \code{\link{compare_us}}
+#'
+#' @export
+
+bin_dt <- function(in_dt, binvar, binfunc, binarg,
+                   bintrans=NULL, ndigits=2,
+                   na.rm=FALSE, valuevar=NULL) {
   #Inspired from rbin, adapted to dt and simplified
   in_dt <- copy(in_dt)
 
   el_freq <- function(byd, bins) {
-
     bin_length <- (max(byd, na.rm = TRUE) - min(byd, na.rm = TRUE)) / bins
     append(min(byd, na.rm = TRUE), min(byd, na.rm = TRUE) + (bin_length * seq_len(bins)))[1:bins]
 
   }
 
   eu_freq <- function(byd, bins) {
-
     bin_length <- (max(byd, na.rm = TRUE) - min(byd, na.rm = TRUE)) / bins
     ufreq      <- min(byd, na.rm = TRUE) + (bin_length * seq_len(bins))
     n          <- length(ufreq)
@@ -2018,7 +2264,9 @@ bin_dt <- function(in_dt, binvar, valuevar, binfunc, binarg,
           bin := i]
     in_dt[bin == i, `:=`(bin_lmin = min(get(eval(binvar_orig)), na.rm=T),
                          bin_lmax = max(get(eval(binvar_orig)), na.rm=T))] %>%
-      .[bin == i, bin_lformat := paste(bin_lmin, bin_lmax, sep='-')]
+      .[bin == i, bin_lformat := paste(round(bin_lmin, ndigits),
+                                       round(bin_lmax, ndigits),
+                                       sep='-')]
 
     if (i == bins) {
       in_dt[get(eval(binvar)) == u_freq[i],  bin := i]
@@ -2031,6 +2279,16 @@ bin_dt <- function(in_dt, binvar, valuevar, binfunc, binarg,
 }
 
 #------ label_manualbins ------------
+#' Label manual bins
+#'
+#' Utility function: label bin limits for \code{\link{formathistab}}.
+#'
+#' @param binarg (character vector) Arguments for bin_dt manual
+#' @param minval (numeric) value to set for lower limit of first bin.
+#'
+#' @return vector of labels
+#'
+#' @export
 label_manualbins <- function(binarg, minval) {
   minlabel <- paste(minval, binarg[1], sep=" - ")
   otherlabels <- mapply(function(x, y) {paste(x, y-1, sep=" - ")},
@@ -2039,10 +2297,38 @@ label_manualbins <- function(binarg, minval) {
 }
 
 #------ formathistab -----------------
-#Format summary table
+#' Format histogram table
+#'
+#' Creates a binary frequency histogram table by computing the proportion of records
+#' for which a selected column has a given value
+#' (in this study, the percentage length of rivers that are deemed intermittent)
+#' after binning the table by a continuous variable (e.g. river discharge).
+#'
+#' @inheritParams bin_dt
+#' @param castvar (character) olumn that will be used to define bins —
+#' the equivalent of \code{binvar} in \code{bin_dt}.
+#' @param valuevar (character) variable to summarize (e.g. intermittency class).
+#' @param valuevarsub (character) value of \code{valuevar} to summarize (e.g. '1' for intermittent rivers)
+#' @param weightvar (character) variable to weigh proportion by. (e.g. river reach length).
+#' @param binlabels (character vector) formatted labels for bins.
+#' @param datname (character) optional, adds a column to output table describing what the data describes (e.g. France)
+#'
+#' @return \link[data.table]{data.table} with five columns:
+#' \itemize{
+#'   \item bin - bin number
+#'   \item perc - percentage of records (or of \code{weightvar}) that meet \code{valuevar == valuevarsub}.
+#'   \item binsumlength - number of records (if default \code{weightvar}) or sum of \code{weightvar} by bin (e.g. total river length).
+#'   \item dat - \code{datname} argument
+#'   \item binformat - label for each bin provided through \code{binlabels} argument
+#' }
+#'
+#' @seealso used in \code{\link{compare_fr}}, \code{\link{compare_us}},
+#' and \code{\link{compare_au}}
+#'
+#' @export
 formathistab <- function(in_dt, castvar, valuevar, valuevarsub,
-                         weightvar, binfunc, binarg, binlabels,
-                         datname) {
+                         weightvar=1, binfunc, binarg, binlabels,
+                         datname=NULL) {
   rivbin <- bin_dt(in_dt = as.data.table(in_dt),
                    binvar = castvar,
                    valuevar = valuevar,
@@ -2062,10 +2348,44 @@ formathistab <- function(in_dt, castvar, valuevar, valuevarsub,
 }
 
 #------ scientific_10 ------------
+#' Format number to nearest log10 bin in scientific format
+#'
+#' Format a number to nearest order of magnitude (log10 integer) and gives out a
+#' scientific format expression.
+#'
+#' @param x (numeric)
+#'
+#' @return (expression)
+#'
+#' @example
+#' scientific_10(45435) #expression(10^+04)
+#' scientific_10(0.0000431) #expression(10^-05)
+#'
+#' @export
 scientific_10 <- function(x) {
   parse(text=gsub(".*e", "10^", scales::scientific_format()(x)))
 }
 #------ ggcompare -------------------
+#' Comparison ggplot histogram
+#'
+#' utility function: creates a ggplot histogram showing side-by-side bars
+#' to compare two sets of data for the same bins. Based on \link[data.table]{data.table}
+#' containing formatted histogram data.
+#'
+#' @param datmerge \link[data.table]{data.table}
+#' @param binarg labels for inner bin limits, see \link{bin_dt}
+#' @param insetx (numeric) proportion of main plot width to occupy with inset (between 0 and 1)
+#' @param insety (numeric) proportion of main plot height to occupy with inset (between 0 and 1)
+#'
+#' @return histogram \link[ggplot2]{ggplot} object
+#'
+#' @details \code{datmerge} \link[data.table]{data.table} must contain all the columns
+#' returned by \link{formathistab}.
+#'
+#' @seealso used in \code{\link{compare_fr}}, \code{\link{compare_us}},
+#' and \code{\link{compare_au}}
+#'
+#' @export
 #Plot comparing intermittency prevalence and network length by drainage area for two datasets
 ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
   x_tick <- c(0, unique(datmerge$bin)) + 0.5
@@ -2118,11 +2438,10 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
   return(plot_join)
 }
 
-#------ bacc_manual ------
 
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
-#' Define file structure
+#' Define file structure (deprecated)
 #'
 #' Defines file structure for running RF prediction of global intermittency
 #'
@@ -2135,9 +2454,6 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
 #' A directory called ~/project_name/results must exist to write outputs
 #'
 #' @export
-#'
-#'
-
 def_filestructure <- function() {
   # Get main directory for project
   rootdir <- find_root(has_dir("src"))
@@ -2208,7 +2524,6 @@ def_filestructure <- function() {
 #' @return Data frame of monthly discharge for every reach in RiverATLAS
 #'
 #' @export
-#'
 read_monthlydis <- function(in_path) {
   monthlydischarge <- as.data.frame(st_read(
     dsn = dirname(in_path),
@@ -2222,24 +2537,19 @@ read_monthlydis <- function(in_path) {
 #------ read_gaugep -----------------
 #' Read gauge points
 #'
-#' Import streamgauging station spatial data and attributes, only keeping those
-#' whose point representation is within a given distance from the river network.
+#' Import streamgauging station spatial data and attributes for GRDC and GSIM.
+#' Add new and updated environmental predictors from RiverATLAS v1.0.9 and, optionally,
+#' estimates of monthly discharge from WaterGAP v2.2.
 #'
-#' @param in_filestructure named list containing path to point data for gauging
-#' stations, named \code{in_gaugep}
-#' @param dist maximum distance from the river network beyond which gauging
-#' stations are excluded.
+#' @param inp_GRDCgaugep path to point data for GRDC gauging stations.
+#' @param inp_GSIMgaugep path to point data for GSIM gauging stations.
+#' @param inp_riveratlas2 path to attribute table of RiverATLAS v1.0.9
 #' @param in_monthlydischarge data frame of naturalized monthly discharge for
 #' every river reach in HydroSHEDS
 #'
 #' @return object of class \link[sf]{sf}
 #'
-#' @details The distance from the river network must have been determined
-#' beforehand and be an attribute of the gauge stations point data called
-#' \code{station_river_distance}
-#'
 #' @export
-
 read_gaugep <- function(inp_GRDCgaugep, inp_GSIMgaugep,
                         inp_riveratlas2, in_monthlydischarge=NULL) {
   #Import gauge stations
@@ -2281,31 +2591,30 @@ read_gaugep <- function(inp_GRDCgaugep, inp_GSIMgaugep,
 
   #Merge with WaterGAP downscaled monthly naturalized discharge
   if (!is.null(in_monthlydischarge)) {
-    gaugep_monthlydischarge <- merge(gaugep_attriall, in_monthlydischarge,
+    gaugep_outformat <- merge(gaugep_attriall, in_monthlydischarge,
                                      by.x = 'HYRIV_ID', by.y = 'REACH_ID',
                                      all.x=TRUE, all.y=FALSE)
   } else {
-    gaugep_monthlydischarge <- gaugep_attriall
+    gaugep_outformat <- gaugep_attriall
   }
 
-
-  return(gaugep_monthlydischarge)
+  return(gaugep_outformat)
 }
 
 #------ read_GRDCgauged_paths -----------------
-#' Read file paths to gauge flow data
+#' Read file paths to streamflow data from GRDC gauging stations
 #'
 #' Based on selection of gauges, create a list of paths to streamflow data
 #' associated with gauges.
 #'
-#' @inheritParams read_gaugep
+#' @param inp_GRDCgaugedir path to directory containing streamflow data GRDC standard files.
 #' @param in_gaugep table containing column named \code{GRDC_NO} with the
 #' gauge IDs that will be used to generate file path.
 #'
-#' @return vector of paths to GRDC-formatted streamflow time series tables
+#' @return vector of paths to GRDC-formatted streamflow time series tables, assuming
+#' that files are called "GRDC_NO.txt", GRDC_NO being replaced with a 7-digit integer.
 #'
 #' @export
-
 read_GRDCgauged_paths <- function(inp_GRDCgaugedir, in_gaugep) { #, gaugeid = 'GRDC_NO' down the line
   #Get data paths of daily records for gauge stations
   fileNames <- file.path(inp_GRDCgaugedir,
@@ -2319,19 +2628,38 @@ read_GRDCgauged_paths <- function(inp_GRDCgaugedir, in_gaugep) { #, gaugeid = 'G
 }
 
 #------ read_GSIMgauged_paths -----------------
-#' Read file paths to gauge flow data
+#' Read file paths to streamflow data from GSIM gauging stations
 #'
 #' Based on selection of gauges, create a list of paths to streamflow data
 #' associated with gauges.
 #'
-#' @inheritParams read_gaugep
-#' @param in_gaugep table containing column named \code{GRDC_NO} with the
+#' @param inp_GSIMindicesdir path to directory containing directories for different
+#' GSIm indices.
+#' @param in_gaugep table containing column named \code{gsim_no} with the
 #' gauge IDs that will be used to generate file path.
+#' @param timestep which indices to get, 'monthly' or 'seasonal'
 #'
-#' @return vector of paths to GRDC-formatted streamflow time series tables
+#' @details
+#' For an explanation of GSIM data structure, see [Gudmundsson et al. (2018)](https://essd.copernicus.org/articles/10/787/2018/) and
+#' the [GSIM repository](https://doi.pangaea.de/10.1594/PANGAEA.887470).
+#'
+#' \code{inp_GSIMindicesdir} may for example be "D://GSIM/GSIM_indices". Containing: \cr
+#' D://GSIM/GSIM_indices/ \cr
+#' ----  HOMOGENEITY \cr
+#' ----  TIMESERIES \cr
+#' --------  monthly \cr
+#' --------  seasonal \cr
+#' --------  yearly \cr
+#' ----  README.txt
+#'
+#' @return vector of paths to GSIM-formatted streamflow time series indices tables
+#'
+#' @source Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+#'   Streamflow Indices and Metadata Archive (GSIM) - Part 2: Quality control,
+#'   time-series indices and homogeneity assessment. Earth System Science Data,
+#'   10(2), 787-804. https://doi.org/10.5194/essd-10-787-2018
 #'
 #' @export
-
 read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
   gaugeno_vec <- in_gaugep[!is.na(in_gaugep$gsim_no),]$gsim_no
 
@@ -2351,6 +2679,7 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
 }
 
 #------ comp_GRDCdurfreq -------------------------------
+##################################################################################DOCUMENT
 #' Compute intermittency statistics for GRDC gauging stations
 #'
 #' Determine general characteristics of the whole time series and of the subset
@@ -2382,7 +2711,6 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
 #' }
 #'
 #' @export
-
 comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
                              windowsize = 100, fullwindow = FALSE,
                              monthsel = NULL, verbose = FALSE) {
@@ -4679,28 +5007,62 @@ extrapolate_networklength <- function(inp_riveratlas,
     #~3000 km out of 33 million kilometers
   }
 
-  #------Test approach on a single basin
+  #Simple function to fit a gam with basic params
+  gamfit_util <- function(in_dt, in_k=-1) {
+    fit <- mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), k=in_k, bs = "cs"), #cubic splines are good when lots of data points
+                     method = "REML",
+                     data=in_dt[dis_m3_pyr < quantile(dis_m3_pyr, 0.95),])
+  }
+
+  #Function to iterate over k values and check whether dimension is too low
+  gamfit_kiter <- function(in_dt, verbose = F, kstep=1, kmax=20) {
+    gam_out <- gamfit_util(in_dt)
+    k_check <- k.check(gam_out)
+    k_set <- k_check[1]
+    if (k_check[4] < 0.05) {
+      while ((k_check[4] < 0.05) & (k_set < kmax)) {
+        if (verbose) print(k_set)
+        gam_out <- gamfit_util(in_dt, in_k=k_set)
+        k_check <- k.check(gam_out)
+        k_set <- k_set + kstep
+      }
+    }
+
+    return(gam_out)
+  }
+
+  #-----Across all basins:
+  #Only train GAM models for basins that have at least 20 unique discharge values >= 0.1
+  gambas <- ccdf_datbas03[
+    (dis_m3_pyr >= min_cutoff) & nuniquedis_o01 >= 20,
+    list(mod = list(gamfit_kiter(.SD, verbose = T, kstep = 2, kmax=20))),
+    by = grouping_var
+  ]
+
+  #------Illustrate approach on a single basin
   fit_rivlengam <- function(dt_format, pfaf_id) {
     gamsubdat <- dt_format[(get(grouping_var) == pfaf_id),]
     gamsubdatsub <- gamsubdat[(dis_m3_pyr >= min_cutoff) &
                                 (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),]
 
-    gamfit <- mgcv::gam(
-      log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
-      method = "REML",
-      data=gamsubdatsub
-    )
+    gamfit <- gamfit_kiter(in_dt=gamsubdatsub, verbose=T, kstep = 2, kmax=9)
 
     print(summary(gamfit))
     preds <- data.frame(
       dis_m3_pyr=seq(0.01,
                      quantile(gamsubdat$dis_m3_pyr, 0.95), 0.01))
-    preds$cumL <- 10^predict(gamfit, preds)
+    preds[, c('cumL', 'cumL_se')] <- predict(gamfit, preds, se.fit=TRUE)
+    preds$cumL_95CIlow <- 10^(preds$cumL - 1.96*preds$cumL_se)
+    preds$cumL_95CIhigh <- 10^(preds$cumL + 1.96*preds$cumL_se)
+    preds$cumL <- 10^preds$cumL
 
     ggplot(gamsubdat, aes(x=dis_m3_pyr, y=cumL)) +
       geom_step(data=gamsubdat, size=1.5, color='black', alpha=1/3) +
       geom_step(data=gamsubdatsub, size=1.5, color='black') +
       geom_line(data=preds, color='red') +
+      geom_ribbon(data=preds[preds$dis_m3_pyr<=0.1,],
+                  aes(ymin=cumL_95CIlow , ymax=cumL_95CIhigh ),
+                  fill='blue', alpha=1/4) +
       geom_line(data=preds[preds$dis_m3_pyr<=0.1,], color='blue') +
       scale_x_log10(name=bquote('Naturalized long-term \nmean annual discharge'~(m^3~s^-1)),
                     limits=c(0.01,
@@ -4718,18 +5080,6 @@ extrapolate_networklength <- function(inp_riveratlas,
     print(plot_62_18)
     print(plot_14_17)
   }
-
-  #-----Across all basins:
-  #Only train GAM models for basins that have at least 20 unique discharge values >= 0.1
-  gambas <- ccdf_datbas03[
-    (dis_m3_pyr >= min_cutoff) & nuniquedis_o01 >= 20,
-    list(mod = list(
-      mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), bs = "cs"),
-                method = "REML",
-                data=.SD[dis_m3_pyr < quantile(dis_m3_pyr, 0.95),]))
-    ),
-    by = grouping_var
-  ]
 
   #Check the distribution of adjusted R-squares across all basins
   rsqdt <- gambas[, list(rsq_adj = summary(mod[[1]])$r.sq), by=grouping_var]
@@ -4953,8 +5303,8 @@ extrapolate_networklength <- function(inp_riveratlas,
 }
 
 #------ extrapolate_IRES -----------
-extrapolate_IRES <- function(in_rivpred = rivpred,
-                             in_extranet = netlength_extra,
+extrapolate_IRES <- function(in_rivpred,
+                             in_extranet,
                              min_cutoff = 0.1,
                              interactive = F,
                              valuevar = 'predbasic800cat',
@@ -5791,39 +6141,106 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
 }
 
 #------ krige_spgaugeIPR----
-krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
-                             kcutoff=50000, inp_bufrasdir,
+krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
+                             kcutoff=100000, inp_bufrasdir=NULL,
                              overwrite = FALSE) {
-  rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
-  predsp <- rsmp_res$prediction() %>%
-    as.data.table %>%
-    .[, list(IRpredprob_spcv = 100*mean(prob.1),
-             IRpredcoefcv_spcv = sd(100*prob.1, na.rm=T)/mean(100*prob.1, na.rm=T)),
-      by=.(row_id, truth)] %>%
-    .[, IPR := IRpredprob_spcv-100*as.numeric(as.character(truth))] %>%
-    .[, IPR_abs := abs(IPR)] %>%
-    .[, IRpedcat_spcv := as.character(fifelse(IRpredprob_spcv > 40, 1, 0))] %>%
-    setorder(row_id) %>%
-    cbind(in_gaugestats[!is.na(cly_pc_cav), list(GAUGE_NO=GAUGE_NO)])
 
-  predsp_gaugep <- merge(in_gaugep, predsp, by='GAUGE_NO') %>%
-    .[order(.[,'IPR_abs']$IPR_abs),]
+  predsp_gaugep <- st_as_sf(in_gpredsdt)
 
-  bufras_vec <- file.path(inp_bufrasdir,
-                          grep('bufras_T.*proj[.]tif$',
-                               list.files(inp_bufrasdir),
-                               value=T)
-  )
+  # bufras_vec <- file.path(inp_bufrasdir,
+  #                         grep('bufras_T.*proj[.]tif$',
+  #                              list.files(inp_bufrasdir),
+  #                              value=T)
+  # )
 
   #Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
   crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
   predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
     as_Spatial()
 
+  #Possible models
+  varmods <- as.character(vgm()[,'short'])
+
+  in_sf = predsp_gaugep_df
+  ycol = 'intermittent_o1800'
+  in_varmods = varmods
+
+  customfit_variogram <- function(in_sf, ycol, in_varmods, kcutoff) {
+    # Compute the sample variogram; note that the f.1 trend model is one of the
+    # parameters passed to variogram(). This tells the function to create the
+    # variogram on the de-trended data.
+    var_out <- gstat::variogram(intermittent_o1800 ~ 1, in_sf,
+                                cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
+
+    # Compute the variogram model by passing the nugget, sill and range values
+    # to fit.variogram() via the vgm() function.
+    fit_out  <- fit.variogram(var_out, fit.ranges = TRUE, fit.sills = T,
+                              vgm(in_varmods[!(varmods %in% c('Pow', 'Int'))]),
+                              fit.kappa = TRUE)
+
+    plot <- ggplot(var_out, aes(x=dist, y=gamma)) +
+      geom_point(alpha=1/3) +
+      geom_line(data = variogramLine(fit_out, maxdist = kcutoff)) +
+      coord_cartesian(expand=T) +
+      scale_y_log10() +
+      scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
+                   labels=c(0,100,1000,10000,25000,50000, 100000)) +
+      theme_classic()
+
+    return(list(
+      plot = plot,
+      mod = fit_out
+    ))
+
+  }
+
+  bas = names(table(predsp_gaugep_df$PFAF_ID03) > 20)[8]
+  lapply(names(table(predsp_gaugep_df$PFAF_ID03) > 20),
+         function(bas) {
+           subdat <- subset(predsp_gaugep_df, PFAF_ID03 == bas)
+
+
+           fit_out <- customfit_variogram(in_sf = subdat, ycol='intermittent_o1800',
+                                          in_varmods = varmods, kcutoff=kcutoff)
+           fit_out$plot
+
+
+  })
+
+
+
+  ################### Kriging on fit data #################################
   # Compute the sample variogram; note that the f.1 trend model is one of the
   # parameters passed to variogram(). This tells the function to create the
   # variogram on the de-trended data.
-  var_smpl <- gstat::variogram(IPR ~ 1, predsp_gaugep_df,
+  var_smpl <- gstat::variogram(IRpredcat_CVsp ~ 1, predsp_gaugep_df,
+                               cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
+
+  ggplot(var_smpl, aes(x=dist, y=gamma)) +
+    geom_point(alpha=1/3) +
+    coord_cartesian(expand=T) +
+    scale_y_log10() +
+    theme_classic()
+
+  # scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
+  #              labels=c(0,100,1000,10000,25000,50000, 100000)) +
+
+  # Compute the variogram model by passing the nugget, sill and range values
+  # to fit.variogram() via the vgm() function.
+  varmods <- as.character(vgm()[,'short'])
+  dat_fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = T,
+                            vgm(varmods[!(varmods %in% c('Pow', 'Int'))]),
+                            fit.kappa = TRUE)
+  # The following plot allows us to assess the fit
+  plot(var_smpl, dat_fit)
+  attr(dat_fit, "SSErr")
+
+
+  ################### Kriging on residuals ####################################
+  # Compute the sample variogram; note that the f.1 trend model is one of the
+  # parameters passed to variogram(). This tells the function to create the
+  # variogram on the de-trended data.
+  var_smpl <- gstat::variogram(preduncert_CVsp ~ 1, predsp_gaugep_df,
                                cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
 
   ggplot(var_smpl, aes(x=dist, y=gamma)) +
@@ -5838,7 +6255,7 @@ krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
   # Compute the variogram model by passing the nugget, sill and range values
   # to fit.variogram() via the vgm() function.
   varmods <- as.character(vgm()[,'short'])
-  dat_fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = FALSE,
+  dat_fit  <- fit.variogram(var_smpl, fit.ranges = TRUE, fit.sills = T,
                             vgm(varmods[!(varmods %in% c('Pow', 'Int'))]),
                             fit.kappa = TRUE)
   # The following plot allows us to assess the fit
@@ -5848,22 +6265,22 @@ krige_spgaugeIPR <- function(in_rftuned, in_gaugep, in_gaugestats,
 
 
   #Predict error
-  kmod <- gstat(formula=IPR~1, locations=predsp_gaugep_df, model=dat_fit,
-                maxdist = kcutoff)
-  kpl <-  lapply(seq_along(bufras_vec), function(i) {
-    bufmask <- raster(bufras_vec[[i]]) %>%
-      as('SpatialGrid')
-    kp <- round(raster(predict(kmod, bufmask)))
-
-    outras = file.path(dirname(bufras_vec[[i]]),
-                       gsub('bufras', 'krigpred', basename(bufras_vec[[i]])))
-
-
-    print(paste0('Writing ', outras, '...'))
-    writeRaster(kp, outras, datatype = "INT2S", overwrite=overwrite)
-    return(outras)
-  }) %>%
-    do.call(rbind, .)
+  # kmod <- gstat(formula=IPR~1, locations=predsp_gaugep_df, model=dat_fit,
+  #               maxdist = kcutoff)
+  # kpl <-  lapply(seq_along(bufras_vec), function(i) {
+  #   bufmask <- raster(bufras_vec[[i]]) %>%
+  #     as('SpatialGrid')
+  #   kp <- round(raster(predict(kmod, bufmask)))
+  #
+  #   outras = file.path(dirname(bufras_vec[[i]]),
+  #                      gsub('bufras', 'krigpred', basename(bufras_vec[[i]])))
+  #
+  #
+  #   print(paste0('Writing ', outras, '...'))
+  #   writeRaster(kp, outras, datatype = "INT2S", overwrite=overwrite)
+  #   return(outras)
+  # }) %>%
+  #   do.call(rbind, .)
 
   return(kpl)
 }
@@ -5891,6 +6308,71 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
   return(out_krigingtif)
 }
 
+
+#------ test_joincount -------------------
+test_joincount <- function(in_gauges) {
+  predsp_gaugep <- st_as_sf(in_gauges)
+  #Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
+  crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+  predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
+    as_Spatial()
+
+  baslist = names(which(table(predsp_gaugep_df$PFAF_ID03) > 20))
+  jclist <- lapply(baslist, function(bas) {
+    print(bas)
+    subdat <- subset(predsp_gaugep_df, PFAF_ID03 == bas)
+    g.nb <- knn2nb(knearneigh(subdat,k=4))
+
+    if ((length(unique(subdat$intermittent_o1800)) > 1) &
+        all(table(subdat$intermittent_o1800)>1)) {
+      jc_ref <- joincount.mc(subdat$intermittent_o1800,
+                             listw2U(nb2listw(g.nb)),
+                             alternative = "greater",
+                             nsim = 1000)
+
+      stdeviate_ref <- with(jc_ref[[2]],
+                            (statistic-estimate[1])/sqrt(estimate[2]))
+      pref <- jc_ref[[2]]$p.value
+
+    } else {
+      jc_ref <- NA
+      stdeviate_ref <- NA
+      pref <- NA
+    }
+
+    if ((length(unique(subdat$IRpredcat_CVsp)) > 1) &
+        all(table(subdat$IRpredcat_CVsp)>1)) {
+      jc_pred <- joincount.mc(as.factor(subdat$IRpredcat_CVsp),
+                              listw2U(nb2listw(g.nb)),
+                              alternative = "greater",
+                              nsim = 1000)
+
+      stdeviate_pred <- with(jc_pred[[2]],
+                             (statistic-estimate[1])/sqrt(estimate[2]))
+      ppred <- jc_pred[[2]]$p.value
+    } else {
+      jc_pred <- NA
+      stdeviate_pred <- NA
+      ppred <- NA
+    }
+
+    outdat <- list(
+      PFAF_ID03 = bas,
+      #jc_ref = jc_ref,
+      #jc_pred = jc_pred,
+      p_value_ref = pref,
+      p_value_pred = ppred,
+      stdeviate_ref = stdeviate_ref,
+      stdeviate_pred = stdeviate_pred
+    )
+
+    return(outdat)
+  }
+  ) %>%
+    rbindlist
+
+  return(jclist)
+}
 
 #------ map_BACC ------
 map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
@@ -5923,6 +6405,10 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                     in_rivernetwork[,.(HYRIV_ID, PFAF_ID03)],
                     by='HYRIV_ID', all.x=T, all.y=F)
 
+  #Join count test for each basin with more than 20 gauges
+  jclist <- test_joincount(gnetjoin)
+
+  #Compute statistics by basin
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==get(predcol)) *
                      classweights) / sum(classweights),
@@ -5930,9 +6416,83 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     gnum = .N,
     percinter = round((100*sum(intermittent_o1800=='1')/.N), 2),
     predbias = (sum(get(predcol)==1)/.N) - (sum(intermittent_o1800=='1')/.N)
-  ), by=PFAF_ID03]
+  ), by=PFAF_ID03] %>%
+    merge(jclist, by='PFAF_ID03', all.x=T) %>%
+    .[, `:=`(stdeviate_diff = stdeviate_pred - stdeviate_ref,
+             stdeviate_ratio = stdeviate_pred/stdeviate_ref
+             )]
+
+  #Investigate how join count statistics of predictions relate to ref data
+  compare_deviatep <- ggplot(basbacc, aes(x=stdeviate_ref, y=stdeviate_pred)) +
+    geom_point() +
+    geom_abline(size=1) +
+    labs(x='Standard deviate - reference flow intermittency class',
+         y='Standard deviate - predicted flow intermittency class') +
+    coord_fixed() +
+    theme_bw()
+
+  #Check relationship between accuracy and number of gauges
+  palette_acc <- c('#314D8F', '#3C8A9E', '#3EB591', '#2BD93D',
+    '#8EF026', '#FCF228', '#F2C035', '#E08E46', '#CC6D5A')
+  basbacc[, colacc := factor(
+    fcase(
+      acc >= 0.95, 1L,
+      ((0.90 <= acc) & (acc < 0.95)), 2L,
+      ((0.85 <= acc) & (acc < 0.90)), 3L,
+      ((0.80 <= acc) & (acc < 0.85)), 4L,
+      ((0.70 <= acc) & (acc < 0.80)), 5L,
+      ((0.60 <= acc) & (acc < 0.70)), 6L,
+      ((0.50 <= acc) & (acc < 0.60)), 7L,
+      ((0.005 <= acc) & (acc < 0.50)), 8L,
+      acc < 0.005, 9L
+  )
+  ), by=.I]
+
+  plot_acc <- ggplot(basbacc[, .N, by=.(gnum, acc, colacc)],
+         aes(x=gnum, y=100*acc, size=as.numeric(N), fill=colacc)) +
+    geom_point(colour="black",pch=21) +
+    #geom_quantile() +
+    scale_size_continuous(name='# of basins', breaks=c(1, 2, 5, 10)) +
+    scale_fill_manual(values=palette_acc, guide = FALSE) +
+    scale_x_log10(breaks=c(1, 10, 100, 500)) +
+    labs(x='# of gauging stations', y='Accuracy (%)') +
+    theme_classic() +
+    theme(legend.position = c(0.85, 0.2),
+          legend.spacing.y = unit(0, 'cm'),
+          legend.key.height=unit(0.75,"line")
+    )
 
 
+  #Check relationship between bias and number of gauges
+  palette_bias <- c('#a8273a', '#d46e4c', '#ffac70',
+                   '#76c284',
+                   '#00ffff', '#3d7294') #, '#374559')
+  basbacc[, colbias := factor(
+    fcase(
+      predbias >= 0.50, 1L,
+      ((0.20 <= predbias) & (predbias < 0.50)), 2L,
+      ((0.10 <= predbias) & (predbias < 0.20)), 3L,
+      ((-0.10 <= predbias) & (predbias < 0.10)), 4L,
+      ((-0.20 <= predbias) & (predbias < -0.10)), 5L,
+      ((-0.50 <= predbias) & (predbias < -0.20)), 6L,
+      predbias < -0.50, 7L
+    )
+  ), by=.I]
+
+  plot_bias <-ggplot(basbacc[, .N, by=.(gnum, predbias, colbias)],
+         aes(x=gnum, y=100*predbias, size=as.numeric(N), fill=colbias)) +
+    geom_hline(yintercept=0, alpha=1/2) +
+    geom_point(colour="black",pch=21) +
+    scale_size_continuous(name='# of basins', breaks=c(1, 2, 5, 10)) +
+    scale_fill_manual(values=palette_bias, guide = FALSE) +
+    scale_x_log10(breaks=c(1, 10, 100, 500)) +
+    labs(x='# of gauging stations', y='Bias (%)') +
+    theme_classic() +
+    theme(legend.position = c(0.85, 0.8),
+          legend.background = element_blank())
+
+
+  #Output stats to .gpkg
   basbacc_format <- base::merge(
     bas03, basbacc,
     by.x='PFAF_ID', by.y='PFAF_ID03',
@@ -5943,6 +6503,11 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
            dsn=outp_basinerror,
            driver = 'gpkg',
            delete_dsn=F)
+
+  return(list(
+    plot_acc = plot_acc,
+    plot_bias = plot_bias
+  ))
 }
 
 ##### -------------------- Report functions -----------------------------------
@@ -6498,7 +7063,7 @@ compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
 
 #------ formatmisclass_bm -------------
 formatmisclass_bm <- function(in_bm, in_bmid) {
-  #If path, read qs
+  #If in_bm is a path, read qs
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
   }
@@ -7367,6 +7932,22 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
 
   #fulldat[OBJECTID %in% refpts$OBJECTID, .N]
 
+  ################# for peer-review ############################################
+  check_nobsinter <- fulldat[, list(nobs=.N,
+                                    refinter=as.numeric(any(Category == "Non-perennial"))),
+                   by=.(POINT_X, POINT_Y)]
+
+  nobs_inter_ratio <- check_nobsinter[, .SD[refinter == 1, .N]/
+                                        .SD[refinter == 0, .N],
+                                      by = nobs] %>%
+    setorder(nobs)
+
+  summary(glm(refinter~nobs, data=check_nobsinter, family=binomial(link='logit')))
+
+
+  ##############################################################################
+
+
   #Join points and compute # of observations, min and max months of observations
   refpts_full <- merge(refpts, fulldat[, c('OBJECTID', 'dupligroup'), with=F],
                        by='OBJECTID', all.y=F) %>%
@@ -7499,7 +8080,6 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
               stats = pnw_measures)
   )
 }
-
 
 #------ qc_onde ------
 qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,

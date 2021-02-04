@@ -83,7 +83,7 @@ de645977d9d4a590,import,extend_globalsummary_clz
 d02a0161cf1a00ef,import,extract_impperf_nestedrf
 672b716ca7fcf814,import,extract_pd_nestedrf
 f987c5c7915d9644,import,extrapolate_IRES
-c82cd769acc3a9c7,import,extrapolate_networklength
+fc8e1176e9fc992a,import,extrapolate_networklength
 1f92c0b952a5b14b,target,featsel_cv_all
 b0d3300978615e46,target,featsel_cv_o1
 eecb77a17ff3d39a,target,featsel_cv_u10
@@ -102,11 +102,11 @@ a513e04408f8d890,import,fread_cols
 054568b38cd59c36,target,gaugeIPR_plot
 0cdd3c228481bb9c,target,gaugep
 50a5412fbc6243eb,target,gauges_plot
-259d59e6b446bccc,target,gaugestats_analyzed
-b94044c250cda89f,target,gaugestats_format
-679057fee559c27e,target,gaugestats_format_all
-3abc7dc84f63347c,target,gaugestats_format_o1
-c5b4391e68c974be,target,gaugestats_format_u10
+13e275c7941faae6,target,gaugestats_analyzed
+d3f8bb40e018ffb9,target,gaugestats_format
+c97d882b36705f30,target,gaugestats_format_all
+937777f593e40e83,target,gaugestats_format_o1
+d4afe6e01741cf68,target,gaugestats_format_u10
 7bef1cea5b743a8c,import,get_basemapswintri
 4749ee7e1ee50d1c,import,get_outerrsmp
 ee8fb9c2076ec220,import,get_oversamp_ratio
@@ -136,12 +136,14 @@ d9a7dd32c349958c,target,gpredsdt
 2175741b62948332,target,gpredsdt_mdur30_u10
 4ca5ec7264122c54,target,gpredsdt_o1
 7043f100fc0787e5,target,gpredsdt_u10
-9e8c26077f27db50,target,GRDCgauged_filenames
-195514387f3aa272,target,GRDCgaugestats
+e4ea8d88d2006b19,target,GRDCgauged_filenames
+e02a257d4864de2e,target,GRDCgaugestats
+4217d9e571382bf1,target,GRDCplots
 da47ddb7e2b8ad6e,target,GRDCqstats
-b891b95c8fb3ba7e,target,GSIMgaugedmo_filenames
-d81fa7712fd17f06,target,GSIMgaugedsea_filenames
-b923456a163d3c43,target,GSIMgaugestats
+3c506350659ef221,target,GSIMgaugedmo_filenames
+5c974c6a1adf20c4,target,GSIMgaugedsea_filenames
+15d1a6d59a426495,target,GSIMgaugestats
+92da566b988b1a0b,target,GSIMplots
 e329af432d4c3e11,target,interthresh_all
 e329af432d4c3e11,target,interthresh_o1
 e329af432d4c3e11,target,interthresh_u10
@@ -199,14 +201,24 @@ fa7c9426f37833f1,import,scales::scientific_format
 c55e23228c26122b,import,scales::trans_breaks
 ca3f7beca10a7da8,import,scales::trans_format
 7b4084609e88b4c1,import,sf::st_coordinates
-76cb1b22e9ca9626,target,netlength_extra
+51d31efe8db9d7f9,target,netlength_extra
 2c32d70a59d94128,import,netpredformat
 00a65b3746eea478,target,onde_plot
 ddc191bcdd50b429,target,onde_plot_mdur30
-92da4db12101f5a4,target,outpath_bas03error
-cc8ddaf4b13da219,target,outpath_gaugep
+a264df2f928e6e3f,target,outpath_bas03error
+c38b8112e7df0c5d,target,outpath_gaugep
 45f54d7970ed6af6,target,outpath_krigingtif
-619b3c1049109259,target,outpath_riveratlaspred
+27dcc7a5fde1f7ac,target,outpath_riveratlaspred
+9f93cd2ad505fd88,import,file C:/globalIRmap/data\GRDCdat_day
+59f2658dd3080fd1,import,file C:/globalIRmap/data\HydroATLAS\HydroATLAS_metadata_MLMv11.xlsx
+64674d68464243f0,import,file C:/globalIRmap/data\HydroATLAS\HydroATLAS_v10_Legends.xlsx
+e5671670c058e208,import,file C:/globalIRmap/results\worldpop_link_20201220.csv
+8de1b960f7108954,import,file C:/globalIRmap/results\Comparison_databases
+d937bc61caff7fc8,target,file C:/globalIRmap/results\BasinATLAS_v10_lev03_errors.gpkg
+30f165462261e706,target,file C:/globalIRmap/results\GRDCstations_predbasic800.gpkg
+3ea8d2dc9b9879ac,target,file C:/globalIRmap/results\RiverATLAS_predbasic800.csv
+9d4ea62857f462ab,import,file C:/globalIRmap/results\RiverATLAS_v10tab.csv
+dc8e728f3f34efb3,import,file C:/globalIRmap/results\RiverATLAS_v11tab.csv
 372c1fd91f12533f,import,file E:/Mathis/data\GRDCdat_day
 59f2658dd3080fd1,import,file E:/Mathis/data\HydroATLAS\HydroATLAS_metadata_MLMv11.xlsx
 64674d68464243f0,import,file E:/Mathis/data\HydroATLAS\HydroATLAS_v10_Legends.xlsx
@@ -219,32 +231,34 @@ d937bc61caff7fc8,target,file E:/Mathis/results\BasinATLAS_v10_lev03_errors.gpkg
 319be7ec9f259e64,import,file E:/Mathis/results\RiverATLAS_v10tab.csv
 0e11d2da46fb5878,import,file E:/Mathis/results\RiverATLAS_v11tab.csv
 3ea8d2dc9b9879ac,target,file E:\Mathis\results\prederror_krigingtest.tif
-15cb85793a673773,target,path_auresdir
-e5085ef1b412ec70,target,path_bas03
-dd56bd102f9d4356,target,path_bufrasdir
-65e4c3b26660bfe6,target,path_compresdir
-7d557c66353774eb,target,path_frresdir
-2c8f7e9087b8a2c3,target,path_GRDCgaugedir
-e8ec3f4ac944562c,target,path_GRDCgaugep
-d630e8ebd5b90a6e,target,path_GSIMgaugep
-ddedb17ccbc579fe,target,path_GSIMindicesdir
-664b4a42aa11059b,target,path_insitudatdir
-8baa6fe63825f8f0,target,path_insituresdir
-f19a20d81320732b,target,path_linkpop
-2bb61541d406b867,target,path_monthlynetdischarge
-325253506a5036d2,target,path_ondedatdir
-6c9f29f56d0ff344,target,path_onderesdir
-7606cecf7a14747b,target,path_pnwresdir
-0052b478e6ad7840,target,path_resdir
-ca5436cacad6af5d,target,path_riveratlas
-e5cecdc33a8c8de5,target,path_riveratlas_legends
-7c2e46fb0c5fd574,target,path_riveratlas_meta
-d4a646ad5262f7f4,target,path_riveratlas2
-973a75e9c5066e95,target,path_usdatdir
-d286cb1013ed9f7a,target,path_usresdir
+8bd5f413445d6f07,target,path_auresdir
+58cb77def34637d2,target,path_bas03
+10acbf102a875479,target,path_bufrasdir
+6530a65f47475488,target,path_compresdir
+1ff64b6c883d21ea,target,path_frresdir
+3834d34069ffcc64,target,path_GRDCgaugedir
+424f9ea6b5b8b7a8,target,path_GRDCgaugep
+0e8eda25f4eb7df3,target,path_GSIMgaugep
+6b24b73bcab600b3,target,path_GSIMindicesdir
+75c93b46c7714e66,target,path_insitudatdir
+3de5a202b37f113d,target,path_insituresdir
+7cb24102d15f9fb0,target,path_linkpop
+0130cb0c501a8020,target,path_monthlynetdischarge
+c824aabe8b282060,target,path_ondedatdir
+2b204b4466bcfe4e,target,path_onderesdir
+abe7b05b27fb84a8,target,path_pnwresdir
+db11f52e7f183506,target,path_resdir
+6ee9e1c53e7dbbcb,target,path_riveratlas
+bc137107d663e529,target,path_riveratlas_legends
+ceebafee71e56b74,target,path_riveratlas_meta
+f54ae887f8caeffd,target,path_riveratlas2
+e20632935298409c,target,path_usdatdir
+dc8c1ae7788055fc,target,path_usresdir
 d18bfccfe1d89141,target,pd_plot_o1
 76c4c52bc662dfcd,target,pd_plot_u10
 02b6e99f964c2e70,import,plot_coastalir
+00c2c870c07e0f35,import,plot_GRDCflags
+bc0213c84060f063,import,plot_GSIM
 def942fb71d4f6d4,import,plot_winterir
 6ff7d3e84a5f1208,import,plotGRDCtimeseries
 e143912b8b194304,import,plotGSIMtimeseries
@@ -326,10 +340,10 @@ a0013b0ac9fd6407,target,rftuned_all
 e0cb09d1cc360390,target,rftuned_mdur30_u10
 e36968390a498edc,target,rftuned_o1
 bd14ad21bdb5f133,target,rftuned_u10
-dfa1ac964d18c44b,target,rivernetwork
+47b52d1e730a8bbf,target,rivernetwork
 daa31b78939bf80f,target,rivpred
 1632056561125955,target,rivpred_mdur30
-b8f3b9a7482d88d2,import,rootdir
+acca9ea22714135e,import,rootdir
 577eccf91bd77775,import,rsmp_auc
 dea487d4ac4e353e,import,rsmp_bacc
 640d71252ac60667,import,rsmp_bbrier

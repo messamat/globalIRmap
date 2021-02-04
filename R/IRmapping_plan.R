@@ -1,3 +1,4 @@
+source('R/IRmapping_packages.R')
 source('R/IRmapping_functions.R')
 source('R/planutil_functions.R')
 
@@ -104,16 +105,15 @@ plan_setupdata <- drake_plan(
                                mdurthresh = 1,
                                .progress = TRUE),
 
-  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-  #                            yearthresh = 1800,
-  #                            inp_resdir = path_resdir,
-  #                            maxgap = 20),
-  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
-  #                       yearthresh = 1800,
-  #                       inp_resdir = path_resdir,
-  #                       maxgap = 20,
-  #                       showmissing = TRUE),
-
+  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+                             yearthresh = 1800,
+                             inp_resdir = path_resdir,
+                             maxgap = 20),
+  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+                        yearthresh = 1800,
+                        inp_resdir = path_resdir,
+                        maxgap = 20,
+                        showmissing = TRUE),
 
   gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
                                              in_GSIMgaugestats = GSIMgaugestats,
@@ -160,7 +160,8 @@ plan_setupdata <- drake_plan(
     inp_riveratlas = path_riveratlas,
     min_cutoff = 0.1,
     dispred =  seq(0.01, 0.09, 0.01),
-    interactive = F
+    interactive = F,
+    grouping_var = 'PFAF_IDclz'
   ),
 
   #-------------------- set-up tasks -------------------------------------
@@ -313,8 +314,7 @@ plan_runmodels <- drake_plan(
     # trigger  = trigger(mode = "condition", condition =FALSE)
   ),
 
-  rfeval_featall = target(c(res_all_cv)
-                          )
+  rfeval_featall = target(c(res_all_cv))
   ,
 
   rfeval_featsel = target(c(res_featsel_cv, res_featsel_spcv), #Cannot use combine as lead to BenchmarkResult directly in the branching
@@ -654,91 +654,91 @@ plan_compareresults <- drake_plan(
 
 
 ########################### BIND AND BRANCH PLANS ##############################
-plan_runmodels_branches_default <- lapply(
-  c('_all', '_u10', '_o1'), function(suffix) {
-    return(
-      branch_plan(
-        plan = plan_runmodels,
-        branch_suffix = suffix,
-        external_arguments_to_modify = c('tasks', 'gaugestats_format'),
-        verbose = FALSE)
-    )
-  }
-) %>%
-  do.call(bind_plans, .) %>%
-  .[!(.$target %in% c('res_all_spcv_all', 'res_featsel_spcv_all',
-                      'rfeval_featall_all', 'rfeval_featsel_all',
-                      'rfbm_featall_all', 'rfbm_featsel_all',
-                      'bin_rftunedmisclass_all', 'res_all_spcv_o1',
-                      'res_all_spcv_u10', 'rftuned_all', 'gpredsdt_all',
-                      'vimp_plot_all', 'pd_plot_all',
-                      'tablebm_classif1_all', 'tablebm_classif2_all', 'tablebm_regr1_all')
-      ),]
-
-plan_runsimplemodels_branches_30d <- lapply(
-  c('_u10', '_o1'), function(suffix) {
-    return(
-      branch_plan(
-        plan = plan_runsimplemodels_30d,
-        branch_suffix = suffix,
-        external_arguments_to_modify = c('tasks_featsel',
-                                        'gaugestats_format',
-                                        'rftuned', 'interthresh'),
-        verbose = FALSE)
-    )
-  }
-) %>%
-  do.call(bind_plans, .)
-
-
-#SHould makea function to modify single arg values
-
-plan_getoutputs_30d <- branch_plan(
-  plan = plan_getoutputs_2,
-  branch_suffix = '_mdur30',
-  external_arguments_to_modify = c('gpredsdt',
-                                   'rfpreds_gauges',
-                                   'rfpreds_network'),
-  verbose = FALSE)%>%
-  as.data.table %>%
-  .[substr(target, 1, 12) == 'globaltables',
-    command :=
-      lapply(command, function(call) {
-        rlang::call_modify(.call=call,
-                           valuevar = "predbasic800_mdur30")
-      })] %>%
-  .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
-    command := lapply(command, function(call) {
-      rlang::call_modify(.call=call,
-                         valuevar = "predbasic800_mdur30cat")
-    })] %>%
-  as_tibble
-
-plan_compareresults_30d <- branch_plan(
-  plan = plan_compareresults,
-  branch_suffix = '_mdur30',
-  external_arguments_to_modify = 'rivpred',
-  verbose = FALSE
-) %>%
-  as.data.table %>%
-  .[,
-    command :=
-      lapply(command, function(call) {
-        rlang::call_modify(.call=call,
-                           predcol = "predbasic800_mdur30cat")
-      })] %>%
-  as_tibble
-
-plan <- bind_plans(plan_preprocess,
-                   plan_setupdata,
-                   plan_runmodels_branches_default,
-                   plan_runsimplemodels_branches_30d,
-                   plan_getpreds,
-                   plan_getpreds_30d,
-                   plan_getoutputs_1,
-                   plan_getoutputs_2,
-                   plan_getoutputs_30d,
-                   plan_compareresults,
-                   plan_compareresults_30d
-)
-
+# plan_runmodels_branches_default <- lapply(
+#   c('_all', '_u10', '_o1'), function(suffix) {
+#     return(
+#       branch_plan(
+#         plan = plan_runmodels,
+#         branch_suffix = suffix,
+#         external_arguments_to_modify = c('tasks', 'gaugestats_format'),
+#         verbose = FALSE)
+#     )
+#   }
+# ) %>%
+#   do.call(bind_plans, .) %>%
+#   .[!(.$target %in% c('res_all_spcv_all', 'res_featsel_spcv_all',
+#                       'rfeval_featall_all', 'rfeval_featsel_all',
+#                       'rfbm_featall_all', 'rfbm_featsel_all',
+#                       'bin_rftunedmisclass_all', 'res_all_spcv_o1',
+#                       'res_all_spcv_u10', 'rftuned_all', 'gpredsdt_all',
+#                       'vimp_plot_all', 'pd_plot_all',
+#                       'tablebm_classif1_all', 'tablebm_classif2_all', 'tablebm_regr1_all')
+#       ),]
+#
+# plan_runsimplemodels_branches_30d <- lapply(
+#   c('_u10', '_o1'), function(suffix) {
+#     return(
+#       branch_plan(
+#         plan = plan_runsimplemodels_30d,
+#         branch_suffix = suffix,
+#         external_arguments_to_modify = c('tasks_featsel',
+#                                         'gaugestats_format',
+#                                         'rftuned', 'interthresh'),
+#         verbose = FALSE)
+#     )
+#   }
+# ) %>%
+#   do.call(bind_plans, .)
+#
+#
+# #SHould makea function to modify single arg values
+#
+# plan_getoutputs_30d <- branch_plan(
+#   plan = plan_getoutputs_2,
+#   branch_suffix = '_mdur30',
+#   external_arguments_to_modify = c('gpredsdt',
+#                                    'rfpreds_gauges',
+#                                    'rfpreds_network'),
+#   verbose = FALSE) %>%
+#   as.data.table %>%
+#   .[substr(target, 1, 12) == 'globaltables',
+#     command :=
+#       lapply(command, function(call) {
+#         rlang::call_modify(.call=call,
+#                            valuevar = "predbasic800_mdur30")
+#       })] %>%
+#   .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
+#     command := lapply(command, function(call) {
+#       rlang::call_modify(.call=call,
+#                          valuevar = "predbasic800_mdur30cat")
+#     })] %>%
+#   as_tibble
+#
+# plan_compareresults_30d <- branch_plan(
+#   plan = plan_compareresults,
+#   branch_suffix = '_mdur30',
+#   external_arguments_to_modify = 'rivpred',
+#   verbose = FALSE
+# ) %>%
+#   as.data.table %>%
+#   .[,
+#     command :=
+#       lapply(command, function(call) {
+#         rlang::call_modify(.call=call,
+#                            predcol = "predbasic800_mdur30cat")
+#       })] %>%
+#   as_tibble
+#
+# plan <- bind_plans(plan_preprocess,
+#                    plan_setupdata,
+#                    plan_runmodels_branches_default,
+#                    plan_runsimplemodels_branches_30d,
+#                    plan_getpreds,
+#                    plan_getpreds_30d,
+#                    plan_getoutputs_1,
+#                    plan_getoutputs_2,
+#                    plan_getoutputs_30d,
+#                    plan_compareresults,
+#                    plan_compareresults_30d
+# )
+#
