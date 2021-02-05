@@ -3834,9 +3834,9 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
     setorder(HYRIV_ID, DApercdiffabs) %>%
     .[!duplicated(HYRIV_ID),]
 
-  print(paste0('Removing ', gaugestats_joinsel[dor_pc_pva >= 5000, .N],
+  print(paste0('Removing ', gaugestats_joinsel[dor_pc_pva >= 500, .N],
                ' stations with >=50% flow regulation'))
-  gaugestats_derivedvar <- gaugestats_joinsel[dor_pc_pva < 5000, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
+  gaugestats_derivedvar <- gaugestats_joinsel[dor_pc_pva < 500, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
 
   return(gaugestats_derivedvar)
@@ -4544,24 +4544,21 @@ combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
   }
   print('Done combining, now writing to qs...')
   if (write_qs) {
-    out_qs <- file.path(inp_resdir,
-                        paste0('combine_bm',
-                               format(Sys.time(), '%Y%m%d%H%M%s'),
-                               '.qs')
-    )
+    out_filen <- paste0('combine_bm', format(Sys.time(), '%Y%m%d%H%M%s'), '.qs')
+    out_qs <- file.path(inp_resdir, out_filen)
   }
 
   qs::qsave(bmrbase, out_qs)
 
-  return(out_qs)
+  return(out_filen)
 }
 
 #------ select_features ------------------
-select_features <- function(in_bm, in_lrnid, in_task, pcutoff) {
+select_features <- function(in_bm, in_lrnid, in_task, pcutoff, inp_resdir = NULL) {
 
   #If path, read qs
   if (inherits(in_bm, "character")) {
-    in_bm <- qs::qread(in_bm)
+    in_bm <- qs::qread(file.path(inp_resdir, in_bm))
   }
 
   #get desired resampled_results/learner
