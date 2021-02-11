@@ -1,6 +1,6 @@
 {
   "R": {
-    "Version": "4.0.2",
+    "Version": "4.0.3",
     "Repositories": [
       {
         "Name": "CRAN",
@@ -43,6 +43,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "997471f25a7ed6c782f0090ce52cc63a"
+    },
+    "LearnBayes": {
+      "Package": "LearnBayes",
+      "Version": "2.15.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "b2dd5e3f910f1ac390f847f35e8c2396"
     },
     "MASS": {
       "Package": "MASS",
@@ -352,6 +359,13 @@
       "Repository": "CRAN",
       "Hash": "08cf4045c149a0f0eaf405324c7495bd"
     },
+    "coda": {
+      "Package": "coda",
+      "Version": "0.19-4",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "24b6d006b8b2343876cf230687546932"
+    },
     "codetools": {
       "Package": "codetools",
       "Version": "0.2-16",
@@ -436,6 +450,13 @@
       "Repository": "CRAN",
       "Hash": "2ba60a82dd9b6ca3cee0d8e2574cdf0e"
     },
+    "deldir": {
+      "Package": "deldir",
+      "Version": "0.2-9",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "5ecce9536aef446cf9b7b8519c0effae"
+    },
     "desc": {
       "Package": "desc",
       "Version": "1.2.0",
@@ -516,6 +537,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "ec8ca05cffcc70569eaaad8469d2a3a7"
+    },
+    "expm": {
+      "Package": "expm",
+      "Version": "0.999-6",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "1bb0f92b6125ea03dd7142f8eaf36bf5"
     },
     "facetscales": {
       "Package": "facetscales",
@@ -641,6 +669,13 @@
       "Repository": "CRAN",
       "Hash": "05ee75453c7c7cf6741a050af30927ba"
     },
+    "gdata": {
+      "Package": "gdata",
+      "Version": "2.18.0",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "465ccb84427f5fe2c54f8620666db131"
+    },
     "gdtools": {
       "Package": "gdtools",
       "Version": "0.2.2",
@@ -732,6 +767,13 @@
       "Repository": "CRAN",
       "Hash": "2aefa994e8df5da17dc09afd80f924d5"
     },
+    "gmodels": {
+      "Package": "gmodels",
+      "Version": "2.18.1",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "beb8ca96406a2828f25e49ab17001c39"
+    },
     "goftest": {
       "Package": "goftest",
       "Version": "1.2-2",
@@ -759,6 +801,13 @@
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "ac5c6baf7822ce8732b343f14c072c4d"
+    },
+    "gtools": {
+      "Package": "gtools",
+      "Version": "3.8.2",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "0a749b4458d19a54acae93c64e3e7c85"
     },
     "haven": {
       "Package": "haven",
@@ -811,10 +860,10 @@
     },
     "igraph": {
       "Package": "igraph",
-      "Version": "1.2.5",
+      "Version": "1.2.6",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "3878c30ce67cdb7f2d7f72554e37f476"
+      "Hash": "7b1f856410253d56ea67ad808f7cdff6"
     },
     "intervals": {
       "Package": "intervals",
@@ -960,8 +1009,8 @@
       "Package": "mandrake",
       "Version": "1.0.0",
       "Source": "GitHub",
-      "Remotes": "r-lib/downlit, r-lib/pkgdown, rstudio/htmltools",
       "RemoteType": "github",
+      "Remotes": "r-lib/downlit, r-lib/pkgdown, rstudio/htmltools",
       "RemoteHost": "api.github.com",
       "RemoteRepo": "mandrake",
       "RemoteUsername": "matthewstrasiotto",
@@ -1056,7 +1105,7 @@
       "RemoteUsername": "mlr3learners",
       "RemoteRef": "master",
       "RemoteSha": "ec51f6c4115a855f1de12fffeca1ac2b25ffc1c6",
-      "Hash": "282297a1a6bab2bd1c006988eda22ad8"
+      "Hash": "ef65972ca29398eae9f076cc4d084b5e"
     },
     "mlr3measures": {
       "Package": "mlr3measures",
@@ -1469,10 +1518,10 @@
     },
     "rlang": {
       "Package": "rlang",
-      "Version": "0.4.7",
+      "Version": "0.4.10",
       "Source": "Repository",
       "Repository": "CRAN",
-      "Hash": "c06d2a6887f4b414f8e927afd9ee976a"
+      "Hash": "599df23c40a4fce9c7b4764f28c37857"
     },
     "rmarkdown": {
       "Package": "rmarkdown",
@@ -1586,12 +1635,26 @@
       "Repository": "CRAN",
       "Hash": "3290eebc34ba4df5e213878d54c1e623"
     },
+    "spData": {
+      "Package": "spData",
+      "Version": "0.3.8",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "be5fc9cc13487505381071422d8346e2"
+    },
     "spacetime": {
       "Package": "spacetime",
       "Version": "1.2-3",
       "Source": "Repository",
       "Repository": "CRAN",
       "Hash": "c56bf34ead17cdd551eb2e2bf0e4bc74"
+    },
+    "spdep": {
+      "Package": "spdep",
+      "Version": "1.1-5",
+      "Source": "Repository",
+      "Repository": "CRAN",
+      "Hash": "e220c93e8a62be165fb5b56983ca2339"
     },
     "statmod": {
       "Package": "statmod",

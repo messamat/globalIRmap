@@ -37,6 +37,7 @@ suppressPackageStartupMessages(library(mandrake))
 
 
 suppressPackageStartupMessages(library(cowplot))
+suppressPackageStartupMessages(library(dataRetrieval))
 suppressPackageStartupMessages(library(data.table))
 suppressPackageStartupMessages(library(dplyr))
 suppressPackageStartupMessages(library(drake))

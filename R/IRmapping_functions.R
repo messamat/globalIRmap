@@ -69,7 +69,7 @@ zero_lomf <- function(x, first=TRUE) {
 readformatGRDC<- function(path) {
   #extract GRDC unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
-
+  
   #Read GRDC text data
   gaugetab <- cbind(fread(path, header = T, skip = 40, sep=";",
                           colClasses = c('character', 'character', 'numeric',
@@ -77,23 +77,23 @@ readformatGRDC<- function(path) {
                     GRDC_NO = gaugeno)%>%
     setnames('YYYY-MM-DD', 'dates') %>%
     setorder(GRDC_NO, dates)
-
+  
   #Format data
   gaugetab[, `:=`(year = as.numeric(substr(dates, 1, 4)), #Create year column
                   month = as.numeric(substr(dates, 6, 7)), #create month column
                   integervalue = fifelse(Original == round(Original), 1, 0) #Flag integer discharge values]
   )]
-
+  
   #For each record, compute date of last non-zero flow day
   gaugetab[, prevflowdate := gaugetab[zero_lomf(Original),'dates', with=F]] %>% #Get previous date with non-zero flow
     .[Original != 0, prevflowdate:=NA] #If non-zero flow, set prevflowdate to NA
-
+  
   #Compute number of missing days per year, excluding NoData values
   gaugetab[!(Original %in% c(-999, -99, -9999, 99, 999, 9999) | is.na(Original)),
            `:=`(missingdays = diny(year)-.N,
                 datadays = .N),
            by= 'year']
-
+  
   return(gaugetab)
 }
 
@@ -129,7 +129,7 @@ readformatGRDC<- function(path) {
 readformatGSIMmon <- function(path) {
   #extract GSIM unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
-
+  
   #Read GSIM text data
   gaugetab <- cbind(fread(path, header=T, skip = 21, sep=",",
                           colClasses=c('Date', rep('numeric', 8),
@@ -142,18 +142,18 @@ readformatGSIMmon <- function(path) {
     .[data.table(month=c(12, 1:11),
                  season=rep(c('DJF', 'MAM', 'JJA', 'SON'), each=3)),
       on='month']  #Create season column (first create a data.table with two columns (month, season) then join it)
-
+  
   #Compute minimum number of zero-flow days for each month
   gaugetab[, mDur_minmo := fcase(MAX==0L, n.available,
                                  MIN7==0L, 7L,
                                  MIN==0L, 1L,
                                  default = 0L)]
-
+  
   #Compute number of missing days per year
   gaugetab[, `:=`(missingdays = diny(year) - sum(n.available),
                   datadays = sum(n.available)),
            by= 'year']
-
+  
   return(gaugetab)
 }
 
@@ -191,7 +191,7 @@ readformatGSIMmon <- function(path) {
 readformatGSIMsea <- function(path) {
   #extract GSIM unique ID by formatting path
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
-
+  
   #Read GSIM text data
   gaugetab <- cbind(fread(path, header=T, skip = 21, sep=",",
                           colClasses=c('Date', rep('numeric', 17),
@@ -204,7 +204,7 @@ readformatGSIMsea <- function(path) {
     .[data.table(month=c(2, 5, 8, 11),
                  season=c('DJF', 'MAM', 'JJA', 'SON')),
       on='month']
-
+  
   #Compute minimum number of zero-flow days for each season
   gaugetab[, mDur_minsea := fcase(
     P90==0, as.integer(floor(0.9*n.available)),
@@ -263,16 +263,16 @@ flagGRDCoutliers <- function(in_gaugetab) {
     .[, `:=`(jday = format(as.Date(dates), '%j'),#Julian day
              q_rleid = rleid(Original),#Identify each group of consecutive values
              flag_mathis = 0)] #Create flag field)
-
+  
   #Flag negative values
   in_gaugetab[Original < 0, flag_mathis := flag_mathis + 1]
-
+  
   #Flag when more than 10 identical values in a row or when a single zero-flow
   in_gaugetab[, flag_mathis := flag_mathis +
                 ((Original > 0) & (.N > 10)) +
                 ((Original == 0) & (.N == 1)),
               by=q_rleid]
-
+  
   #Flag |log(Q + 0.01) - mean| > 6SD for julian day mean and SD of 5d mean of log(Q + 0.01)
   in_gaugetab[, logmean5d := frollapply(log(Original + 0.01), n = 5, align='center',
                                         FUN=mean, na.rm = T)] %>% #Compute 5-day mean of log(Q+0.01)
@@ -281,10 +281,10 @@ flagGRDCoutliers <- function(in_gaugetab) {
       by = jday] %>% #Compute mean and SD of 5-day mean of log(Q + 0.01) by Julian day
     .[abs(log(Original + 0.01) - jdaymean) > (6 * jdaysd),
       flag_mathis := flag_mathis + 1]
-
+  
   #Flag values where Original != Calculated discharge
   in_gaugetab[Original != Calculated, flag_mathis := flag_mathis + 1]
-
+  
   return(in_gaugetab)
 }
 
@@ -332,13 +332,13 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
       .[, dates := as.Date(dates)] %>%
       .[!is.na(Original), missingdays := diny(year)-.N, by= 'year']
   }
-
+  
   #Plot time series
   qtiles <- union(gaugetab[, min(Original, na.rm=T)],
                   gaugetab[, quantile(Original, probs=seq(0, 1, 0.1), na.rm=T)])
-
+  
   subgaugetab <- gaugetab[missingdays < maxgap,]
-
+  
   rawplot <- ggplot(subgaugetab[missingdays < maxgap,],
                     aes(x=dates, y=Original)) +
     geom_line(color='#045a8d', size=1, alpha=1/5) +
@@ -358,12 +358,12 @@ plotGRDCtimeseries <- function(GRDCgaugestats_record,
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust=1),
           axis.text.y = element_text())
-
+  
   if (showmissing) {
     rawplot <- rawplot +
       geom_point(data=gaugetab[missingdays >= maxgap,], color='black', alpha=1/10)
   }
-
+  
   if (!is.null(outpath)) {
     if (!(file.exists(outpath))) {
       ggsave(filename = outpath, plot = rawplot, device = 'png',
@@ -412,15 +412,15 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
   gaugetab <- readformatGSIMmon(GSIMgaugestats_record$path) %>%
     .[!is.na(MEAN),] %>%
     setorder(date)
-
+  
   #Format for plotting: compute MEAN - 2*SD if > MIN, otherwise MIN
   gaugetab[, `:=`(ribbonlow = max(c(MEAN-2*SD, MIN)),
                   ribbonhigh = min(c(MEAN+2*SD, MAX))
   ), by=date]
-
+  
   #Plot time series
   qtiles <- gaugetab[, quantile(union(MIN, MAX), probs=seq(0, 1, 0.1))]
-
+  
   rawplot <- ggplot(gaugetab[missingdays < maxgap,], aes(x=date, y=MEAN)) +
     geom_line(color='#045a8d', size=1, alpha=1/3) +
     geom_point(data=gaugetab[(missingdays < maxgap) & (MEAN>0),],
@@ -444,7 +444,7 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
     theme_bw() +
     theme(axis.text.x = element_text(angle = 45, hjust=1),
           axis.text.y = element_text())
-
+  
   if (showmissing) {
     gaugetab_removed <- gaugetab[missingdays > maxgap,]
     rawplot <- rawplot +
@@ -461,7 +461,7 @@ plotGSIMtimeseries <- function(GSIMgaugestats_record, outpath=NULL, maxgap=366,
       geom_point(data=gaugetab[(missingdays < maxgap) & (MAX==0),],
                  aes(y = MAX), color='purple', alpha=1/5)
   }
-
+  
   if (!is.null(outpath)) {
     if (!(file.exists(outpath))) {
       ggsave(filename = outpath, plot = rawplot, device = 'png',
@@ -502,27 +502,27 @@ checkGRDCzeroes <- function(GRDCstatsdt, in_GRDC_NO, period=15, yearthresh,
     .[missingdays < maxgap,] %>%
     merge(check[, list(dates=seq(min(dates), max(dates), by='day'))],
           by='dates', all.x=T, all.y=T)
-
+  
   checkdates <- unique(do.call("c",
                                lapply(
                                  as.Date(check[Original==0, dates]),
                                  function(i) seq.Date(i-period, i+period, by='day'))))
-
+  
   zeroes <- check[dates %in% checkdates,]
   zeroes[, zerogrp := rleid(round(difftime(dates, lag(dates))))] %>%
     .[, grpN := .N, by=zerogrp]
-
+  
   p <- plotGRDCtimeseries(zeroes[grpN > 1 & year > yearthresh,],
                           outpath=NULL, maxgap=maxgap, showmissing=T) +
     scale_y_sqrt() +
     scale_x_date(breaks='1 month') +
     facet_wrap(~zerogrp, scales=in_scales)
-
+  
   if (labelvals == T) {
     p <- p + geom_text(data=zeroes[grpN > 1 & Original >0,],
                        aes(label=Original), vjust=1, alpha=1/2)
   }
-
+  
   print(p)
   return(zeroes)
 }
@@ -586,7 +586,7 @@ plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE)
   #Get data subset
   wintergauges <- dt[get(paste0('winteronlyir_o', yearthresh)) == 1 &
                        get(paste0('totalYears_kept_o', yearthresh)) >= 10,]
-
+  
   #Create output directory
   resdir_winterirplots <- file.path(
     inp_resdir,
@@ -594,12 +594,12 @@ plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE)
            format(Sys.Date(), '%Y%m%d')
     )
   )
-
+  
   if (!(dir.exists(resdir_winterirplots))) {
     print(paste0('Creating ', resdir_winterirplots ))
     dir.create(resdir_winterirplots )
   }
-
+  
   #Generate plots depending on database
   if (plotseries) {
     if (str_to_upper(dbname) == 'GRDC') {
@@ -618,7 +618,7 @@ plot_winterir <- function(dt, dbname, inp_resdir, yearthresh, plotseries = TRUE)
       })
     }
   }
-
+  
   return(wintergauges)
 }
 
@@ -648,16 +648,16 @@ plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
                            plotseries = TRUE) {
   #Get column name of uniquer identifiers
   idno <- fifelse(str_to_upper(dbname) == 'GRDC', 'GRDC_NO', 'gsim_no')
-
+  
   #Select gauges within 3 km of a coastline of the given database (GRDC or GSIM)
   #and with at least 10 valid years of data
   coastalgauges <- in_gaugep[!is.na(in_gaugep$class99_19_rsp9_buf3k1) &
                                !is.na(as.data.frame(in_gaugep)[,idno]),] %>%setDT
-
-
+  
+  
   coastalir <- dt[get(paste0('totalYears_kept_o', yearthresh)) >= 10 &
                     get(idno) %in% coastalgauges[,get(idno)],]
-
+  
   #Create output directory for plots
   resdir_coastalirplots <- file.path(inp_resdir,
                                      paste0(str_to_upper(dbname),
@@ -668,7 +668,7 @@ plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
     print(paste0('Creating ', resdir_coastalirplots ))
     dir.create(resdir_coastalirplots )
   }
-
+  
   #Generate plots depending on database
   if (plotseries) {
     if (str_to_upper(dbname) == 'GRDC') {
@@ -685,8 +685,8 @@ plot_coastalir <- function(in_gaugep = in_gaugep, dt = GRDCstatsdt, yearthresh,
       })
     }
   }
-
-
+  
+  
   return(coastalir)
 }
 
@@ -723,6 +723,45 @@ comp_ymean<- function(in_dt, fieldex, mstart, outcol) {
     .[,'V1',with=F]
 }
 
+#------ comp_irstats -----------
+comp_irstats <- function(tabyearly, maxgap, mdurthresh, yearthresh,
+                         windowsize, fullwindow) {
+  checkpos <- function(x) {any(x>0)}
+  if ((windowsize %% 2)==0) {
+    windowsize <- windowsize + 1
+  }
+  
+  if (!fullwindow) {
+    movinginter <- all(
+      tabyearly[missingdays <= maxgap & year >= yearthresh,
+                (frollapply(dur, n=windowsize, FUN=checkpos, align="center") >= mdurthresh)],
+      na.rm=T)
+  } else {
+    movinginter <- all(
+      tabyearly[missingdays <= maxgap & year >= yearthresh,
+                c((frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="left") >= mdurthresh),
+                  (frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="right") >= mdurthresh))],
+      na.rm=T)
+  }
+  
+  
+  irstats <- tabyearly[missingdays <= maxgap & year >= yearthresh,
+                       .(firstYear_kept=min(year),
+                         lastYear_kept=max(year),
+                         totalYears_kept=length(unique(year)),
+                         totaldays = sum(datadays),
+                         integerperc = sum(integerperc)/(sum(datadays)+sum(missingdays)),
+                         sumDur = sum(dur),
+                         mDur = mean(dur),
+                         mFreq = mean(freq),
+                         intermittent =
+                           factor(fifelse(mean(dur)>=mdurthresh, 1, 0),
+                                  levels=c('0','1')),
+                         movinginter = movinginter
+                       )]
+  setnames(irstats, new = paste0(names(irstats), '_o', yearthresh))
+  return(irstats)
+}
 #------ comp_derivedvar -----------------
 #' Compute derived variables
 #'
@@ -762,36 +801,36 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
   } else {
     in_dt2 <- in_dt
   }
-
-
+  
+  
   #---- Inspect and correct -9999 and NA values ----
   print('Inspect and correct -9999 values')
   #check <- riveratlas[snw_pc_cyr == -9999,] #One reach in the middle of the Pacific
   in_dt2[snw_pc_cyr == -9999, snw_pc_cyr:=0]
   in_dt2[snw_pc_cmx == -9999, snw_pc_cmx:=0]
-
+  
   #Places with very high slope value (in Greenland) have -9999 - replace with high value
   #in_dt2[, max(slp_dg_uav)]
   in_dt2[slp_dg_cav == -9999, `:=`(slp_dg_cav = 750,
                                    slp_dg_uav = 650)]
-
+  
   #bio5 is -9999 in a few places in Greenland. Set at lowest existing value
   # in_dt2[bio5_dc_cav>-9999, min(bio5_dc_cav)]
   # in_dt2[bio5_dc_uav != -9999, min(bio5_dc_uav)]
   in_dt2[bio5_dc_cav == -9999, bio5_dc_cav := -950]
   in_dt2[bio5_dc_uav == -9999, bio5_dc_uav:= -9500]
-
+  
   print('Number of NA values per column')
   colNAs<- in_dt2[, lapply(.SD, function(x) sum(is.na(x)))]
   print(colNAs)
-
+  
   print('Number of -9999 values per column')
   col9999<- in_dt2[, lapply(.SD, function(x) sum(x==-9999))]
   print(col9999)
-
+  
   #-9999 in cly_pc_cav, slt, and snd are places with no soil mask (urban areas, lakes, glaciers, etc.)
-
-
+  
+  
   #Define column groups
   gladcols <- unlist(lapply(c('cav', 'uav'),function(s) {
     lapply(c('wloss', 'wdryp', 'wwetp', 'whfrq', 'wseas', 'wperm', 'wfresh',
@@ -801,26 +840,26 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
            })
   })
   )
-
+  
   sgcols <- c('cly_pc_cav','slt_pc_cav', 'snd_pc_cav',
               'cly_pc_uav','slt_pc_uav', 'snd_pc_uav')
-
+  
   #Bioclim columns in celsius degrees
   biocolsdc <- unlist(lapply(c('cav', 'uav'),
                              function(s) paste0('bio', 1:11, '_dc_', s)
   ))
   biocolsnegative <- grep('bio[189][01]*_dc_uav', biocolsdc, value=T)
-
+  
   cmi_cmcols <- paste0('cmi_ix_c', str_pad(1:12, width=2, side='left', pad=0))
   cmi_umcols <- paste0('cmi_ix_u', str_pad(1:12, width=2, side='left', pad=0))
-
+  
   #Convert -9999 to NAs
   for (j in which(sapply(in_dt2,is.numeric))) { #Iterate through numeric column indices
     if (!(j %in% which(names(in_dt2) %in% c(gladcols, sgcols, 'wet_cl_cmj')))) {
       set(in_dt2,which(in_dt2[[j]]==-9999),j, NA) #Set those to NA if -9999
     }
   }
-
+  
   #Scale variables based on HydroATLAS v1.0 documentation and v1.0.9 processing
   in_dt2[, `:=`(
     ari_ix_cav = ari_ix_cav/1000,
@@ -830,19 +869,19 @@ comp_derivedvar <- function(in_dt, copy=FALSE) {
     lka_pc_use = lka_pc_use/10,
     gwt_m_cav = gwt_cm_cav/100
   )]
-
+  
   in_dt2[, (gladcols) := lapply(.SD, function(x) x/100), .SDcols = gladcols]
   in_dt2[, (biocolsdc) := lapply(.SD, function(x) (x/100)), .SDcols = biocolsdc]
   in_dt2[, (biocolsnegative) := lapply(.SD, function(x) x-100),
          .SDcols=biocolsnegative]
-
+  
   #---- Compute derived predictor variables ----
   print('Compute derived predictor variables')
   comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_c01', mstart=9, outcol='cmi_ix_cyr')
   comp_ymean(in_dt=in_dt2, fieldex = 'cmi_ix_u01', mstart=9, outcol='cmi_ix_uyr')
   comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_c01', mstart=9, outcol='pet_mm_cyr')
   #comp_ymean(in_dt=in_dt2, fieldex = 'pet_mm_u01', mstart=9, outcol='pet_mm_uyr')
-
+  
   in_dt2[,
          `:=`(cmi_ix_cmn = do.call(pmin, c(.SD, list(na.rm=TRUE))), #Compute minimum and maximum catchment precipitation
               cmi_ix_cmx = do.call(pmax, c(.SD, list(na.rm=TRUE)))),
@@ -917,7 +956,7 @@ threshold_misclass <- function(i=0.5, in_preds) {
   if (inherits(in_preds, 'PredictionClassif')) {
     confu <- as.data.table(in_preds$set_threshold(1-i)$confusion) #Get confusion matrix directly
   }
-
+  
   if (is.data.table(in_preds)) {
     #If task associated with predictions is a classification and has records
     if (in_preds[task_type == 'classif',.N] > 0) {
@@ -931,7 +970,7 @@ threshold_misclass <- function(i=0.5, in_preds) {
         #Aggregate confusion matrices across repetitions
         .[, .(N=sum(N)), by=.(response, truth)]
     }
-
+    
     #If task associated with predictions is a regression and has records
     if (in_preds[task_type == 'regr', .N] > 0) {
       #Reclassify continuous predictions into binary response across all records
@@ -941,7 +980,7 @@ threshold_misclass <- function(i=0.5, in_preds) {
         .[, .N, by=.(response, truth)]
     }
   }
-
+  
   #---- Compute statistics based on confusion matrix and format into data.table----
   outvec <- data.table(
     i,
@@ -975,7 +1014,7 @@ threshold_dat <- function(bmres) {
     .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
     .[, resampling_id := unlist(lapply(resampling, function(x) x$id))] %>%
     unique(by='uhash')
-
+  
   #If regression task, format the predictions so that they match the format
   # of a classification task.
   if (bmres$task_type == 'regr') {
@@ -989,20 +1028,20 @@ threshold_dat <- function(bmres) {
       return(preds)
     }) %>%
       do.call(rbind, .)
-
+    
     if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
       preds[, prob.1 := response]
     }
   }
-
+  
   outtab <- lapply(seq_len(bmres_dt[,.N]), function(rsmp_i) {
     print(rsmp_i)
     rsmp_preds <- bmres$resample_result(rsmp_i)$prediction()
-
+    
     if (bmres$task_type == 'regr') {
       rsmp_preds <- preds
     }
-
+    
     baccthresh <- ldply(seq(0.4,0.6,0.01), function(threshold_class) {
       print(threshold_class)
       cbind(
@@ -1016,8 +1055,8 @@ threshold_dat <- function(bmres) {
     return(baccthresh)
   }) %>%
     rbindlist
-
-
+  
+  
   outtab_melt <- melt(outtab, id.vars=c('threshold_class',
                                         'learner_id', 'task_id', 'resampling_id'))
   return(outtab_melt)
@@ -1055,10 +1094,10 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
       sp_i <- which(unlist(lapply(in_rftuned$rf_outer, function(x) {
         grepl('.*Resampling.*Sp.*', x$resampling$format())
       })))
-
+      
       #If user request that spatial resampling be used
       if (spatial_rsp==TRUE) {
-
+        
         if (length(sp_i)>0) {
           rsmp_res <- in_rftuned$rf_outer[[min(sp_i)]]
         } else { #But if there is no spatial resampling provided
@@ -1071,7 +1110,7 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
         rsmp_res <- in_rftuned$rf_outer[[
           min((1:length(in_rftuned$rf_outer))[-sp_i])]]
       }
-
+      
       #If there is only one type of outer resampling
     } else {
       print("Only one resampling result, ignoring spatial_rsp argument...")
@@ -1114,11 +1153,11 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
       w <- w[-which(is.na(x))]
     }
   }
-
+  
   if (length(w)==0) {
     w <- rep(1, length(x))
   }
-
+  
   #Compute weighted standard deviation
   return(sqrt(sum((w) * (x - weighted.mean(x, w)) ^ 2) / (sum(w) - 1)))
 }
@@ -1166,29 +1205,29 @@ weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
 extract_impperf_nestedrf <- function(in_rflearner, in_task,
                                      imp = TRUE, perf = TRUE,
                                      pvalue = TRUE, pvalue_permutn = 100) {
-
+  
   in_task <- in_task[[1]]
   in_rflearner <- in_rflearner[[1]]
-
+  
   if (inherits(in_rflearner, "AutoTuner")) {
     sublrn <- in_rflearner$model$learner
   } else {
     sublrn <- in_rflearner
   }
-
+  
   print(paste0("Computing variable importance for resampling instance hash #",
                sublrn$hash))
-
+  
   outobj <- cbind(
     if (imp) {
       ####################### IF GraphLearner ####################################
       if (inherits(sublrn, "GraphLearner")) {
-
+        
         if ('classif.ranger' %in% names(sublrn$model)) {
-
+          
           if (pvalue == TRUE) {
             in_formula <- as.formula(paste0(in_task$target_names, '~.'))
-
+            
             importance_pvalues(
               sublrn$model$classif.ranger$model,
               method = "altmann",
@@ -1196,12 +1235,12 @@ extract_impperf_nestedrf <- function(in_rflearner, in_task,
               data = in_task$data(),
               formula= in_formula
             )
-
+            
           } else {
             data.table(importance=sublrn$model$classif.ranger$model$variable.importance)
           }
         }
-
+        
         else if ('classif.cforest' %in% names(sublrn$model)) {
           if (pvalue == TRUE) {
             warning("p_value calculation is only available for ranger classification rf, ignoring p_value.
@@ -1218,7 +1257,7 @@ extract_impperf_nestedrf <- function(in_rflearner, in_task,
       } else { ####################### IF direct model ####################################
         if (pvalue == TRUE) { #If want pvalue associated with predictor variables
           in_formula <- as.formula(paste0(in_task$target_names, '~.'))
-
+          
           importance_pvalues(
             in_rflearner$model,
             method = "altmann",
@@ -1229,7 +1268,7 @@ extract_impperf_nestedrf <- function(in_rflearner, in_task,
         } else { #If pvalue == FALSE
           data.table(importance= in_rflearner$model$learner$importance())
         }
-
+        
       }
     },
     if (perf) {
@@ -1238,7 +1277,7 @@ extract_impperf_nestedrf <- function(in_rflearner, in_task,
       data.table(outperf) %>% setnames(perf_id)
     }
   )
-
+  
   return(outobj)
 }
 #------ weighted_vimportance_nestedrf -----------------
@@ -1281,19 +1320,19 @@ weighted_vimportance_nestedrf <- function(rfresamp,
                                           pvalue = TRUE, pvalue_permutn = 100) {
   varnames <- rfresamp$task$feature_names
   rfresampdt <- as.data.table(rfresamp)
-
+  
   vimportance_all <- rfresampdt[, extract_impperf_nestedrf(
     in_rflearner = learner, #Extract vimp and perf for each resampling instance
     in_task = task,
     imp=T, perf=T, pvalue=pvalue, pvalue_permutn), by=iteration] %>%
     cbind(., varnames)
-
+  
   ####!!!!!!!!!!Adapt to allow for other measure than classif.bacc!!!!!!!!######
   out_vimportance <- vimportance_all[
     , list(imp_wmean = weighted.mean(importance, classif.bacc), #Compute weighted mean
            imp_wsd =  weighted_sd(importance, classif.bacc)), #Compute weighted sd
     by=varnames]
-
+  
   if (pvalue) {
     out_vimportance <- cbind(
       out_vimportance,
@@ -1302,7 +1341,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
                       by=varnames][, !'varnames']
     )
   }
-
+  
   return(out_vimportance)
 }
 
@@ -1354,25 +1393,25 @@ weighted_vimportance_nestedrf <- function(rfresamp,
 extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
                                 selcols, nvariate, ngrid) {
   in_mod <- as.data.table(in_rftuned)[eval(learner_id),] #Go through data.table format to have access to both tasks and learners
-
+  
   #Get fold-specific performance measure
   foldperf <- extract_impperf_nestedrf(in_rflearner = in_mod$learner,
                                        in_task = in_mod$task,
                                        imp=F, perf=T, pvalue=F)
-
+  
   # selcols <- in_vimp_plot$data %>% #Can use that if extracting from tunredrf is expensive
   #   setorder(-imp_wmean) %>%
   #   .[colnums, variable]
-
-
+  
+  
   if (inherits(in_mod$learner[[1]]$learner, "GraphLearner")) {
     in_fit <- in_mod$learner[[1]]$learner$model$classif.ranger$model
   } else {
     in_fit <- in_mod$learner[[1]]$learner$model
   }
-
+  
   ngridvec <- c(ngrid, ngrid)
-
+  
   #Make dataset of all combinations of selected column names, two at a time
   if (nvariate == 1) {
     pdcomb <- lapply(selcols, function(i) {
@@ -1386,11 +1425,11 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
     }
     ) %>%
       do.call(rbind, .)
-
+    
   } else if (nvariate == 2) {
     vargrid <- combn(selcols, 2, simplify=F) %>%
       do.call(rbind, .)
-
+    
     #Get marginal distribution of the effect of two columns at a time
     pdcomb <- mapply(function(i, j) {
       pdout <- edarf::partial_dependence(fit = in_fit, vars = c(i, j),
@@ -1400,15 +1439,15 @@ extract_pd_nestedrf <- function(learner_id=1, in_rftuned, datdf,
         .[,(names(foldperf)) := foldperf] %>%
         .[, `:=`(var1=i, var2=j)] %>%
         setnames(c(i,j), c('value1', 'value2'))
-
-
+      
+      
       return(pdout)
     }, vargrid[,1], vargrid[,2], SIMPLIFY = FALSE) %>%
       do.call(rbind, .)
   } else {
     print('Warning: function cannot yet work with more than two variables at a time')
   }
-
+  
   return(pdcomb)
 }
 
@@ -1436,7 +1475,7 @@ fread_cols <- function(file_name, cols_tokeep) {
         'columns out of ', length(cols_tokeep), 'supplied column names')
   #Reading in table
   paste(missingcols, 'columns are not in the file...')
-
+  
   dt <- fread(input=file_name, header=TRUE,
               select=keptcols, verbose=TRUE)
   return(dt)
@@ -1524,23 +1563,23 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
     #Identify minority class and compute ratio between the number of observations
     #in the majority and the minority classes
     oversamp_ratio <- get_oversamp_ratio(in_task)
-
+    
     #Subset the dataset underlying the task to only keep records for the minority class
     mino_subdat <- in_task$data()[
       eval(in_task$target_names) == oversamp_ratio$minoclass,]
-
+    
     #Get number of obs for the minority class
     nmino <- mino_subdat[,.N]
-
+    
     #Sample minority observation indices with replacement to make up for the difference
     #in number of observations for maj and min classes
     oversamp_index <- sample(nmino, nmino*(oversamp_ratio$ratio-1), replace=T)
-
+    
     #Actually sample records and bind them to the original data
     newdat <- rbind(in_task$data(),
                     mino_subdat[oversamp_index,]) %>%
       .[, eval(in_task$target_names):= as.numeric(as.character(get(in_task$target_names)))] #Convert target to numeric ((required for regression))
-
+    
   } else {
     #If no oversampling, just convert target to numeric (required for regression)
     newdat <- in_task$data()[, eval(in_task$target_names) :=
@@ -1572,11 +1611,11 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
 #' @export
 durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
                              reverse=FALSE) {
-
+  
   cl <- parallel::makeCluster(bigstatsr::nb_cores()) #make cluster based on recommended number of cores
   on.exit(stopCluster(cl))
   doParallel::registerDoParallel(cl)
-
+  
   return(as.data.table(rbindlist(
     foreach(j=pathlist,
             .packages = c("data.table", "magrittr"),
@@ -1586,7 +1625,7 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
         return(comp_durfreq(j, maxgap = 20))
       } else {
         monthsublist = monthsel_list[[strsplit(basename(j), '[.]')[[1]][1]]]
-
+        
         #Run duration and frequency computation for subset of months
         return(comp_durfreq(j, maxgap = maxgap,
                             monthsel= if (reverse) setdiff(1:12, monthsublist) else monthsublist)
@@ -1620,13 +1659,13 @@ durfreq_parallel <- function(pathlist, maxgap, monthsel_list=NULL,
 rsmp_bbrier <- function(bmres, rsmp_i) {
   rsmp <- bmres$resample_result(rsmp_i) #Get resample result
   rsmp_pred<- rsmp$prediction() #Get predictions for resample result
-
+  
   #Compute binary brier score
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) -
                      rsmp_pred$prob[,'1'])^2)/length(rsmp_pred$row_ids)
   }
-
+  
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     bbrier <- sum((as.numeric(as.character(rsmp_pred$truth)) -
                      rsmp_pred$response)^2)/length(rsmp_pred$row_ids)
@@ -1685,18 +1724,18 @@ rsmp_auc <- function(bmres, rsmp_i) {
 rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred <- rsmp$prediction()
-
+  
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-
+  
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-
+  
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, '1', '0'))]
-
+  
   bacc <- mlr3measures::bacc(factor(as.character(rsmp_pred$truth),
                                     levels=c('0', '1')),
                              factor(response, levels=c('0','1')))
@@ -1724,21 +1763,21 @@ rsmp_bacc <- function(bmres, rsmp_i, threshold_class) {
 rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-
+  
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-
+  
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-
+  
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, 1, 0))]
-
+  
   sen <- Metrics::recall(as.numeric(as.character(rsmp_pred$truth)),
                          response)
-
+  
   return(sen)
 }
 
@@ -1762,18 +1801,18 @@ rsmp_sen <- function(bmres, rsmp_i, threshold_class) {
 rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
   rsmp <- bmres$resample_result(rsmp_i)
   rsmp_pred<- rsmp$prediction()
-
+  
   if (inherits(rsmp_pred, 'PredictionClassif')) {
     prob_resp <- rsmp_pred$prob[,'1']
   }
-
+  
   if (inherits(rsmp_pred, 'PredictionRegr')) {
     prob_resp <- rsmp_pred$response
   }
-
+  
   response <- as.data.table(prob_resp)[
     , c(fifelse(prob_resp>=threshold_class, 1, 0))]
-
+  
   spe <- Metrics::recall(1-as.numeric(as.character(rsmp_pred$truth)),
                          1-response)
   return(spe)
@@ -1794,10 +1833,10 @@ rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
 #'
 #' @export
 bm_paramstime <- function(bmres) {
-
+  
   lrns_dt <- as.data.table(bmres) %>%
     unique(by='uhash')
-
+  
   params_format <- lapply(lrns_dt$learner, function(lrn) {
     print(lrn$id)
     #Get general parameters-----------------------------------------------------
@@ -1806,7 +1845,7 @@ bm_paramstime <- function(bmres) {
     } else {
       lrn_in <- lrn
     }
-
+    
     #If GraphLearner, get parameters for each Pipe Operator
     if (inherits(lrn_in, 'GraphLearner')) {
       paramtab <- lapply(lrn_in$graph$pipeops, function(po) {
@@ -1814,12 +1853,12 @@ bm_paramstime <- function(bmres) {
         def <- as.data.table(po$param_set$default) %>%
           .[, po_id := po$id] %>%
           melt(id.var='po_id')
-
+        
         #Get set param
         value <- as.data.table(po$param_set$values) %>%
           .[, po_id := po$id]%>%
           melt(id.var='po_id')
-
+        
         #Merge default and set params, keeping set ones when present
         if (ncol(def)==1) {
           tabmerge <- value
@@ -1833,25 +1872,25 @@ bm_paramstime <- function(bmres) {
             setnames('value.y', 'value') %>%
             .[, value.x := NULL]
         }
-
+        
         graphparams <- tabmerge %>%
           .[, variable := gsub('[.]', '', variable)] %>%
           unique(by='variable')
-
+        
         return(graphparams)
       }) %>%
         rbindlist(use.names=TRUE)
-
+      
       #If direct learner
     } else {
       #Get default params
       def <- as.data.table(lrn_in$param_set$default) %>%
         melt(id.vars=integer())
-
+      
       #Get set param
       value <- as.data.table(lrn_in$param_set$values) %>%
         melt(id.vars=integer())
-
+      
       if (def[,.N]>0 & value[,.N]>0) {
         tabmerge <- merge(def, value, by='variable', all.x=T, all.y=T)%>%
           .[is.na(value.y), value.y := value.x] %>%
@@ -1860,13 +1899,13 @@ bm_paramstime <- function(bmres) {
       } else {
         tabmerge <- rbind(def, value)
       }
-
+      
       #Merge default and set params, keeping set ones when present
       paramtab <- tabmerge %>%
         .[, variable := gsub('[.]', '', variable)] %>%
         unique(by='variable') #Models are not consistent in their use of dots
     }
-
+    
     #Get inner sampling parameters----------------------------------------------
     if ('instance_args' %in% names(lrn)) {
       param_ranges <- as.list(
@@ -1874,8 +1913,8 @@ bm_paramstime <- function(bmres) {
                '-',
                lrn$instance_args$search_space$upper))
       names(param_ranges) <- lrn$instance_args$search_space$ids()
-
-
+      
+      
       inner_smp  <- cbind(
         as.data.table(
           lrn$instance_args$resampling$param_set$get_values()),
@@ -1885,13 +1924,13 @@ bm_paramstime <- function(bmres) {
         .[, nruns := prod(.SD)] %>%
         setnames(names(.), paste0('inner_', names(.))) %>%
         cbind(as.data.table(param_ranges))
-
+      
       #If no inner sampling
     } else {
       inner_smp <- data.table(inner_nruns = 1)
     }
-
-
+    
+    
     #Remove pipe operator names and dot from names (inconsistent use across learners)
     setnames(inner_smp,
              old=names(inner_smp),
@@ -1900,7 +1939,7 @@ bm_paramstime <- function(bmres) {
                                  collapse = '|'),
                            '',
                            names(inner_smp))))
-
+    
     #---------------------------------------------------------------------------
     #Merge inner sampling parameters and general parameters, then format
     return(
@@ -1912,25 +1951,25 @@ bm_paramstime <- function(bmres) {
   }) %>%
     rbindlist(., fill=T)
   ##############################################################################
-
+  
   #Get task, learner and resampling ids
   lrns_time <- cbind(lrns_dt, params_format) %>%
     .[, learner_id := unlist(lapply(learner, function(x) x$id))] %>%
     .[, task_id := unlist(lapply(task, function(x) x$id))] %>%
     .[, resampling_id := unlist(lapply(resampling, function(x) x$id))]
-
+  
   #Get number of features
   lrns_time[, npredictors :=
               lapply(lrns_dt$task,function(x) length(x$feature_names)) %>%
               unlist]
-
+  
   #Compute train and predict time by learner, task and resampling
   bm_ttot <- as.data.table(bmres$aggregate(list(msr('time_train'),
                                                 msr('time_predict')))) %>%
     .[lrns_time, on=c('learner_id', 'task_id', 'resampling_id')] %>%
     unique(by='nr') %>%
     .[, time_train := time_train/inner_nruns]
-
+  
   return(bm_ttot)
 }
 
@@ -1966,28 +2005,28 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
     rsmp_bbrier(bmres=bmres, rsmp_i=i)
   }) %>%
     unlist
-
+  
   print('Getting auc')
   auc_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(i)
     rsmp_auc(bmres=bmres, rsmp_i=i)
   }) %>%
     unlist
-
+  
   print('Getting sensitivity')
   sen_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(i)
     rsmp_sen(bmres=bmres, rsmp_i=i, threshold_class=interthresh)
   }) %>%
     unlist
-
+  
   print('Getting specificity')
   spe_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(i)
     rsmp_spe(bmres=bmres, rsmp_i=i, threshold_class=interthresh)
   }) %>%
     unlist
-
+  
   print('Getting smp design')
   outer_smp <- lapply(bmres$resamplings$resampling, function(rsmp_design) {
     as.data.table(rsmp_design$param_set$get_values()) %>%
@@ -1995,7 +2034,7 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
       .[, resampling_id := rsmp_design$id]
   }) %>%
     rbindlist(use.names=T)
-
+  
   print('Getting bacc')
   bacc_vec <- lapply(1:bmres$n_resample_results, function(i) {
     print(paste0('For fold #', i))
@@ -2011,7 +2050,7 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
     }
   }) %>%
     rbindlist
-
+  
   print('Getting inner sampling params, general params, and time &  add to rest')
   moddt <- bm_paramstime(bmres) %>%
     cbind(., outer_smp) %>%
@@ -2020,7 +2059,7 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
             auc = auc_vec,
             sen = sen_vec,
             spe = spe_vec)]
-
+  
   return(moddt)
 }
 
@@ -2053,9 +2092,9 @@ reset_tuning <- function(in_autotuner, in_task, in_lrnid = NULL) {
       which(unlist(lapply(in_autotuner, function(lrn) {lrn$id == in_lrnid})))
     ]]
   }
-
+  
   tuneargs_ini <- in_autotuner$instance_args
-
+  
   autotuner_new <- set_tuning(in_learner = tuneargs_ini$learner,
                               in_measure = tuneargs_ini$measure,
                               nfeatures = length(in_task$feature_names),
@@ -2063,7 +2102,7 @@ reset_tuning <- function(in_autotuner, in_task, in_lrnid = NULL) {
                               insamp_neval= tuneargs_ini$terminator$param_set$values$n_evals,
                               insamp_nbatch= in_autotuner$tuner$param_set$values$batch_size
   )
-
+  
   return(autotuner_new)
 }
 
@@ -2091,7 +2130,7 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
         learner_id == 'oversample.classif.cforest'~'CIF-oversampled',
         learner_id == 'classweights.classif.cforest'~'CIF-weighted classes',
       )]
-
+    
   } else if (typecomp == 'regr1') {
     bmres[, `:=`(selection = 'Algorithm',
                  type = 'Regr.')] %>%
@@ -2099,7 +2138,7 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
         task_id == 'inter_regr' ~'MAXSTAT',
         task_id == 'inter_regrover' ~'MAXSTAT-oversampled'
       )]
-
+    
   } else if (typecomp == 'classif2') {
     bmres[, `:=`(selection = 'Predictors',
                  type = 'Classif.')] %>%
@@ -2110,7 +2149,7 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
   } else {
     stop('typecomp is not recognized')
   }
-
+  
   return(bmres)
 }
 
@@ -2127,7 +2166,7 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
 #' @export
 sfformat_wintri <- function(in_sp) {
   crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
-
+  
   return(st_as_sf(in_sp) %>%
            st_transform(crs_wintri, use_gdal = FALSE)
   )
@@ -2189,29 +2228,29 @@ bin_dt <- function(in_dt, binvar, binfunc, binarg,
                    na.rm=FALSE, valuevar=NULL) {
   #Inspired from rbin, adapted to dt and simplified
   in_dt <- copy(in_dt)
-
+  
   el_freq <- function(byd, bins) {
     bin_length <- (max(byd, na.rm = TRUE) - min(byd, na.rm = TRUE)) / bins
     append(min(byd, na.rm = TRUE), min(byd, na.rm = TRUE) + (bin_length * seq_len(bins)))[1:bins]
-
+    
   }
-
+  
   eu_freq <- function(byd, bins) {
     bin_length <- (max(byd, na.rm = TRUE) - min(byd, na.rm = TRUE)) / bins
     ufreq      <- min(byd, na.rm = TRUE) + (bin_length * seq_len(bins))
     n          <- length(ufreq)
     ufreq[n]   <- max(byd, na.rm = TRUE) + 1
     return(ufreq)
-
+    
   }
-
+  
   binvar_orig <- copy(binvar)
-
+  
   #Remove NAs
   if (na.rm) {
     in_dt <- in_dt[!is.na(get(eval(valuevar))),]
   }
-
+  
   #Transform data if trans
   if (!is.null(bintrans)) {
     transvar <- paste0(binvar, '_bintrans')
@@ -2221,29 +2260,29 @@ bin_dt <- function(in_dt, binvar, binfunc, binarg,
                      'removing them for log transformation'))
       in_dt[, eval(transvar) :=
               log(get(eval(binvar)))]
-
+      
     } else if (is.numeric(bintrans)) {
       in_dt[, eval(transvar) :=
               get(eval(binvar))^eval(bintrans)]
-
+      
     }
     binvar = transvar
   }
-
+  
   byd <- in_dt[, get(eval(binvar))]
-
+  
   if (binfunc == 'manual') {
     l_freq    <- append(min(byd), binarg)
     u_freq    <- c(binarg, (max(byd, na.rm = TRUE) + 1))
     bins      <- length(binarg) + 1
   }
-
+  
   if (binfunc == 'equal_length') {
     bins = round(binarg)
     l_freq    <- el_freq(byd, bins)
     u_freq    <- eu_freq(byd, bins)
   }
-
+  
   if (binfunc == 'equal_freq') {
     bins = round(binarg)
     bin_prop     <- 1 / bins
@@ -2258,7 +2297,7 @@ bin_dt <- function(in_dt, binvar, binfunc, binarg,
     in_dt[, binid := .I]
     binvar = 'binid'
   }
-
+  
   for (i in seq_len(bins)) {
     in_dt[get(eval(binvar)) >= l_freq[i] & get(eval(binvar)) < u_freq[i],
           bin := i]
@@ -2267,14 +2306,14 @@ bin_dt <- function(in_dt, binvar, binfunc, binarg,
       .[bin == i, bin_lformat := paste(round(bin_lmin, ndigits),
                                        round(bin_lmax, ndigits),
                                        sep='-')]
-
+    
     if (i == bins) {
       in_dt[get(eval(binvar)) == u_freq[i],  bin := i]
     }
   }
-
+  
   if (binfunc == 'equal_freq') {in_dt[, binid := NULL]}
-
+  
   return(in_dt)
 }
 
@@ -2334,7 +2373,7 @@ formathistab <- function(in_dt, castvar, valuevar, valuevarsub,
                    valuevar = valuevar,
                    binfunc = binfunc,
                    binarg = binarg)
-
+  
   netstat <- as.data.table(rivbin)[,sum(get(weightvar)),
                                    by=c(eval(valuevar), "bin")]
   tidyperc_riv <- netstat[, list(perc = 100*.SD[get(valuevar)==valuevarsub,
@@ -2391,7 +2430,7 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
   x_tick <- c(0, unique(datmerge$bin)) + 0.5
   binarg_tick <- c(0, binarg)
   len <- length(x_tick)
-
+  
   plot_size <- ggplot(datmerge, aes(x=bin, y=binsumlength, fill=dat)) +
     geom_bar(stat='identity', position='dodge') +
     scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
@@ -2410,7 +2449,7 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
           axis.text.x = element_text(),
           axis.ticks.x = element_line(color = c(rep(NA, len/2 - 1),
                                                 rep("black", len/2))))
-
+  
   plot_inter <- ggplot(datmerge, aes(x=bin, y=perc, fill=dat)) +
     geom_bar(stat='identity', position='dodge') +
     scale_fill_manual(name = 'Dataset', values=c('#a6cee3', '#1f78b4')) +
@@ -2423,8 +2462,8 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
     theme(legend.position = c(0.15, 0.90),
           legend.background = element_blank(),
           axis.ticks.x = element_line(color = c(rep(NA, len - 1), rep("black", len))))
-
-
+  
+  
   xmin_inset <- datmerge[, insetx*(max(bin)-min(bin))]
   xmax_inset <- datmerge[, 1*max(bin)]
   ymin_inset <- datmerge[,round((insety * max(perc, na.rm=T) - min(perc, na.rm=T)) +
@@ -2463,8 +2502,8 @@ def_filestructure <- function() {
   resdir <- file.path(rootdir, 'results')
   # File geodatabase to write outputs
   outgdb <- file.path(resdir, 'spatialoutputs.gdb')
-
-
+  
+  
   # GRDC hydrometric stations that have been joined to RiverATLAS
   in_GRDCgaugep <- file.path(outgdb, 'grdcstations_cleanjoin')
   # Directory containing GRDC hydrometric data
@@ -2475,7 +2514,7 @@ def_filestructure <- function() {
   # Directory containing GSIM monthly hydrometric data
   GSIMgaugedir <- file_in(!!file.path(
     datdir, 'GSIM', 'GSIM_indices', 'TIMESERIES', 'monthly'))
-
+  
   # River atlas formatted variables
   in_riveratlas_meta <- file_in(!!file.path(datdir, 'HydroATLAS',
                                             'HydroATLAS_metadata_MLMv11.xlsx'))
@@ -2487,20 +2526,20 @@ def_filestructure <- function() {
   in_bufrasdir <- file.path(resdir, 'bufrasdir')
   # River atlas attribute data1
   in_riveratlas <- file_in(!!file.path(resdir, 'RiverATLAS_v10tab.csv'))
-
+  
   # River atlas attribute data2
   in_riveratlas2 <- file_in(!!file.path(resdir, 'RiverATLAS_v11tab.csv'))
-
+  
   # French river network for comparison
   compresdir <- file.path(resdir, 'Comparison_databases')
   in_netfr <- file.path(compresdir, 'france.gdb', 'network')
   in_basfr <- file.path(compresdir, 'france.gdb', 'hydrobasins12')
-
+  
   # Output geopackage of hydrometric stations with appended predicted intermittency class
   out_gauge <- file.path(resdir, 'GRDCstations_predbasic800.gpkg')
   # River atlas predictions table
   out_riveratlaspred <- file.path(resdir, 'RiverATLAS_predbasic800.csv')
-
+  
   return(c(rootdir=rootdir, datdir=datdir, resdir=resdir, outgdb=outgdb,
            in_gaugep=in_gaugep, in_gaugedir=in_gaugedir,
            in_riveratlas_meta=in_riveratlas_meta,
@@ -2555,16 +2594,16 @@ read_gaugep <- function(inp_GRDCgaugep, inp_GSIMgaugep,
   #Import gauge stations
   GRDCgaugep <- st_read(dsn = dirname(inp_GRDCgaugep),
                         layer = basename(inp_GRDCgaugep))
-
+  
   GSIMgaugep <- st_read(dsn = dirname(inp_GSIMgaugep),
                         layer = basename(inp_GSIMgaugep))
-
+  
   #Rename
   GRDCgaugep$GAUGE_NO <- GRDCgaugep$GRDC_NO
   GSIMgaugep$GAUGE_NO <- GSIMgaugep$gsim_no
   GSIMgaugep$manualsnap_mathis <- GSIMgaugep$manualsnap
   GSIMgaugep$snap_comment_mathis <- GSIMgaugep$snap_comment
-
+  
   #Row bind GSIM and GRDC stations
   GRDCgaugep$area_correct <- GRDCgaugep$GRDC_AREA
   GRDCgaugep$gsim_no <- NA
@@ -2572,32 +2611,32 @@ read_gaugep <- function(inp_GRDCgaugep, inp_GSIMgaugep,
   GRDCgaugep[, c("gsim_no", "reference_db", "reference_no", "grdb_merge",
                  "grdb_no", "paired_db", "paired_db_no")] <- NA
   keepcols_bind <- intersect(names(GSIMgaugep), names(GRDCgaugep))
-
+  
   gaugep <- rbind(GRDCgaugep[, keepcols_bind],
                   GSIMgaugep[, keepcols_bind])
-
+  
   #Get new and updated environmental predictors from RiverATLAS v1.0.9
   riveratlas2 <- fread(inp_riveratlas2)
   setnames(riveratlas2,
            names(riveratlas2),
            gsub('_11$', '', names(riveratlas2)))
-
+  
   #Replace variables from RiverATLAS v1.0 by those that have been re-calculated
   #in v1.0.9
   keepcols <- names(gaugep)[!(names(gaugep) %in% names(riveratlas2))]
   gaugep_attriall <- merge(gaugep[,keepcols, with=F], riveratlas2,
                            by.x = 'HYRIV_ID', by.y = 'REACH_ID',
                            all.x=TRUE, all.y=FALSE)
-
+  
   #Merge with WaterGAP downscaled monthly naturalized discharge
   if (!is.null(in_monthlydischarge)) {
     gaugep_outformat <- merge(gaugep_attriall, in_monthlydischarge,
-                                     by.x = 'HYRIV_ID', by.y = 'REACH_ID',
-                                     all.x=TRUE, all.y=FALSE)
+                              by.x = 'HYRIV_ID', by.y = 'REACH_ID',
+                              all.x=TRUE, all.y=FALSE)
   } else {
     gaugep_outformat <- gaugep_attriall
   }
-
+  
   return(gaugep_outformat)
 }
 
@@ -2662,7 +2701,7 @@ read_GRDCgauged_paths <- function(inp_GRDCgaugedir, in_gaugep) { #, gaugeid = 'G
 #' @export
 read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
   gaugeno_vec <- in_gaugep[!is.na(in_gaugep$gsim_no),]$gsim_no
-
+  
   #Get data paths of daily records for gauge stations
   if (timestep == 'month') {
     fileNames <- file.path(inp_GSIMindicesdir, 'TIMESERIES', 'monthly',
@@ -2671,7 +2710,7 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
     fileNames <- file.path(inp_GSIMindicesdir, 'TIMESERIES', 'seasonal',
                            paste0(gaugeno_vec, ".seas"))
   }
-
+  
   #Check whether any GRDC record does not exist
   print(paste(length(which(!do.call(rbind, lapply(fileNames, file.exists)))),
               'GSIM records do not exist...'))
@@ -2717,11 +2756,11 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
   if (verbose) {
     print(path)
   }
-
+  
   #Read and format discharge records
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
   gaugetab <- readformatGRDC(path)
-
+  
   #Function to compute mean zero-flow duration and event frequency by month
   #(average number of drying events in each month over record length)
   #and check whether intermittency only happens in cold months
@@ -2749,7 +2788,7 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
                         rep(c('mfreq', 'mdur'), each=12)
                  )
       ))
-
+    
     #Check whether average yearly number of zero-flow days is only above threshold
     # if includes zero-flow days during months with average temperature < 5C
     gaugeirtemp <- as.data.table(in_gaugep)[GRDC_NO == gaugeno,
@@ -2761,22 +2800,22 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
       melt(id.vars='GRDC_NO') %>%
       .[, month := as.numeric(gsub('^tmp_dc_c', '', variable))] %>%
       merge(monthlyfreq, ., by='month')
-
+    
     mdur_otempthresh <- gaugeirtemp[value >= 10*tempthresh, sum(monthmdur)]
     mdur_utempthresh <- gaugeirtemp[value < 10*tempthresh, sum(monthmdur)]
-
+    
     monthlyfreq_format[, winteronlyir := as.numeric(
       mdur_otempthresh < mdurthresh &
         mdur_utempthresh >= mdurthresh)] %>%
       .[, GRDC_NO := NULL]
-
+    
     setnames(monthlyfreq_format,
              paste0(names(monthlyfreq_format), '_o', yearthresh))
-
+    
     return(monthlyfreq_format)
   }
-
-
+  
+  
   monthlyirtemp_all <- comp_monthlyirtemp(gaugetab, gaugeno, in_gaugep,
                                           maxgap, mdurthresh,
                                           yearthresh=1800, tempthresh=10)
@@ -2786,12 +2825,12 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
   monthlyirtemp_o1971 <- comp_monthlyirtemp(gaugetab, gaugeno,in_gaugep,
                                             maxgap, mdurthresh,
                                             yearthresh=1971, tempthresh=10)
-
+  
   #If analysis is only performed on a subset of months
   if (!is.null(monthsel)) {
     gaugetab <- gaugetab[month %in% monthsel, ]
   }
-
+  
   #Compute number of days of zero flow for years with number of gap days under threshold
   gaugetab_yearly <- merge(gaugetab[, .(missingdays=max(missingdays, na.rm=T),
                                         datadays=max(datadays, na.rm=T),
@@ -2804,8 +2843,8 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
     .[!is.finite(datadays), datadays := diny(year)] %>%
     .[dur==diny(year), freq:=1] %>%
     .[is.na(dur), `:=`(dur=0, freq=0)]
-
-
+  
+  
   #Combine all statistics (and determine which stations are labeled as
   #intermittent based on mdurthresh)
   gaugetab_all <- gaugetab_yearly[, .(GRDC_NO = gaugeno,
@@ -2813,46 +2852,7 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
                                       lastYear=max(year),
                                       totalYears=length(unique(year))
   )]
-
-  comp_irstats <- function(tabyearly, maxgap, mdurthresh, yearthresh,
-                           windowsize, fullwindow) {
-    checkpos <- function(x) {any(x>0)}
-    if ((windowsize %% 2)==0) {
-      windowsize <- windowsize + 1
-    }
-
-    if (!fullwindow) {
-      movinginter <- all(
-        tabyearly[missingdays <= maxgap & year >= yearthresh,
-                  (frollapply(dur, n=windowsize, FUN=checkpos, align="center") >= mdurthresh)],
-        na.rm=T)
-    } else {
-      movinginter <- all(
-        tabyearly[missingdays <= maxgap & year >= yearthresh,
-                  c((frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="left") >= mdurthresh),
-                    (frollapply(dur, n=round(windowsize/2), FUN=checkpos, align="right") >= mdurthresh))],
-        na.rm=T)
-    }
-
-
-    irstats <- tabyearly[missingdays <= maxgap & year >= yearthresh,
-                         .(firstYear_kept=min(year),
-                           lastYear_kept=max(year),
-                           totalYears_kept=length(unique(year)),
-                           totaldays = sum(datadays),
-                           integerperc = sum(integerperc)/(sum(datadays)+sum(missingdays)),
-                           sumDur = sum(dur),
-                           mDur = mean(dur),
-                           mFreq = mean(freq),
-                           intermittent =
-                             factor(fifelse(mean(dur)>=mdurthresh, 1, 0),
-                                    levels=c('0','1')),
-                           movinginter = movinginter
-                         )]
-    setnames(irstats, new = paste0(names(irstats), '_o', yearthresh))
-    return(irstats)
-  }
-
+  
   irstats_all <- comp_irstats(tabyearly = gaugetab_yearly, maxgap=maxgap,
                               mdurthresh = mdurthresh,
                               yearthresh = 1800,
@@ -2868,14 +2868,14 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
                                yearthresh = 1971,
                                windowsize = windowsize,
                                fullwindow = fullwindow)
-
+  
   statsout <- cbind(gaugetab_all,
                     irstats_all, irstats_1961, irstats_1971,
                     monthlyirtemp_all, monthlyirtemp_o1961, monthlyirtemp_o1971)
-
+  
   #Include local path to discharge records in table
   statsout[, path := path]
-
+  
   return(statsout)
 }
 
@@ -2885,13 +2885,13 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                              in_gaugep, maxgap, mdurthresh = 1,
                              windowsize = 100, fullwindow = FALSE,
                              monthsel = NULL, verbose = FALSE) {
-
+  
   #Read and format discharge records and join monthly and seasonal records
   gaugeno <- strsplit(basename(path_mo), '[.]')[[1]][1]
   if (verbose) {
     print(gaugeno)
   }
-
+  
   gaugetab_mo <- readformatGSIMmon(path_mo)
   gaugetab_sea <- readformatGSIMsea(path_sea)
   gaugetab <- merge(gaugetab_mo,
@@ -2899,7 +2899,7 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                     by=c('year', 'month'), all.x=T) %>%
     setorder(date) %>%
     .[, mDur_minsea := nafill(mDur_minsea, type='nocb')]
-
+  
   #Function to compute mean zero-flow duration and event frequency by month
   #(average number of drying events in each month over record length)
   #and check whether intermittency only happens in cold months
@@ -2925,7 +2925,7 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                         rep('mdur', each=12)
                  )
       ))
-
+    
     #Check whether average yearly number of zero-flow days is only above threshold
     # if includes zero-flow days during months with average temperature < 5C
     gaugeirtemp <- as.data.table(in_gaugep)[gsim_no == gaugeno,
@@ -2937,22 +2937,22 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
       melt(id.vars='gsim_no') %>%
       .[, month := as.numeric(gsub('^tmp_dc_c', '', variable))] %>%
       merge(monthlyfreq, ., by='month')
-
+    
     mdur_otempthresh <- gaugeirtemp[value >= 10*tempthresh, sum(monthmdur)]
     mdur_utempthresh <- gaugeirtemp[value < 10*tempthresh, sum(monthmdur)]
-
+    
     monthlyfreq_format[, winteronlyir := as.numeric(
       mdur_otempthresh < mdurthresh &
         mdur_utempthresh >= mdurthresh)] %>%
       .[, gsim_no := NULL]
-
+    
     setnames(monthlyfreq_format,
              paste0(names(monthlyfreq_format), '_o', yearthresh))
-
+    
     return(monthlyfreq_format)
   }
-
-
+  
+  
   monthlyirtemp_all <- comp_monthlyirtemp(gaugetab, gaugeno, in_gaugep,
                                           maxgap, mdurthresh,
                                           yearthresh=1800, tempthresh=10)
@@ -2962,13 +2962,13 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
   monthlyirtemp_o1971 <- comp_monthlyirtemp(gaugetab, gaugeno,in_gaugep,
                                             maxgap, mdurthresh,
                                             yearthresh=1971, tempthresh=10)
-
+  
   #If analysis is only performed on a subset of months
   if (!is.null(monthsel)) {
     gaugetab <- gaugetab[month %in% monthsel, ]
   }
-
-
+  
+  
   #Combine all statistics (and determine which stations are labeled as
   #intermittent based on mdurthresh)
   gaugetab_all <- gaugetab[, .(gsim_no = gaugeno,
@@ -2976,7 +2976,7 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                                lastYear=max(year),
                                totalYears=length(unique(year))
   )]
-
+  
   comp_irstats <- function(tab, maxgap, mdurthresh, yearthresh,
                            windowsize, fullwindow) {
     #Compute the best estimate of minimum number of zero flow days per season
@@ -2985,14 +2985,14 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                                                   na.rm = T)
     ), by=c('year', 'season')] %>%
       .[, .(mDur_minsea_final = sum(mDur_minsea_final, na.rm=T)), by=year]
-
+    
     yearsel <- tab[missingdays <= maxgap & year >= yearthresh, unique(year)]
-
+    
     checkpos <- function(x) {any(x>0)}
     if ((windowsize %% 2)==0) {
       windowsize <- windowsize + 1
     }
-
+    
     if (!fullwindow) {
       movinginter <- all(
         mDur_final[year %in% yearsel, checkpos(mDur_minsea_final), by=year] %>%
@@ -3009,7 +3009,7 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
         na.rm = T
       )
     }
-
+    
     irstats <- tab[year %in% yearsel,
                    .(firstYear_kept=min(year),
                      lastYear_kept=max(year),
@@ -3023,11 +3023,11 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                    )] %>%
       .[, intermittent := factor(fifelse(mDur>=mdurthresh, 1, 0),
                                  levels=c('0','1'))]
-
+    
     setnames(irstats, new = paste0(names(irstats), '_o', yearthresh))
     return(irstats)
   }
-
+  
   irstats_all <- comp_irstats(tab = gaugetab, maxgap=maxgap,
                               mdurthresh = mdurthresh,
                               yearthresh = 1800,
@@ -3043,14 +3043,14 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
                                yearthresh = 1971,
                                windowsize = windowsize,
                                fullwindow = fullwindow)
-
+  
   statsout <- cbind(gaugetab_all,
                     irstats_all, irstats_1961, irstats_1971,
                     monthlyirtemp_all, monthlyirtemp_o1961, monthlyirtemp_o1971)
-
+  
   #Include local path to discharge records in table
   statsout[, path := path_mo]
-
+  
   return(statsout)
 }
 
@@ -3062,7 +3062,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
   }  else if (is.list(in_GRDCgaugestats)) {
     GRDCstatsdt <- rbindlist(in_GRDCgaugestats)
   }
-
+  
   #Create output directory for IRs
   resdir_GRDCirplots <- file.path(inp_resdir,
                                   paste0('GRDCir_rawplots_', yearthresh, '_',
@@ -3071,7 +3071,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
     print(paste0('Creating ', resdir_GRDCirplots ))
     dir.create(resdir_GRDCirplots )
   }
-
+  
   #Plot
   GRDCstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
                 (get(paste0('intermittent_o', yearthresh)) == 1),
@@ -3081,7 +3081,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
                                  maxgap=maxgap,
                                  showmissing = showmissing
               ), by=GRDC_NO]
-
+  
   #Create output directory for non IRs
   resdir_GRDCperplots <- file.path(inp_resdir,
                                    paste0('GRDCper_rawplots_',yearthresh, '_',
@@ -3090,7 +3090,7 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
     print(paste0('Creating ', resdir_GRDCperplots ))
     dir.create(resdir_GRDCperplots )
   }
-
+  
   GRDCstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
                 (get(paste0('intermittent_o', yearthresh)) == 0),
               plotGRDCtimeseries(.SD,
@@ -3099,20 +3099,20 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
                                  maxgap=maxgap,
                                  showmissing = showmissing
               ), by=GRDC_NO]
-
-
+  
+  
 }
 
 #------ plot_GSIM -------------
 plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
                       inp_resdir, maxgap, showmissing) {
-
+  
   if (inherits(in_GSIMgaugestats, 'data.table')) {
     GSIMstatsdt <- in_GSIMgaugestats
   }  else if (is.list(in_GSIMgaugestats)) {
     GSIMstatsdt <- rbindlist(in_GSIMgaugestats)
   }
-
+  
   #Create output directory for IRs
   resdir_GSIMirplots <- file.path(inp_resdir,
                                   paste0('GSIMir_rawplots_',yearthresh, '_',
@@ -3121,7 +3121,7 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
     print(paste0('Creating ', resdir_GSIMirplots ))
     dir.create(resdir_GSIMirplots )
   }
-
+  
   #Plot
   GSIMstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
                 (get(paste0('intermittent_o', yearthresh)) == 1),
@@ -3131,8 +3131,8 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
                                  maxgap=maxgap,
                                  showmissing=showmissing
               ), by=gsim_no]
-
-
+  
+  
   #Create output directory for non IRs
   resdir_GSIMperplots <- file.path(inp_resdir,
                                    paste0('GSIMper_rawplots_',yearthresh, '_',
@@ -3141,7 +3141,7 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
     print(paste0('Creating ', resdir_GSIMperplots ))
     dir.create(resdir_GSIMperplots )
   }
-
+  
   GSIMstatsdt[(get(paste0('totalYears_kept_o', yearthresh)) >= 10) &
                 (get(paste0('intermittent_o', yearthresh)) == 0),
               plotGSIMtimeseries(.SD,
@@ -3150,6 +3150,67 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
                                  maxgap=maxgap,
                                  showmissing=showmissing
               ), by=gsim_no]
+}
+
+
+#------ get_USdata ---------------------------------
+get_USdata <- function(in_ids, maxyear) {
+  print(paste0('Getting USGS data for', in_ids))
+  gaugetab <- dataRetrieval::readNWISdv(
+    siteNumbers = in_ids,
+    startDate = "1750-01-01",
+    endDate = paste0(maxyear, "-01-01"),
+    parameterCd = "00060",
+    statCd = "00003"
+  ) %>%
+    as.data.table
+  
+  if ("X_..2.._00060_00003" %in% names(gaugetab)) {
+    gaugetab[, X_00060_00003 := `X_..2.._00060_00003`]
+  }
+  
+  if (nrow(gaugetab) == 0) {
+    gaugetab[, `:=`(year=1800, month=1, Date="1800-01-01", X_00060_00003=0)]
+  }
+  
+  gaugetab[,`:=`(year = as.numeric(substr(Date, 1, 4)), #Create year column
+                 month = as.numeric(substr(Date, 6, 7)),
+                 integervalue = fifelse(X_00060_00003 == round(X_00060_00003), 1, 0)
+  )]
+  
+  #For each record, compute date of last non-zero flow day
+  gaugetab[, prevflowdate := gaugetab[zero_lomf(X_00060_00003),'Date', with=F]] %>% #Get previous date with non-zero flow
+    .[X_00060_00003 != 0, prevflowdate:=NA] #If non-zero flow, set prevflowdate to NA
+  
+  #Compute number of missing days per year, excluding NoData values
+  gaugetab[!(X_00060_00003 %in% c(-999, -99, -9999, 99, 999, 9999) | is.na(Date)),
+           `:=`(missingdays = diny(year)-.N,
+                datadays = .N),
+           by= 'year']
+  
+  #Compute number of days of zero flow for years with number of gap days under threshold
+  gaugetab_yearly <- merge(gaugetab[, .(missingdays=max(missingdays, na.rm=T),
+                                        datadays=max(datadays, na.rm=T),
+                                        integerperc=sum(integervalue,na.rm=T)
+  ), by='year'],
+  gaugetab[X_00060_00003 == 0, .(dur=.N,
+                                 freq=length(unique(prevflowdate))), by='year'],
+  by = 'year', all.x = T) %>%
+    .[!is.finite(missingdays), missingdays := diny(year)] %>%
+    .[!is.finite(datadays), datadays := diny(year)] %>%
+    .[dur==diny(year), freq:=1] %>%
+    .[is.na(dur), `:=`(dur=0, freq=0)]
+  
+  irstats <- comp_irstats(tabyearly = gaugetab_yearly, 
+                          maxgap=20,
+                          mdurthresh = 1,
+                          yearthresh = 1800,
+                          windowsize = 20,
+                          fullwindow = F) %>%
+    .[, totaldays_o1800 := as.integer(totaldays_o1800)]
+  
+  return(irstats)
+  
 }
 
 #------ analyze_gaugeir ----------------------------
@@ -3471,17 +3532,71 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c('NO_0000020', 'removed', "changed flow permanence from perennial to non-perennial"),
     c('NO_0000024', 'removed', "only one 0 flow occurence"),
     c('NO_0000028', 'removed', "changed flow permanence from perennial to non-perennial"),
-    c('NO_0000029', 'removed', "only two 0 flow occurence"),
-    
+    c('NO_0000029', 'removed', "errorneous 0 flow occurrence"),
     c('NO_0000030', 'removed', "only one 0 flow occurence"),
     c('NO_0000044', 'removed', "0 flow values only at the beginning, probably data gaps"),
+    c('NO_0000060', 'removed', "only one 0 flow occurence"),
     c('NO_0000090', 'removed', "0 flow values at the beginning probably data gaps, otherwise only one 0 flow event"),
+    c('NO_0000107', 'removed', "only one 0 flow occurence"),
+    c('NO_0000134', 'removed', "only one 0 flow occurence"),
+    c('OM_0000001', 'inspected', "downstream of reservoir but confirmed dry channels upstrea,"),
+    c('RU_0000024', 'removed', "0 flow probably due to integer records"),
+    c('RU_0000026', 'removed', "0 flow probably due to integer records"),
+    c('RU_0000062', 'removed', "0 flow probably due to integer records"),
+    c('RU_0000089', 'removed', "0 flow probably due to integer records"),
+    c('RU_0000093', 'removed', "0 flow probably due to integer records"),
+    c('RU_0000136', 'removed', "no zero flow"),
     c('RU_0000189', 'removed', "only one 0 flow occurence"),
+    c('RU_0000250', 'removed', "only two 0 flow occurence"),
     c('RU_0000265', 'removed', "changed flow permanence from perennial to non-perennial"),
+    c('RU_0000269', 'removed', "abrupt decreases to zero flow"),
+    c('RU_0000278', 'removed', "insufficient record to tell flow intermittency class"),
+    c('RU_0000350', 'removed', "only two 0 flow events in 50 years"),
     c('RU_0000358', 'removed', "changed flow permanence from perennial to non-perennial"),
+    c('RU_0000361', 'removed', "only two 0 flow events in 50 years"),
+    c('RU_0000363', 'removed', "insufficient record to tell flow intermittency class"),
+    c('RU_0000374', 'removed', "only one 0 flow occurence"),
+    c('RU_0000441', 'removed', "only one 0 flow occurence"),
+    c('SE_0000053', 'removed', "only one 0 flow occurrence in last 30 years"),
     c('SE_0000058', 'removed', "downstream of dam, changed flow permanence. and experiences ice"),
+    c('SG_0000001', 'removed', "0 flow probably due to interger records"),
+    c('TH_0000034', 'removed', "0 values seem abrupt"),
     c('TZ_0000018', 'removed', "changed flow permanence from perennial to non-perennial"),
+    c('UA_0000024', 'removed', "only one 0 flow occurence"),
+    c('UA_0000044', 'removed', "only one 0 flow occurence"),
+    c('UA_0000064', 'removed', "only one 0 flow occurence"),
+    c('US_0000056', 'removed', "regulated"),
+    c('US_0000071', 'removed', "regulated"),
+    c('US_0000492', 'removed', "regulated"),
+    c('US_0000526', 'removed', "regulated"),
+    c('US_0000761', 'removed', "abrupt decreases to 0, regulated"),
+    c('US_0001665', 'removed', "changed flow permanence from perennial to non-perennial"),
+    c('US_0001856', 'removed', "only one 0 flow occurence"),
+    c('US_0002247', 'removed', "regulated"),
+    c('US_0002248', 'removed', "regulated"),
+    c('US_0002720', 'removed', "onle two 0 flow events in 42 years"),
+    c('US_0002791', 'removed', "looks regulated"),
+    c('US_0003775', 'removed', "record is not long enough to determine whether flow intermittency is outlier"),
+    c('US_0003835', 'removed', "regulated"),
+    c('US_0003836', 'removed', "regulated"),
+    c('US_0003837', 'removed', "regulated"),
+    c('US_0004668', 'removed', "regulated"),
+    c('US_0004711', 'removed', "only one 0 flow occurrence"),
+    c('US_0004738', 'removed', "only one 0 flow occurrence"),
+    c('US_0004783', 'removed', "changed from non-perennial to perennial"),
+    c('US_0004882', 'removed', "changed from perennial to non-perennial"),
+    c('US_0005054', 'removed', "changed from perennial to non-perennial"),
+    c('US_0005064', 'removed', "probably regulated, changed from perennial to non-perennial"),
+    c('US_0005069', 'removed', "probably regulated, looks heavily altered"),
+    c('US_0005090', 'removed', "probably regulated, changed from perennial to non-perennial"),
+    c('US_0005103', 'removed', "regulated"),
+    c('US_0005104', 'removed', "probably regulated, changed from perennial to non-perennial"),
+    c('US_0005105', 'removed', "regulated"),
     c('US_0005106', 'removed', "probably changed flow permanence from perennial to non-perennial"),
+    c('US_0005123', 'removed', "probably regulated, changed from perennial to non-perennial"),
+    c('US_0005559', 'removed', "regulated"),
+    c('US_0005583', 'removed', "regulated"),
+    c('US_0005709', 'inspeced', "confirmed dry"),
     c('US_0005874', 'removed', "changed flow permanence from perennial to non-perennial"),
     c('US_0005876', 'removed', "probably changed flow permanence from perennial to non-perennial"),
     #'US_0001855', #maybe rounded values --- checked
@@ -3515,28 +3630,44 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c('US_0006103', 'removed', "regulated, changed flow permanence"),
     # 'US_0006109', #maybe rounded values --- check
     # 'US_0006154', #maybe rounded values --- check
+    c('US_0006105', 'removed', "regulated"),
     c('US_0006155', 'removed', "regulated, did not change flow permanence but same as 0006156"),
-    c('US_0006156', 'inspected', "regulated, but did not change flow permanence"),
+    c('US_0006156', 'removed', "regulated"),
     c('US_0006206', 'inspected', "looks fine on usgs website and imagery"),
     #'US_0006301', #maybe rounded values --- checked
     #'US_0006327', #maybe rounded values --- checked
+    c('US_0006396', 'removed', "probably changed from perennial to non-perennial"),
     #'US_0006387', #maybe rounded values --- checked
     c('US_0006396', 'removed', "erroneous values pre-1960"),
     c('US_0006440', 'removed', "probably changed flow permanence from perennial to non-perennial"),
     c('US_0006537', 'removed', "changed flow permanence from perennial to non-perennial"),
-    c('US_0006574', 'inspected', "suspected regulation, but doesn't seem to be the case"),
+    c('US_0006575', 'removed', "only one 0 flow event"),
+    c('US_0007055', 'removed', "regulated"),
     #'US_0006975', #maybe rounded values --- checked
     #'US_0006984', #maybe rounded values --- checked
     #'US_0006985', #maybe rounded values --- checked
     #'US_0006986', #maybe rounded values --- checked
-    c('US_0008607', 'inspected', "regulated since 1978, schanged flow permanence from perennial to non-perennial"),
-    c('US_0008687', 'inspected', "regulated since 1935, schanged flow permanence from perennial to non-perennial"),
+    c('US_0008607', 'removed', "regulated since 1978, schanged flow permanence from perennial to non-perennial"),
+    c('US_0008642', 'removed', "changed flow permanence from perennial to non-perennial"),
+    c('US_0008687', 'removed', "regulated since 1935, schanged flow permanence from perennial to non-perennial"),
     # 'US_0008726', #maybe rounded values --- checked
     # 'US_0008779', #maybe rounded values --- checked
+    c('ZA_0000007', 'removed', "abrupt decrease to 0 flow, probably gaps in data"),
+    c('ZA_0000008', 'removed', "0 flow record are gaps in data"),
+    c('ZA_0000047', 'removed', "too many gaps in data"),
+    c('ZA_0000067', 'removed', "only two 0 flow events"),
+    c('ZA_0000073', 'removed', "0 flow records are gaps in data"),
     c('ZA_0000074', 'removed', "abrupt decrease to 0 flow, probably gaps in data"),
+    c('ZA_0000146', 'removed', "abrupt decrease to 0 flow, probably gaps in data"),
+    c('ZA_0000159', 'removed', "abrupt decrease to 0 flow, regulated"),
+    c('ZA_0000164', 'removed', "abrupt decrease to 0 flow"),
     c('ZA_0000268', 'removed', "probably changed flow permanence"),
+    c('ZA_0000294', 'removed', "abrupt decrease to 0 flow"),
     c('ZA_0000084', 'removed', "probably changed flow permanence"),
-    c('ZA_0000270', 'removed', "changed flow permanence")
+    c('ZA_0000270', 'removed', "changed flow permanence"),
+    c('ZW_0000009', 'removed', "regulated"),
+    c('ZW_0000052', 'removed', "regulated"),
+    c('ZW_0000075', 'removed', "regulated")
   ) %>%
     do.call(rbind, .) %>%
     as.data.table %>%
@@ -3546,6 +3677,36 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   GSIMtoremove_perartifacts <- c(
     'AR_0000023'
   )
+  
+  USstats <- as.data.table(in_gaugep)[
+    substr(gsim_no, 1, 2) == 'US' & 
+      !(gsim_no %in% c(GSIMtoremove_irartifacts$gsim_no, 
+                       GSIMtoremove_unstableIR$gsim_no)),
+    cbind(gsim_no,
+          get_USdata(
+            in_ids = fifelse(nchar(reference_no)==8, 
+                             reference_no,
+                             paste0(0, reference_no)
+            ),
+            maxyear = max(GSIMstatsdt$lastYear_kept_o1800) + 1
+          )
+    ), by=reference_no]
+  
+  GSIMstatscheck_US <- merge(
+    GSIMstatsdt[!(gsim_no %in% c(GSIMtoremove_irartifacts$gsim_no, 
+                                 GSIMtoremove_unstableIR$gsim_no)
+    ),],
+    USstats, by='gsim_no', all.x=F, all.y=F)
+  
+  GSIMtoremove_USroundingfuckup <- GSIMstatscheck_US[
+    mDur_o1800.x >= 1 & mDur_o1800.y < 1,
+    list(gsim_no = gsim_no,
+         flag = 'removed',
+         comment = 'automatic filtering: incorrect rounding of flow values during conversion by GSIM'
+    )
+  ]
+  
+  #-----  Check that US stations actually have 0 flow events -------
   
   # readformatGSIMmon(
   #   GSIMstatsdt[gsim_no == 'US_0000546', path]) %>%
@@ -3624,7 +3785,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   
   #Remove all gauges with 0 values that have at least 99% of integer values as not reliable (see GRDC_NO 6140700 as example)
   GRDCtoremove_allinteger <- data.table(
-    GRDC_NO = GRDCstatsdt[integerperc_o1800 >= 0.99 &
+    GRDC_NO = GRDCstatsdt[integerperc_o1800 >= 0.95 &
                             intermittent_o1800 == 1, GRDC_NO],
     flag = 'removed',
     comment = 'All integer discharge values'
@@ -3641,27 +3802,36 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   
   #Outliers from examining plots of ir time series (those that were commented out were initially considered)
   GRDCtoremove_irartifacts <- list(
+    c(1104800, 'inspected', 'low-quality gauging but confirmed seasonally intermittent flow'),
     c(1134300, 'removed', 'changed flow permanence from perennial to non-perennial, large data gaps'),
     c(1134500, 'removed', 'only 1 occurrence of 0 flow values'),
+    c(1159110, 'inspected', 'regulated but drying was confirmed upstream of reservoir'),
+    c(1159120, 'inspected', 'at weird or dam; but drying was confirmed upstream of reservoir'),
+    c(1159132, 'inspected', 'regulated but drying was confirmed upstream of dam'),
     c(1159302, 'removed', 'abrupt decreases to 0 flow values'),
-    c(1159302, 'removed', 'unreliable record, isolated 0s, sudden jumps and capped at 77'),
+    c(1159303, 'removed', 'unreliable record, isolated 0s, sudden jumps and capped at 77'),
     c(1159320, 'inspected', "0 values for the first 14 years but still apparently originally IRES"),
-    c(1159325, 'inspected', "0 values for most record. probably episodic and due to series of agricultural ponds"),
-    c(1159510, 'inspected', "0 values for most record, on same segment as 1159511 but seems unreliable"),
+    c(1159325, 'removed', "0 values for most record. probably episodic and due to series of agricultural ponds"),
+    c(1159510, 'removed', "0 values for most record, on same segment as 1159511 but seems unreliable"),
     c(1159520, 'inspected', "values seem capped after 1968, otherwise seem fine. Could just be rating curve"),
     c(1159830, 'removed', 'only one occurence of 0 flow values'),
     c(1160101, 'removed', 'abrupt decreases to 0 flow values'),
+    c(1160210, 'inspected', 'lower plateaus in the beginning of record are likely 0-flow values'),
+    c(1160245, 'removed', 'regulated, at reservoir'),
+    c(1160301, 'inspected', 'lower plateaus in the beginning of record are likely 0-flow values'),
     c(1160340, 'removed', 'abrupt decreases to 0 flow values'),
     c(1160378, 'inspected', 'appears IRES before regulation, reservoir fully dry on satellite imagery, so keep as intermittent even when not regulated'),
-    c(1160420, 'removed', 'decrease to 0 appears a bit abrupt but ok'),
+    c(1160420, 'removed', 'decrease to 0 appears a bit abrupt'),
     c(1160435, 'removed', 'unreliable record, abrupt decreases to 0, capped'),
     c(1160470, 'removed', 'unreliable record, probably change of rating curve in 1947, mostly missing data until 1980 but truly intermittent based on imagery'),
     c(1160540, 'inspected', 'only 0 - nodata for first 15 years. seemingly good data post 1979 and IRES'),
-    c(1160635, 'inspected', '0 values post-1985 seem abrupt but enough values otherwise to make it intermittent'),
+    c(1160635, 'removed', 'valid 0 values only during early 80s'),
     c(1160670, 'removed', 'regulated'),
     c(1160675, 'removed', 'some outliers but otherwise most 0 values seem believable'),
     c(1160780, 'removed', 'unreliable record, abrupt decreases to 0 flow values, large data gaps'),
+    c(1160775, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(1160785, 'removed', 'changed flow permanence from perennial to non-perennial'),
+    c(1160793, 'removed', 'changed flow permanence from perennial to non-perennial, unreliable record'),
     c(1160795, 'removed', 'abrupt decreases to 0 flow values'),
     c(1160800, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(1160840, 'removed', 'only 2 zero flow values are believable, others are outliers'),
@@ -3674,7 +3844,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(1160975, 'removed', 'most 0 values look like outliers, abrupt decreases'),
     c(1196102, 'removed', 'unreliable record, large data gaps, hard to tell original flow permanence'),
     c(1196141, 'removed', "doesn't look reliable, hard to assess long term flow permanence"),
-    c(1196160, 'inspected', 'some outlying 0 flow values but most are good'),
+    c(1196160, 'removed', 'changed flow permanence, some outlying 0 flow values but most are good'),
     c(1197500, 'removed', 'only one flow intermittency event, abrupt decrease to 0'),
     c(1197540, 'removed', 'abrupt decreases to 0'),
     c(1197591, 'removed', 'abrupt decreases to 0'),
@@ -3683,19 +3853,25 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(1199100, 'removed', 'most 0 values look like outliers'),
     c(1199200, 'removed', 'abrupt decreases to 0'),
     c(1199410, 'removed', 'changed flow permanence from perennial to non-perennial'),
+    c(1234130, 'inspected', 'low quality record but confirmed intermittent by https://doi.org/10.3390/w11010156'),
     c(1259500, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(1259800, 'removed', '0 values come from integer-based part of the record'),
     c(1286690, 'removed', 'changed flow permanence, record too short to determine original flow permanence'),
+    c(1289230, 'removed', 'unreliable record, gaps, shifts'),
     c(1259800, 'removed', 'changed flow permanence, only one 0 flow value post 1963'),
     c(1428400, 'removed', '0 values come from integer-based part of the record'),
     c(1428500, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(1434200, 'removed', 'almost all integers'),
     c(1434300, 'removed', 'almost all integers'),
     c(1434810, 'removed', '0 values come from integer-based part of the record'),
+    c(1491790, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(1491815, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(1491870, 'removed', 'some outlying 0 flow values but most are good'),
     c(1494100, 'removed', 'abrupt decreases to 0'),
     c(1494100, 'inspected', 'regulated but naturally intermittent'),
+    c(1495360, 'removed', 'changed flow permanence from perennial to non-perennial'),
+    c(1495700, 'removed', 'changed flow permanence from perennial to non-perennial'),
+    c(1495720, 'removed', 'too many gaps, probably changed flow permanence from perennial to non-perennial'),
     c(1591110, 'removed', "doesn't look reliable, changed flow permanence from perennial to non-perennial"),
     c(1591730, 'removed', 'abrupt decreases to 0'),
     c(1733600, 'removed', '0 values come from integer-based part of the record and outliers'),
@@ -3716,12 +3892,15 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(2694450, 'removed', 'abrupt decreases to 0'),
     c(2969081, 'removed', 'abrupt decreases to 0'),
     c(2999920, 'removed', '0 values come from integer-based part of the record'),
-    c(3650460, 'inspected', 'some outlying 0 flow values but most are good'),
+    c(3650380, 'removed', 'changed flow permanence from perennial to non-perennial'),
+    c(3650460, 'removed', 'large portion of integer values, probably changed flow permanence'),
     c(3650470, 'removed', '0 values come from integer-based part of the record'),
+    c(3650475, 'removed', 'large portion of integer values, probably changed flow permanence'),
     c(3650610, 'removed', 'integers pre-1960s but still intermittent after'),
     c(3650640, 'removed', 'abrupt decreases to 0'),
     c(3650649, 'inspected', 'change of flow regime due to dam building but intermittent before'),
     c(3650690, 'inspected', 'abrupt decreases to 0'),
+    c(3650860, 'removed', 'only one 0 flow event in first 28 years'),
     c(3650928, 'removed', 'most 0 values look like outliers'),
     c(3652050, 'removed', 'changed flow permanence from perennial to non-perennial'),
     c(3652135, 'removed', 'only one valid 0-flow event'),
@@ -3732,14 +3911,20 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(4103700, 'removed', '0 values come from integer-based part of the record'),
     c(4150605, 'inspected', 'just downstream of lwesville dam in Dallas. previously intermittent as well but will be removed anyways as >50% dor'),
     c(4151513, 'inspected', 'looks regulated but will be removed as > 50% regulated'),
+    c(4203820, 'removed', 'only 1 occurrence of 0 flow values'),
+    c(4208043, 'removed', 'changed from perennial to non-perennial'),
     c(4208195, 'removed', 'unreliable record, 0 flow values stem from interpolation'),
     c(4208372, 'removed', 'abrupt decreases to 0 flow, probably data gaps'),
+    c(4208585, 'removed', 'changed from perennial to non-perennial'),
     c(4208655, 'removed', 'insufficient data to tell flow permanence'),
     c(4208855, 'removed', 'insufficient data to tell flow permanence'),
     c(4208857, 'removed', 'only 1 occurrence of 0 flow values'),
+    c(4213090, 'removed', 'only 1 occurrence of 0 flow values'),
+    c(4213091, 'removed', 'only 2 occurrence of 0 flow values'),
     c(4213566, 'removed', 'only 1 occurrence of 0 flow values'),
     c(4213905, 'removed', "regulated, changed flow permanence"),
     c(4214075, 'removed', '0 flow values are data gaps'),
+    c(4214200, 'removed', 'changed from perennial to non-perennial'),
     c(4214297, 'removed', 'only 1 occurrence of 0 flow values'),
     c(4214298, 'removed', 'only 1 occurrence of 0 flow values'),
     c(4234300, 'removed', "regulated, changed flow permanence"),
@@ -3760,17 +3945,23 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(5109230, 'removed', 'abrupt decreases to 0'),
     c(5202140, 'removed', 'abrupt decreases to 0'),
     c(5202145, 'removed', 'most 0 values look like outliers'),
+    c(5202185, 'only one maybe erroneous 0 flow values in first 34 years'),
+    c(5204140, 'only one 0 flow values in first 30 years'),
     c(5202228, 'removed', 'maybe regulated, unreliable record post 1983 accounts for 0 flow values'),
     c(5204170, 'removed', 'changed flow permanence'),
     c(5302251, 'removed', 'large data gap as 0 flow values, otherwise only one flow intermittency event'),
     c(5302261, 'removed', 'large data gap as 0 flow values'),
     c(5405095, 'removed', 'changed flow permanence from perennial to non-perennial'),
+    c(5405105, 'only one 0 flow value'),
     c(5608100, 'removed', 'large data gap as 0 flow values'),
     c(5708200, 'removed', 'changed flow permanence'),
     c(5803160, 'removed', 'large data gap as 0 flow values'),
     c(5864500, 'removed', 'rounded to 10L/s'),
     c(5870100, 'removed', 'rounded to 100L/s'),
     c(6119100, 'removed', 'rounded to 10L/s'),
+    c(6125680, 'removed', 'changed flow permanence'),
+    c(6139140, 'removed', 'only one 0 flow occurrence in first 30 years'),
+    c(6233410, 'removed', '0 flow values from tidal reversals'),
     c(6442300, 'removed', '0 values come from integer-based part of the record and outliers'),## perfect example of what an integer-based record involves
     c(6444250, 'removed', '0 values come from integer-based part of the record and outliers'),
     c(6444350, 'removed', '0 values come from integer-based part of the record and outliers'),
@@ -3872,8 +4063,11 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   ### Check changes in GSIM discharge data availability and flow regime over time ####
   GSIMflags <- rbindlist(list(GSIMtoremove_irartifacts,
                               GSIMtoremove_winterIR,
-                              GSIMtoremove_unstableIR
+                              GSIMtoremove_unstableIR,
+                              GSIMtoremove_USroundingfuckup
   ))
+  
+  #Add US_0004962 as it used to be intermittent https://pubs.usgs.gov/pp/1277/report.pdf
   
   GSIMstatsdt_clean <- GSIMstatsdt[!(gsim_no %in%  GSIMflags[flag=='removed', gsim_no]),]
   
@@ -3976,13 +4170,13 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
     .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
     .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
     .[, DApercdiffabs := abs(DApercdiff)]
-
+  
   #Check for multiple stations on same HydroSHEDS segment
   dupliseg <- gaugestats_join[duplicated(HYRIV_ID) |
                                 duplicated(HYRIV_ID, fromLast = T),] %>%
     .[, interdiff := length(unique(
       eval(paste0('intermittent_o', yearthresh))))-1, by=HYRIV_ID]
-
+  
   #Only two stations have differing status. Inspect their record
   # dupliseg[interdiff==1,
   #          c('HYRIV_ID', 'GAUGE_NO', 'DApercdiff',
@@ -3991,16 +4185,16 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
   # plotGRDCtimeseries(dupliseg[GAUGE_NO == '1197591',]) #Remove because lots of erroneous data
   # plotGRDCtimeseries(dupliseg[GAUGE_NO == '4150605',])
   # plotGSIMtimeseries(dupliseg[GAUGE_NO == 'US_0006104',]) #Remove because identical record but without precise zero flow day count
-
+  
   gaugestats_joinsel <- gaugestats_join[!GAUGE_NO %in% c('1197591', 'US_0006104')] %>%
     setorder(HYRIV_ID, DApercdiffabs) %>%
     .[!duplicated(HYRIV_ID),]
-
+  
   print(paste0('Removing ', gaugestats_joinsel[dor_pc_pva >= 500, .N],
                ' stations with >=50% flow regulation'))
   gaugestats_derivedvar <- gaugestats_joinsel[dor_pc_pva < 500, ] %>% #Only keep stations that have less than 50% of their discharge regulated by reservoir
     comp_derivedvar #Compute derived variables, rescale some variables, remove -9999
-
+  
   return(gaugestats_derivedvar)
 }
 
@@ -4010,7 +4204,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
   monthlydischarge_preds <- paste0('DIS_',
                                    str_pad(seq(1, 12), 2, pad=0),
                                    '_CMS')
-
+  
   predcols<- c(
     #monthlydischarge_preds,
     'UPLAND_SKM',
@@ -4040,8 +4234,8 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'glc_cl_cmj',
     'glc_pc_c16',
     'glc_pc_u16',
-
-
+    
+    
     'pnv_cl_cmj',
     'wet_pc_cg1',
     'wet_pc_cg2',
@@ -4074,7 +4268,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     #'hft_ix_c09', #anthropogenic - human footprint
     #'hft_ix_u09', #anthropogenic - human footprint
     #'hdi_ix_cav', #anthropogenic - dev index
-
+    
     'cly_pc_cav',
     'cly_pc_uav',
     'slt_pc_cav',
@@ -4194,30 +4388,30 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     'bio18_mm_uav',
     'bio19_mm_uav'
   )
-
+  
   #Check that all columns are in dt
   message(paste(length(predcols[!(predcols %in% names(in_gaugestats))]),
                 'variables are missing from formatted gauge dataset'))
-
+  
   #---- Associate HydroATLAS column names with variables names ----
-
+  
   #Get predictor variable names
   metaall <- readxl::read_xlsx(inp_riveratlas_meta,
                                sheet='Overall') %>%
     setDT
-
+  
   metascale <- readxl::read_xlsx(inp_riveratlas_meta,
                                  sheet='scale') %>%
     setDT %>%
     setnames(c('Key','Spatial representation'),
              c('Keyscale', 'Spatial.representation'))
-
+  
   metastat <- readxl::read_xlsx(inp_riveratlas_meta,
                                 sheet='stat') %>%
     setDT %>%
     setnames(c('Key','Temporal or statistical aggregation or other association'),
              c('Keystat', 'Temporal.or.statistical.aggregation.or.other.association'))
-
+  
   meta_format <- as.data.table(expand.grid(`Column(s)`=metaall$`Column(s)`,
                                            Keyscale=metascale$Keyscale,
                                            Keystat=metastat$Keystat)) %>%
@@ -4225,7 +4419,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     .[metascale, on = 'Keyscale'] %>%
     .[metastat, on = 'Keystat',
       allow.cartesian=TRUE]
-
+  
   meta_format[, `:=`(
     unit = substr(`Column(s)`, 5, 6),
     varcode = paste0(gsub('[-]{3}', '', `Column(s)`),
@@ -4236,7 +4430,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     varname = paste(Attribute,
                     Spatial.representation,
                     Temporal.or.statistical.aggregation.or.other.association))]
-
+  
   #Add newly generated variables to meta_format (variable labels)
   addedvars <- data.table(varname=c('Precipitation catchment Annual min/max',
                                     'Discharge watershed Annual min/max',
@@ -4258,21 +4452,21 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                                     'gwt_m_cav'
                           )
   )
-
+  
   oldcolnames <- c('Spatial.representation',
                    'Temporal.or.statistical.aggregation.or.other.association',
                    'Source Data')
   newcolnames <- c('Spatial representation',
                    'Temporal/Statistical aggreg.',
                    'Source')
-
+  
   predcols_dt <- merge(data.table(varcode=predcols),
                        rbind(meta_format, addedvars, fill=T),
                        by='varcode', all.x=T, all.y=F)   %>%
     setnames(oldcolnames, newcolnames) %>%
     setorder(Category, Attribute,
              `Spatial representation`, `Temporal/Statistical aggreg.`)
-
+  
   #Format table
   predcols_dt[varcode=='UPLAND_SKM', `:=`(
     Category = 'Physiography',
@@ -4282,7 +4476,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'HydroSHEDS',
     Citation = 'Lehner & Grill 2013'
   )]
-
+  
   predcols_dt[varcode=='dis_m3_pvar', `:=`(
     Category = 'Hydrology',
     Attribute= 'Natural Discharge',
@@ -4291,7 +4485,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'WaterGAP v2.2',
     Citation = 'Döll et al. 2003'
   )]
-
+  
   predcols_dt[varcode=='dis_m3_pvaryr', `:=`(
     Category = 'Hydrology',
     Attribute= 'Natural Discharge',
@@ -4300,7 +4494,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'WaterGAP v2.2',
     Citation = 'Döll et al. 2003'
   )]
-
+  
   predcols_dt[varcode=='runc_ix_cyr', `:=`(
     Category = 'Hydrology',
     Attribute= 'Runoff coefficient',
@@ -4309,7 +4503,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'WaterGAP v2.2, WorldClim v2',
     Citation = 'Döll et al. 2003'
   )]
-
+  
   predcols_dt[varcode=='sdis_ms_uyr', `:=`(
     Category = 'Hydrology',
     Attribute= 'Specific discharge',
@@ -4318,7 +4512,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'WaterGAP v2.2',
     Citation = 'Döll et al. 2003'
   )]
-
+  
   predcols_dt[varcode=='sdis_ms_umn', `:=`(
     Category = 'Hydrology',
     Attribute= 'Specific discharge',
@@ -4327,7 +4521,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'WaterGAP v2.2',
     Citation = 'Döll et al. 2003'
   )]
-
+  
   # predcols_dt[grepl('DIS_[0-9]{2}.*', varcode), `:=`(
   #   Category = 'Hydrology',
   #   Attribute= 'Natural Discharge',
@@ -4336,7 +4530,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
   #   Source = 'WaterGAP v2.2',
   #   Citation = 'Döll et al. 2003'
   # )]
-
+  
   predcols_dt[varcode=='ele_pc_rel', `:=`(
     Category = 'Physiography',
     Attribute= 'Elevation',
@@ -4345,7 +4539,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'EarthEnv-DEM90',
     Citation = 'Robinson et al. 2014'
   )]
-
+  
   predcols_dt[varcode=='cmi_ix_cvar', `:=`(
     Category = 'Climate',
     Attribute= 'Climate Moisture Index',
@@ -4355,7 +4549,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Citation = 'Fick et al. 2017',
     varname = 'Climate moisture index catchment monthly mn/mx'
   )]
-
+  
   predcols_dt[varcode=='cmi_ix_uvar', `:=`(
     Category = 'Climate',
     Attribute= 'Climate Moisture Index',
@@ -4365,7 +4559,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Citation = 'Fick et al. 2017',
     varname = 'Climate moisture index watershed monthly mn/mx'
   )]
-
+  
   predcols_dt[varcode=='gwt_m_cav', `:=`(
     Category = 'Hydrology',
     Attribute= 'Groundwater table depth',
@@ -4374,7 +4568,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
     Source = 'Global Groundwater Map',
     Citation = 'Fan et al. 2013'
   )]
-
+  
   #Remove duplicates (which were created with keystat meaning different things e.g; 09 meaning september, 2009, class 9)
   predcols_dtnodupli<- predcols_dt[!(
     (Category == "Climate" &
@@ -4397,7 +4591,7 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
                           perl=T)
       )] %>%
     unique(by='varcode')
-
+  
   return(predcols_dtnodupli)
 }
 
@@ -4408,7 +4602,7 @@ create_tasks <- function(in_gaugestats, in_predvars,
   datsel <- in_gaugestats[, c('intermittent_o1800',in_predvars$varcode, 'X', 'Y'),
                           with=F] %>%
     na.omit
-
+  
   #Remove WaterGAP variables if include_discharge == TRUE
   if (!include_discharge) {
     watergapcols <- c('dis_m3_pyr',
@@ -4422,19 +4616,19 @@ create_tasks <- function(in_gaugestats, in_predvars,
                       'sdis_ms_umn')
     datsel <- datsel[, (watergapcols) := NULL]
   }
-
+  
   #Basic task for classification
   task_classif <- mlr3spatiotempcv::TaskClassifST$new(
     id=  paste0("inter_class", id_suffix),
     backend = datsel,
     target = "intermittent_o1800",
     coordinate_names = c("X", "Y"))
-
+  
   #Basic task for regression without oversampling
   task_regr <- convert_clastoregrtask(in_task = task_classif,
                                       in_id = paste0('inter_regr', id_suffix),
                                       oversample=FALSE)
-
+  
   #Basic task for regression with oversampling to have the same number of minority and majority class
   task_regrover <- convert_clastoregrtask(in_task = task_classif,
                                           in_id = paste0('inter_regrover',
@@ -4447,15 +4641,15 @@ create_tasks <- function(in_gaugestats, in_predvars,
 create_baselearners <- function(in_task) {
   #---------- Create learners --------------------------------------------------
   lrns <- list()
-
+  
   if (is.list(in_task)) {
     in_task <- in_task[[1]]
   }
-
+  
   if (inherits(in_task, 'TaskClassif')) {
     #Compute ratio of intermittent to perennial observations
     imbalance_ratio <- get_oversamp_ratio(in_task)$ratio
-
+    
     #Create basic learner
     lrns[['lrn_ranger']] <- mlr3::lrn('classif.ranger',
                                       num.trees = 800,
@@ -4465,9 +4659,9 @@ create_baselearners <- function(in_task) {
                                       predict_type = 'prob',
                                       importance = 'impurity_corrected',
                                       respect.unordered.factors = 'order')
-
+    
     #print(lrn_ranger$param_set)
-
+    
     #Create a conditional inference forest learner with default parameters
     #mtry = sqrt(nvar), fraction = 0.632
     lrns[['lrn_cforest']] <- mlr3::lrn('classif.cforest',
@@ -4477,7 +4671,7 @@ create_baselearners <- function(in_task) {
                                        alpha = 0.05,
                                        mtry = round(sqrt(length(in_task$feature_names))),
                                        predict_type = "prob")
-
+    
     #Create mlr3 pipe operator to oversample minority class based on major/minor ratio
     #https://mlr3gallery.mlr-org.com/mlr3-imbalanced/
     #https://mlr3pipelines.mlr-org.com/reference/mlr_pipeops_classbalancing.html
@@ -4486,24 +4680,24 @@ create_baselearners <- function(in_task) {
                                  reference = "minor", shuffle = TRUE,
                                  ratio = imbalance_ratio)
     #table(po_over$train(list(in_task))$output$truth()) #Make sure that oversampling worked
-
+    
     #Create mlr3 pipe operator to put a higher class weight on minority class
     po_classweights <- mlr3pipelines::po("classweights", minor_weight = imbalance_ratio)
-
+    
     #Create graph learners so that oversampling happens systematically upstream of all training
     lrns[['lrn_ranger_overp']] <- mlr3pipelines::GraphLearner$new(
       po_over %>>% lrns[['lrn_ranger']])
     lrns[['lrn_cforest_overp']] <- mlr3pipelines::GraphLearner$new(
       po_over %>>% lrns[['lrn_cforest']])
-
+    
     #Create graph learners so that class weighin happens systematically upstream of all training
     lrns[['lrn_ranger_weight']] <- mlr3pipelines::GraphLearner$new(
       po_classweights %>>% lrns[['lrn_ranger']])
     lrns[['lrn_cforest_weight']] <- mlr3pipelines::GraphLearner$new(
       po_classweights  %>>% lrns[['lrn_cforest']])
   }
-
-
+  
+  
   if (inherits(in_task, 'TaskRegr')) {
     #Create regression learner with maxstat
     lrns[['lrn_ranger_maxstat']] <- mlr3::lrn('regr.ranger',
@@ -4515,18 +4709,18 @@ create_baselearners <- function(in_task) {
                                               importance = 'impurity_corrected',
                                               respect.unordered.factors = 'order')
   }
-
+  
   return(lrns)
 }
 
 #------ set_tuning -----------------
 set_tuning <- function(in_learner, in_measure, nfeatures,
                        insamp_nfolds, insamp_neval, insamp_nbatch) {
-
+  
   if (is.list(in_learner)) {
     in_learner <- in_learner[[1]]
   }
-
+  
   #Define paramet space to explore
   regex_tuneset <- function(in_lrn) {
     prmset <- names(in_lrn$param_set$tags)
@@ -4538,16 +4732,16 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                    lower = 0.2,
                    upper = 0.8)
     ))
-
+    
     in_split =in_lrn$param_set$get_values()[
       grep(".*split(rule|stat)", prmset, value=T)]
-
+    
     if (in_split == 'maxstat') {
       tune_rf$add(
         ParamDbl$new(prmset[grep(".*alpha", prmset)],
                      lower = 0.01, upper = 0.1)
       )
-
+      
     } else if (any(grepl(".*min.node.size", prmset))) {
       tune_rf$add(
         ParamInt$new(prmset[grep(".*min.node.size", prmset)],
@@ -4560,18 +4754,18 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
       )
     }
   }
-
+  
   #Define inner resampling strategy
   rcv_rf = rsmp("cv", folds=insamp_nfolds) #aspatial CV repeated 10 times
-
+  
   #Define termination rule
   evalsn = mlr3tuning::trm("evals", n_evals = insamp_neval) #termine tuning after insamp_neval rounds
-
+  
   if (in_learner$task_type == 'classif') {
     if (inherits(in_measure, 'list')) {
       in_measure <- in_measure$classif
     }
-
+    
     if (grepl('classif[.]cforest$', in_learner$id)) {
       learnertune <- in_learner
     } else if (grepl('classif[.]ranger$', in_learner$id)) {
@@ -4589,7 +4783,7 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
     if (inherits(in_measure, 'list')) {
       in_measure <- in_measure$regr
     }
-
+    
     learnertune <- AutoTuner$new(learner= in_learner,
                                  resampling = rcv_rf,
                                  measure = in_measure,
@@ -4598,10 +4792,10 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
                                  tuner =  tnr("random_search",
                                               batch_size = insamp_nbatch))
   }
-
+  
   #learnertune$store_tuning_instance = FALSE
   learnertune$id <- in_learner$id
-
+  
   return(learnertune)
 }
 
@@ -4612,7 +4806,7 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
                           repeats = outsamp_nrep,
                           folds = outsamp_nfolds)
   outer_resampling$instantiate(in_task)
-
+  
   return(outer_resampling)
 }
 
@@ -4624,22 +4818,22 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
   if (is.list(in_learner)) {
     in_learner <- in_learner[[1]]
   }
-
+  
   if (is.list(in_task)) {
     in_task <- in_task[[1]]
   }
-
+  
   if (inherits(in_learner, 'BenchmarkResult')) {
     print(('BenchmarkResults was provided, getting the learner...'))
     in_learner <- in_learner$learners$learner[[1]]
   }
-
+  
   #Make sure autotuner matches task (adjust mtry)
   if (inherits(in_learner, 'AutoTuner')) {
     in_learner <- reset_tuning(in_autotuner = in_learner,
                                in_task = in_task)
   }
-
+  
   if ((in_learner$task_type == 'classif' & type=='classif') |
       (in_learner$task_type == 'regr' & type=='regr')) {
     resmp_rs <- mlr3::resample(learner = in_learner, task = in_task,
@@ -4657,16 +4851,16 @@ dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
   }
-
+  
   #get desired resampled_results/learner
   in_rf <- in_bm$filter(learner_ids = in_lrnid)
-
+  
   rsmp_out <- dynamic_resample(in_task = in_task,
                                in_learner = in_rf,
                                in_resampling = in_resampling,
                                type = type,
                                store_models = store_models)
-
+  
   return(rsmp_out)
 }
 
@@ -4686,7 +4880,7 @@ combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
         }
       })
     #BenchmarkResult$new(rsmpres$data)})
-
+    
     print('Combining...')
     bmrbase = bmres_list[[1]]
     for (i in 2:length(bmres_list)) {
@@ -4709,20 +4903,20 @@ combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
     out_filen <- paste0('combine_bm', format(Sys.time(), '%Y%m%d%H%M%s'), '.qs')
     out_qs <- file.path(inp_resdir, out_filen)
   }
-
+  
   qs::qsave(bmrbase, out_qs)
-
+  
   return(out_filen)
 }
 
 #------ select_features ------------------
 select_features <- function(in_bm, in_lrnid, in_task, pcutoff, inp_resdir = NULL) {
-
+  
   #If path, read qs
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(file.path(inp_resdir, in_bm))
   }
-
+  
   #get desired resampled_results/learner
   if (inherits(in_bm, "BenchmarkResult")) {
     in_rf <- in_bm$filter(learner_ids = in_lrnid)
@@ -4735,20 +4929,20 @@ select_features <- function(in_bm, in_lrnid, in_task, pcutoff, inp_resdir = NULL
     rfresamp = in_rf$resample_result(uhash=unique(as.data.table(in_rf)$uhash)),
     pvalue = TRUE) %>%
     .[,imp_wmeanper := imp_wmean/sum(imp_wmean)]
-
+  
   task_featsel <- in_task$clone()$select(
     vimp[imp_pvalue <= pcutoff, as.character(varnames)])
   task_featsel$id <- paste0(in_task$id, '_featsel')
-
+  
   return(list(in_task, task_featsel))
 }
 
 #------ selecttrain_rf -----------------
 selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
-
+  
   outlist <- list()
-
+  
   ######### Prepare autotuner for full training ####################
   # If a ResampleResult was provided
   if (inherits(in_rf, 'ResampleResult')) {
@@ -4756,15 +4950,15 @@ selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
     lrn_autotuner <- in_bmsel$learner
     in_task <- in_bmsel$task
     outlist[['rf_outer']] <- in_rf
-
+    
     # If a BenchmarkResult was provided
   } else if (inherits(in_rf, 'BenchmarkResult')) {
     in_bmsel <- in_rf$clone()$filter(learner_ids = in_learnerid,
                                      task_id = in_task)
-
+    
     lrn_autotuner <- in_bmsel$clone()$learners$learner[[1]]
     in_task <-in_bmsel$tasks$task[[1]]
-
+    
     #Return outer sampling object for selected model (or list of outer sampling objects)
     uhashes <- unique(as.data.table(in_bmsel)$uhash)
     if (length(uhashes) == 1) {
@@ -4777,25 +4971,25 @@ selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
   } else if (inherits(in_rf, 'AutoTuner')) {
     lrn_autotuner <- in_rf
   }
-
+  
   if (!is.null(insamp_nfolds)) {
     lrn_autotuner$instance_args$resampling$param_set$values$folds <- insamp_nfolds
   }
-
+  
   if (!is.null(insamp_nevals)) {
     lrn_autotuner$instance_args$terminator$param_set$values$n_evals <- insamp_nevals
   }
-
+  
   ######### Train it ####################
   lrn_autotuner$param_set$values = mlr3misc::insert_named(
     lrn_autotuner$param_set$values,
     list(classif.ranger.importance = 'permutation')
   )
   lrn_autotuner$train(in_task)
-
+  
   outlist[['task']] <- in_task
   outlist[['rf_inner']] <- lrn_autotuner
-
+  
   return(outlist)
 }
 
@@ -4806,7 +5000,7 @@ change_tasktarget <- function(in_task, in_gaugestats, newmdurthresh) {
     as.numeric(mDur_o1800 >= newmdurthresh),
     levels=c('0', '1'))]
   in_task_new <- in_task$clone()
-
+  
   in_task_new$backend <-  as_data_backend(
     in_gaugestats_new[,
                       c(names(in_task_new$data()),in_task$coordinate_names),
@@ -4836,44 +5030,44 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
       paste0('pet_mm_c', str_pad(1:12, width=2, side='left', pad=0)),
       paste0('swc_pc_c', str_pad(1:12, width=2, side='left', pad=0)))
   )
-
+  
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = cols_toread)
-
+  
   if (!is.null(in_monthlydischarge)) {
     riveratlas <- merge(riveratlas, as.data.table(in_monthlydischarge),
                         by.x='HYRIV_ID', by.y='REACH_ID')
   }
-
+  
   setorder(riveratlas, HYRIV_ID)
-
+  
   cols_v11 <-  names(fread(inp_riveratlas2, nrows=1)) %>%
     gsub('_11$', '', .)
-
+  
   cols_tokeep <- names(riveratlas)[!(names(riveratlas) %in% cols_v11)]
-
+  
   riveratlas_format <- fread(inp_riveratlas2) %>%
     setorder(REACH_ID) %>%
     setnames(gsub('_11$', '', names(.))) %>%
     cbind(riveratlas[, cols_tokeep, with=F], .) %>%
     comp_derivedvar
-
+  
   return(riveratlas_format)
 }
 
 #------ make_gaugepreds -------------
 make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
                             in_predvars, interthresh, simple = FALSE) {
-
+  
   #Get fully trained predictions
   gpreds_full <- in_rftuned$rf_inner$predict(in_rftuned$task)
-
+  
   #Format gauge data.table prior to merging
   datsel <- na.omit(in_gaugestats, c('intermittent_o1800',
                                      in_predvars$varcode, 'X', 'Y'))
-
+  
   datsel[, IRpredprob_full := gpreds_full$prob[,2]]
-
+  
   #If not simple (include CV predictions)
   if (!simple) {
     #Get unique ID for each spatial fold-repetition combination
@@ -4883,14 +5077,14 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
       .[, spfold_unique := do.call(paste0, .SD),
         .SDcols = paste0('fold', unique(spcv_clusters$rep))] %>%
       setorder(row_id)
-
+    
     #Get average predictions for oversampled rows and across repetitions - simple CV
     rsmp_res_nosp <- get_outerrsmp(in_rftuned, spatial_rsp=FALSE)
     gpreds_CV_nosp <-  rsmp_res_nosp$prediction() %>%
       as.data.table %>%
       .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id]%>%
       setorder(row_id)
-
+    
     #Get average predictions for oversampled rows and across repetitions - spatial CV
     rsmp_res_sp <- get_outerrsmp(in_rftuned, spatial_rsp=TRUE)
     gpreds_CV_sp <-  in_res_spcv$prediction()$set_threshold(1-interthresh) %>%
@@ -4898,7 +5092,7 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
       .[, list(truth=first(truth), prob.1=mean(prob.1)), by=row_id] %>%
       .[, response := fifelse(prob.1 >= interthresh, 1, 0)] %>%
       setorder(row_id)
-
+    
     #Merge all predictions
     datsel[, `:=`(
       IRpredprob_CVsp = gpreds_CV_sp$prob.1,
@@ -4906,7 +5100,7 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
       spfold_unique =  spcv_clustersformat$spfold_unique
     )] %>%
       setnames(old='spfold_unique', new=paste0(in_rftuned$task$id, '_spfold'))
-
+    
   }
   return(datsel)
 }
@@ -4917,35 +5111,35 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
   if (inherits(interthresh, 'data.table')) {
     interthresh <- interthresh[learner == in_learnerid, thresh]
   }
-
+  
   if (is.list(in_gpredsdt) & !inherits(in_gpredsdt, 'data.table')) {
     in_gpredsdt <- rbindlist(in_gpredsdt,
                              use.names = TRUE, fill = TRUE, idcol = "modelgroup")
   }
-
-
+  
+  
   #Compute mean predicted probability if overlapping models
   out_gpredsdt <- in_gpredsdt[, IRpredprob_full := mean(IRpredprob_full, na.rm=T),
                               by=.(GAUGE_NO)]
-
+  
   if ('IRpredprob_CVnosp' %in% names(in_gpredsdt)) {
     out_gpredsdt[, IRpredprob_CVnosp := mean(IRpredprob_CVnosp, na.rm=T),
                  by=.(GAUGE_NO)]
   }
-
+  
   if ('IRpredprob_CVsp' %in% names(in_gpredsdt)) {
     out_gpredsdt[, IRpredprob_CVsp := mean(IRpredprob_CVsp, na.rm=T),
                  by=.(GAUGE_NO)]
   }
-
+  
   out_gpredsdt <- out_gpredsdt[!duplicated(GAUGE_NO),]     #Remove duplicates (if overlapping model)
-
+  
   out_gpredsdt[,`:=`(IRpredcat_full = fifelse(IRpredprob_full >= interthresh,
                                               '1', '0'),
                      preduncert_full = IRpredprob_full -
                        as.numeric(as.character(intermittent_o1800))
   )]
-
+  
   if ('IRpredprob_CVnosp' %in% names(out_gpredsdt)) {
     out_gpredsdt[,`:=`(
       IRpredcat_CVnosp =fifelse(IRpredprob_CVnosp >= interthresh,
@@ -4954,7 +5148,7 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
         as.numeric(as.character(intermittent_o1800))
     )]
   }
-
+  
   if ('IRpredprob_CVsp' %in% names(out_gpredsdt)) {
     out_gpredsdt[,`:=`(
       IRpredcat_CVsp =fifelse(IRpredprob_CVsp >= interthresh,
@@ -4963,7 +5157,7 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
         as.numeric(as.character(intermittent_o1800))
     )]
   }
-
+  
   return(out_gpredsdt)
 }
 
@@ -4973,18 +5167,18 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
 write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
   cols_toditch<- colnames(in_gpredsdt)[
     !(colnames(in_gpredsdt) %in% c('GAUGE_NO', 'geometry'))]
-
+  
   out_gaugep <- base::merge(
     in_gaugep[,- which(names(in_gaugep) %in% cols_toditch)],
     in_gpredsdt[, -'geometry', with=F],
     by='GAUGE_NO',
     all.x=F)
-
+  
   st_write(obj=out_gaugep,
            dsn=outp_gaugep,
            driver = 'gpkg',
            delete_dsn=T)
-
+  
   return(out_gaugep)
 }
 
@@ -4992,23 +5186,23 @@ write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
 write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
                            discharge_interval = c(-Inf, Inf),
                            interthresh = 0.5, outp_riveratlaspred) {
-
+  
   if (is.character(in_network)) {
     in_network <- fread(in_network)
   }
-
+  
   write_netpred_util <- function(in_network, in_rftuned, in_predvars,
                                  discharge_interval, interthresh) {
     # ----- Make predictions across river network -----
     #Get subset of river network
     in_network <- in_network[(dis_m3_pyr >= discharge_interval[1]) &
                                (dis_m3_pyr < discharge_interval[2]),]
-
+    
     #Get rows for which no predictor variable is NA (seecomp_derivedvar for formatting/determining variables)
     netnoNArows <- in_network[, c(!(.I %in% unique(unlist(
       lapply(.SD, function(x) which(is.na(x))))))),
       .SDcols = in_predvars$varcode]
-
+    
     #Predict model — chunk it up by climate zone to avoid memory errors
     for (clz in unique(in_network$clz_cl_cmj)) {
       print(clz)
@@ -5018,15 +5212,15 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
                    as.data.frame(.SD))$prob[,2],]
       toc()
     }
-
+    
     #Label each reach categorically based on threshold
     in_network[, predcat := fifelse(pred>=interthresh, 1, 0)]
-
+    
     return(in_network[, c('HYRIV_ID', 'HYBAS_L12',
                           'pred', 'predcat'), with=F])
   }
-
-
+  
+  
   networkpreds <- mapply(FUN = write_netpred_util,
                          in_rftuned = in_rftuned,
                          discharge_interval = discharge_interval,
@@ -5039,22 +5233,22 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
                          SIMPLIFY = FALSE
   ) %>%
     rbindlist
-
+  
   if (networkpreds[duplicated(HYRIV_ID), .N] > 0 ) {
     networkpreds <- networkpreds[, pred := mean(pred, na.rm=T),
                                  by=.(HYRIV_ID)] %>% #Compute mean predicted probability if overlapping models
       .[!duplicated(HYRIV_ID),] %>%     #Remove duplicates (if overlapping model)
       .[, predcat := fifelse(pred >= interthresh, '1', '0')]
   }
-
+  
   setnames(networkpreds, old=c('pred', 'predcat'),
            new=c(predcol, paste0(predcol, 'cat'))
   )
-
+  
   outp_riveratlaspred <- paste0(gsub('[.][a-z]*$', '', outp_riveratlaspred), '_',
                                 format(Sys.Date(), '%Y%m%d'), '.csv')
   fwrite(networkpreds, outp_riveratlaspred)
-
+  
   # --------- Return data for plotting ------------------------
   return(outp_riveratlaspred)
 }
@@ -5080,9 +5274,9 @@ extrapolate_networklength <- function(inp_riveratlas,
                                       dispred = seq(0.01, 0.09, 0.01),
                                       interactive = T,
                                       grouping_var = 'PFAF_IDclz') {
-
+  
   #Glossary - CCDF: Complementary Cumulated Distribution Function
-
+  
   #Columns to import from full network
   incols <- c('HYRIV_ID', 'INLAKEPERC', 'PFAF_ID05',
               'dis_m3_pyr', 'LENGTH_KM', 'clz_cl_cmj')
@@ -5092,13 +5286,13 @@ extrapolate_networklength <- function(inp_riveratlas,
     setorder(dis_m3_pyr) %>%
     .[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)] %>%
     .[LENGTH_KM_NOLAKE > 0,]
-
+  
   if (grouping_var == 'PFAF_IDclz') {
     riveratlas[, PFAF_IDclz := paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj)]
   }
-
+  
   #Use level 3 basins because otherwise, too many level 5 basins don't have streams with >= 0.1 m3/s discharge and can't be modeled
-
+  
   #----------- Function to plot empirical CCDF ------------------------------------------
   plot_ccdf <- function(dt_format, minthresh, maxthresh) {
     ggplot(dt_format[(dis_m3_pyr >= minthresh) & (dis_m3_pyr < maxthresh)],
@@ -5120,25 +5314,25 @@ extrapolate_networklength <- function(inp_riveratlas,
       annotation_logticks() +
       theme_bw()
   }
-
+  
   #----------- Visualize CCDF plot for the world ------------------------------
   if (interactive) {
     ccdf_datall  <- riveratlas[dis_m3_pyr >= 0.001, .N, by=dis_m3_pyr] %>%
       setorder(-dis_m3_pyr) %>%
       .[, cumN := cumsum(N)] %>%
       .[, cumP := cumN/riveratlas[,.N]]
-
+    
     plot_ccdf(ccdf_datall, minthresh = min_cutoff, maxthresh = 10000)
   }
-
-
+  
+  
   #----------- Compute empirical cumulative distribution by basin --------------
   #Compute cumulative length by discharge
   cumL_bas03 <- riveratlas[dis_m3_pyr > 0, list(suml = sum(LENGTH_KM_NOLAKE)),
                            by=c('dis_m3_pyr', grouping_var)] %>%
     setorder(-dis_m3_pyr) %>%
     .[, cumL := cumsum(suml), by = grouping_var]
-
+  
   #Compute cumulative distribution by number and merge to length
   print('Compute empirical cumulative distribution')
   ccdf_datbas03  <- riveratlas[dis_m3_pyr > 0, .N,
@@ -5149,18 +5343,18 @@ extrapolate_networklength <- function(inp_riveratlas,
     .[, cumP := cumN/totalN] %>%
     merge(cumL_bas03, by = c(grouping_var, 'dis_m3_pyr')) %>%
     merge(.[dis_m3_pyr >= min_cutoff, list(mindis_o01 = min(dis_m3_pyr)),
-             by=grouping_var]) %>%
+            by=grouping_var]) %>%
     merge(.[(dis_m3_pyr >= min_cutoff & dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),
             list(nuniquedis_o01 = length(unique(dis_m3_pyr))),
             by=grouping_var], by=grouping_var) %>% #Number of unique discharge values >= 0.1 m3/s
     .[!is.na(get(grouping_var)),]
-
+  
   #Check distribution of cut-off values for discharge when computing ECDF GAM
   if (interactive) {
     qplot(ccdf_datbas03[nuniquedis_o01 >= 20, quantile(dis_m3_pyr, 0.95),
                         by=grouping_var]$V1) + scale_x_log10()
   }
-
+  
   #----------- Fit GAM to cumL ~ dist_m3_pyr -----------------------------------
   #Check how many basins/climate zones drop off from the cut off criterion
   if (interactive) {
@@ -5169,14 +5363,14 @@ extrapolate_networklength <- function(inp_riveratlas,
     ccdf_datbas03[nuniquedis_o01 < 20, sum(suml)]/ccdf_datbas03[nuniquedis_o01 >= 20, sum(suml)]
     #~3000 km out of 33 million kilometers
   }
-
+  
   #Simple function to fit a gam with basic params
   gamfit_util <- function(in_dt, in_k=-1) {
     fit <- mgcv::gam(log10(cumL) ~ s(log10(dis_m3_pyr), k=in_k, bs = "cs"), #cubic splines are good when lots of data points
                      method = "REML",
                      data=in_dt[dis_m3_pyr < quantile(dis_m3_pyr, 0.95),])
   }
-
+  
   #Function to iterate over k values and check whether dimension is too low
   gamfit_kiter <- function(in_dt, verbose = F, kstep=1, kmax=20) {
     gam_out <- gamfit_util(in_dt)
@@ -5190,10 +5384,10 @@ extrapolate_networklength <- function(inp_riveratlas,
         k_set <- k_set + kstep
       }
     }
-
+    
     return(gam_out)
   }
-
+  
   #-----Across all basins:
   #Only train GAM models for basins that have at least 20 unique discharge values >= 0.1
   gambas <- ccdf_datbas03[
@@ -5201,15 +5395,15 @@ extrapolate_networklength <- function(inp_riveratlas,
     list(mod = list(gamfit_kiter(.SD, verbose = F, kstep = 2, kmax=20))),
     by = grouping_var
   ]
-
+  
   #------Illustrate approach on a single basin
   fit_rivlengam <- function(dt_format, pfaf_id) {
     gamsubdat <- dt_format[(get(grouping_var) == pfaf_id),]
     gamsubdatsub <- gamsubdat[(dis_m3_pyr >= min_cutoff) &
                                 (dis_m3_pyr < quantile(dis_m3_pyr, 0.95)),]
-
+    
     gamfit <- gamfit_kiter(in_dt=gamsubdatsub, verbose=T, kstep = 2, kmax=9)
-
+    
     print(summary(gamfit))
     preds <- data.frame(
       dis_m3_pyr=seq(0.01,
@@ -5218,7 +5412,7 @@ extrapolate_networklength <- function(inp_riveratlas,
     preds$cumL_95CIlow <- 10^(preds$cumL - 1.96*preds$cumL_se)
     preds$cumL_95CIhigh <- 10^(preds$cumL + 1.96*preds$cumL_se)
     preds$cumL <- 10^preds$cumL
-
+    
     ggplot(gamsubdat, aes(x=dis_m3_pyr, y=cumL)) +
       geom_step(data=gamsubdat, size=1.5, color='black', alpha=1/3) +
       geom_step(data=gamsubdatsub, size=1.5, color='black') +
@@ -5238,12 +5432,12 @@ extrapolate_networklength <- function(inp_riveratlas,
   }
   plot_62_18 <- fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="62_18")
   plot_14_17 <- fit_rivlengam(dt_format = ccdf_datbas03, pfaf_id="14_17")
-
+  
   if (interactive) {
     print(plot_62_18)
     print(plot_14_17)
   }
-
+  
   #Check the distribution of adjusted R-squares across all basins
   rsqdt <- gambas[, list(rsq_adj = summary(mod[[1]])$r.sq), by=grouping_var]
   ggplot(rsqdt, aes(x=rsq_adj)) + geom_histogram()
@@ -5251,29 +5445,29 @@ extrapolate_networklength <- function(inp_riveratlas,
     "The mean the GAM models' adjusted-R squares across all global basins is ",
     round(rsqdt[, mean(rsq_adj)], 4)
   ))
-
+  
   #Fitting function
   predict_baslen <- function(in_gambas, discheck) {
     predcheck <- in_gambas[, 10^predict(mod[[1]], data.frame(dis_m3_pyr=discheck)),
                            by=grouping_var] %>%
       setnames(old='V1', new='cumL_pred')
   }
-
+  
   #Check fit
   if (interactive) {
     predcheck <- predict_baslen(in_gambas = gambas,
                                 discheck = 0.2) %>%
       merge(ccdf_datbas03[dis_m3_pyr==0.2,], by=grouping_var)
-
+    
     summary(lm(log10(cumL_pred)~log10(cumL), data=predcheck))$r.sq
-
+    
     ggplot(predcheck, aes(x=cumL_pred, y=cumL)) +
       geom_point() +
       scale_x_log10(name = 'Predicted cumulative length') +
       scale_y_log10(name = 'Observed cumulative length (RiverATLAS') +
       geom_abline()
   }
-
+  
   #----------- Compute predictions and return them -----------------------------
   print('Extrapolating total river length for large basins...')
   #Predict for basins with at least 20 unique discharge size classes
@@ -5282,9 +5476,9 @@ extrapolate_networklength <- function(inp_riveratlas,
       .[, dispred := x]
   }) %>%
     rbindlist
-
+  
   pred_all <- pred_largebas
-
+  
   #For really tiny basins, don't even bother
   ccdf_datbas03_tinybas <- ccdf_datbas03[dis_m3_pyr >= min_cutoff &
                                            nuniquedis_o01 < 20 &
@@ -5299,16 +5493,16 @@ extrapolate_networklength <- function(inp_riveratlas,
       return(sub)
     }) %>%
       rbindlist
-
+    
     pred_all <- rbind(pred_all, extend_tinybas)
   }
-
+  
   #For basins with less than 20 unique discharge values, use average global ratio of
   #predicted cumulative length at 0.01 m3/s to that at minimum discharge over 0.1 m3/s
   #available in that basin
   ccdf_datbas03_smallbas <- ccdf_datbas03[
     dis_m3_pyr >= min_cutoff & nuniquedis_o01 < 20 & mindis_o01 <= 0.5,]
-
+  
   if (ccdf_datbas03_smallbas[, .N] > 0) {
     print('Extrapolating total river length for small basins...')
     #Predict for basins with at least 20 unique discharge values
@@ -5323,10 +5517,10 @@ extrapolate_networklength <- function(inp_riveratlas,
         .[, dispred := x]
     }) %>%
       rbindlist
-
+    
     pred_all <- rbind(pred_all, pred_smallbas)
   }
-
+  
   #Merge predictions for small and large basins
   pred_all_format <- pred_all %>%
     merge(riveratlas[dis_m3_pyr >= min_cutoff,
@@ -5334,10 +5528,10 @@ extrapolate_networklength <- function(inp_riveratlas,
           by=grouping_var) %>%
     .[, `:=`(cumL_predextra = round(cumL_pred - cumL_cutoffref, 2),
              cumL_pred = round(cumL_pred, 2))]
-
+  
   #Check total
   pred_all_format[dispred == 0.01, sum(cumL_pred)]
-
+  
   return(list(preds=pred_all_format,
               plot_62_18 = plot_62_18,
               plot_14_17 = plot_14_17)
@@ -5472,7 +5666,7 @@ extrapolate_IRES <- function(in_rivpred,
                              interactive = F,
                              valuevar = 'predbasic800cat',
                              grouping_var = 'PFAF_IDclz') {
-
+  
   in_extranet <- in_extranet$preds
   #Format rivp
   binlog <- function(x) {
@@ -5483,21 +5677,21 @@ extrapolate_IRES <- function(in_rivpred,
     .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 2
              dislogbin = binlog(dis_m3_pyr), #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
              LENGTH_KM_NOLAKE = LENGTH_KM*(1-INLAKEPERC)
-             )]
-
+    )]
+  
   #-------- Compute prevalence of IRES (by length) by discharge bin
   netsub_binir <- netsub[
     , list(percinter_bin = sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
            Nreach = .N),
     by = .(dislogbin)] %>%
     setorder(dislogbin)
-
+  
   #-------- Compute prevalence of IRES by discharge bin AND BASIN
   netsub_basbinir <- netsub[
     , list(percinter_bin = sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
            Nreach = .N),
     by = c('dislogbin', grouping_var)]
-
+  
   #----------- Fit GAM to IRES prevalence ~ binned discharge  -----------------------------------
   fit_basIRESgam <- function(dt, verbose=T, onlyextra=F) {
     #Truncate data to fall between 0.001 and 0.999
@@ -5505,9 +5699,9 @@ extrapolate_IRES <- function(in_rivpred,
                                                 percinter_bin == 1, 0.999,
                                                 default = percinter_bin),
                        by = dislogbin]
-
+    
     preds_input <- data.frame(dislogbin=c(seq(0.01, 0.09, 0.01),
-                                         unique(dt$dislogbin)))
+                                          unique(dt$dislogbin)))
     preds <-  try(
       {
         if (dt_gamformat[, length(unique(percinter_bin)) > 1  &
@@ -5516,55 +5710,55 @@ extrapolate_IRES <- function(in_rivpred,
           gamfit <- mgcv::gam(percinter_bin ~ s(log10(dislogbin), bs = "cs"),
                               method = "REML", family= betar(),
                               data=dt_gamformat)
-
+          
           if (verbose){
             print(summary(gamfit))
           }
-
+          
           preds_input$percinter_bin <- as.vector(predict(gamfit, preds_input, type='response'))
           preds_input$adjr2 <- summary(gamfit)$r.sq
         } else {
           preds_input$percinter_bin <- dt_gamformat[, max(percinter_bin)]
         }
-
+        
         preds_input
       }
     )
     if (inherits(preds, 'try-error')) {
       preds <- preds_input
       preds$percinter_bin <- dt_gamformat[, max(percinter_bin)]
-
+      
     }
-
+    
     setDT(preds)
-
+    
     preds[dislogbin < min(dt_gamformat$dislogbin),
           percinter_bin_adjust := max(c(percinter_bin,
                                         dt_gamformat[dislogbin == min(dislogbin),
                                                      percinter_bin])),
           by=dislogbin]
-
+    
     if (onlyextra) {
       preds <- preds[!is.na(percinter_bin_adjust),]
     }
-
+    
     return(preds)
   }
-
+  
   #----------- Plot GAM model  -----------------------------------
   plot_basIRESgam <- function(dt_format, pfaf_id=NULL) {
-
+    
     if (!is.null(pfaf_id)) {
       gamsubdat <- dt_format[(get(grouping_var) == pfaf_id),]
     } else {
       gamsubdat <- dt_format
     }
-
-
+    
+    
     tryCatch(
       {
         preds <- fit_basIRESgam(dt=gamsubdat)
-
+        
         ggplot(gamsubdat, aes(x=dislogbin, y=100*percinter_bin, group=1)) +
           geom_step(size=1, stat='identity') +
           geom_step(data=preds, color='red') +
@@ -5578,7 +5772,7 @@ extrapolate_IRES <- function(in_rivpred,
           theme_classic() +
           theme(text=element_text(size=12),
                 axis.title.x = element_text(vjust=-2))
-
+        
       },  error=function(cond) {
         message(cond)
         ggplot(gamsubdat, aes(x=dislogbin, y=percinter_bin)) +
@@ -5593,12 +5787,12 @@ extrapolate_IRES <- function(in_rivpred,
       }
     )
   }
-
-
+  
+  
   if (interactive) {
     #------ Test approach on the world in aggregate ---------
     plot_basIRESgam(dt_format = netsub_binir)
-
+    
     #------ Test approach on a single basin ------
     check <- netsub_basbinir[, length(unique(percinter_bin)), by=grouping_var] %>%
       setorder(-V1)
@@ -5614,12 +5808,12 @@ extrapolate_IRES <- function(in_rivpred,
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="62_18")
     plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="14_17")
   }
-
+  
   plot_62_18 <- plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="62_18")
   plot_14_17 <- plot_basIRESgam(dt_format = netsub_basbinir, pfaf_id="14_17")
   #dt = netsub_basbinir[get(grouping_var) == checkpfaf,]
-
-
+  
+  
   #----------- Implement model across all climates/basins  -----------------------------------
   #Estimate IRES prevalence for smallest log bins by basin using GAM model
   gambasires_bin <- lapply(
@@ -5630,25 +5824,25 @@ extrapolate_IRES <- function(in_rivpred,
         .[, (grouping_var) := pfaf_id]
     }) %>%
     rbindlist(fill=T)
-
+  
   #Compute IRES prevalence based on GAM output for log bins below minimum discharge cutoff
   gambasires_bin_merge <- merge(gambasires_bin, in_extranet,
-                            by.x = c(grouping_var, 'dislogbin'),
-                            by.y = c(grouping_var, 'dispred'),
-                            all.x=T) %>%
+                                by.x = c(grouping_var, 'dislogbin'),
+                                by.y = c(grouping_var, 'dispred'),
+                                all.x=T) %>%
     setorderv(cols=c(grouping_var, 'dislogbin'))
-
+  
   gambasires_bin_merge[
     , binL_pred := fifelse(
       dislogbin < 0.09,
       cumL_pred - data.table::shift(cumL_pred, n=1L, type='lead'),
       cumL_pred - cumL_cutoffref)]
-
+  
   gambasires <- gambasires_bin_merge[
     , list(percinter_gam_belowcutoff =
              sum(percinter_bin_adjust*binL_pred)/sum(binL_pred)),
     by = grouping_var]
-
+  
   #Conservatively compute IRES prevalence assuming plateauing below minimum cutoff
   #(based on last log bin
   #e.g. for a cutoff of 0.1, use IRES prevalence from reaches with discharge [0.1,0.2) )
@@ -5659,15 +5853,15 @@ extrapolate_IRES <- function(in_rivpred,
                                      sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE)]
     ),
     by=grouping_var]
-
+  
   #Merge conservative estimates with GAM estimates
   netsub_IRES <- merge(netsub_IRESconservative, gambasires, by=grouping_var)
-
+  
   #netsub[percinter>0 & percinter < 99, sum(cumL)]/netsub[, sum(cumL)]
-
+  
   extraIRES_pred <- merge(in_extranet[dispred == 0.01],
-                                  netsub_IRES, by=grouping_var)
-
+                          netsub_IRES, by=grouping_var)
+  
   #----------- Compute global prevalence according to both methods  ------------
   extraIRES_pred[
     , `:=`(
@@ -5678,14 +5872,14 @@ extrapolate_IRES <- function(in_rivpred,
         (cumL_predextra*percinter_gam_belowcutoff + cumL_cutoffref*percinter_ref_overcutoff)/
         (cumL_predextra + cumL_cutoffref)
     )]
-
+  
   check <- extraIRES_pred[(percinter_gam_belowcutoff < percinter_ref_lastbin) &
                             (percinter_gam_belowcutoff < 0.99),]
-
+  
   if (grouping_var != 'PFA_IDclz') {
     extraIRES_pred[, clz_cl_cmj := gsub('(([0-9]*)|(NA))_', '', PFAF_IDclz)]
   }
-
+  
   ggplot(extraIRES_pred, aes(x=percinter_ref_overcutoff)) +
     geom_point(aes(y=percinter_all_conservative), color='black') +
     geom_smooth(aes(y=percinter_all_conservative), color='black') +
@@ -5696,21 +5890,21 @@ extrapolate_IRES <- function(in_rivpred,
                        name='RF-predicted prevalence of IRES >= 0.1 m3/s') +
     scale_y_continuous(expand = c(0,0),
                        name = 'Extrapolated (<0.1) & RF-predicted (>= 0.1) prevalence of IRES >= 0.01 m3/s')
-
+  
   print(paste0(
-  'Assuming that rivers < 0.1 m3/s are as intermittent as those [0.1, 0.2), we predict that ',
-  round(100*extraIRES_pred[
-    , sum(percinter_all_conservative*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
-  '% of rivers >= 0.01 m3/s are intermittent'
+    'Assuming that rivers < 0.1 m3/s are as intermittent as those [0.1, 0.2), we predict that ',
+    round(100*extraIRES_pred[
+      , sum(percinter_all_conservative*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
+    '% of rivers >= 0.01 m3/s are intermittent'
   ))
-
+  
   print(paste0(
     'Statistically extrapolating the prevalence of intermittence in rivers < 0.1 m3/s, we predict that ',
     round(100*extraIRES_pred[
       , sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
     '% of rivers >= 0.01 m3/s are intermittent'
   ))
-
+  
   return(list(preds=extraIRES_pred,
               plot_62_18 = plot_62_18,
               plot_14_17 = plot_14_17)
@@ -5729,16 +5923,16 @@ ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=
     rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
     in_predictions <- rsmp_res$prediction()
   }
-
+  
   threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
     setDT
-
+  
   #Get classification threshold at which sensitivity and specificity are the most similar
   balanced_thresh <- threshold_confu_dt[which.min(abs(spec-sens)),]
   print(paste('Sensitivity =', round(balanced_thresh$sens,2),
               'and Specificity =', round(balanced_thresh$spec,2),
               'at a classification threshold of', balanced_thresh$i))
-
+  
   gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
                  aes(x=i, y=value, color=variable, linetype=variable)) +
     geom_line(size=1.2) +
@@ -5755,7 +5949,7 @@ ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=
                                 'Sensitivity (true positives)',
                                 'Specificity (true negatives)')) +
     theme_bw()
-
+  
   #Plot it
   return(list(plot = gout,
               interthresh = balanced_thresh$i))
@@ -5763,24 +5957,24 @@ ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=
 
 #------ analyze_benchmark -----------------
 analyze_benchmark <- function(in_bm, in_measure) {
-
+  
   #If path, read qs
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
   }
-
+  
   print(paste('It took',
               in_bm$aggregate(mlr3::msr('time_both'))$time_both,
               'seconds to train and predict with the',
               in_bm$aggregate(msr('time_both'))$learner_id,
               'model...'))
-
+  
   bmdt <- as.data.table(in_bm)
-
+  
   if (in_bm$task_type == 'regr') {
     print(in_bm$aggregate(in_measure$regr))
     boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure$regr)
-
+    
     preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
       preds <- bmdt$prediction[[rsmp_i]] %>%
         as.data.table %>%
@@ -5791,17 +5985,17 @@ analyze_benchmark <- function(in_bm, in_measure) {
       return(preds)
     }) %>%
       do.call(rbind, .)
-
+    
     if (!('prob.1' %in% names(preds)) & 'response' %in% names(preds)) {
       preds[, prob.1 := response]
     }
   }
-
-
+  
+  
   if (in_bm$task_type == 'classif') {
     print(in_bm$aggregate(measures=in_measure$classif))
     boxcomp <- mlr3viz::autoplot(in_bm, measure = in_measure$classif)
-
+    
     preds <- lapply(seq_len(bmdt[,.N]), function(rsmp_i) {
       preds <- data.table(outf = bmdt$iteration[[rsmp_i]],
                           task = bmdt$task[[rsmp_i]]$id,
@@ -5812,11 +6006,11 @@ analyze_benchmark <- function(in_bm, in_measure) {
     }) %>%
       do.call(rbind, .)
   }
-
+  
   tasklearner_unique <- preds[, expand.grid(unique(task), unique(learner))] %>%
     setnames(c('task', 'learner')) %>%
     setDT
-
+  
   tasklearner_unique[, learner_format := dplyr::case_when(
     learner == 'classif.ranger'~'default RF',
     learner == 'oversample.classif.ranger'~'default RF - oversampled',
@@ -5825,24 +6019,24 @@ analyze_benchmark <- function(in_bm, in_measure) {
     learner == 'oversample.classif.cforest'~'CIF - oversampled',
     learner == 'classweights.classif.cforest'~'CIF - weighted classes',
   )]
-
+  
   glist <- lapply(1:nrow(tasklearner_unique), function(tsklrn) {
     print(tasklearner_unique[tsklrn,])
     subpred <- preds[task ==tasklearner_unique$task[tsklrn] &
                        learner == tasklearner_unique$learner[tsklrn],]
-
+    
     ggmisclass_out <- ggmisclass_single(in_predictions = subpred)
-
+    
     gout <- ggmisclass_out$plot +
       ggtitle(paste(tasklearner_unique$task[tsklrn],
                     tasklearner_unique$learner_format[tsklrn])) +
       labs(x='Threshold', y='Value')
-
+    
     if (tsklrn < nrow(tasklearner_unique)) {
       gout <- gout +
         theme(legend.position = 'none')
     }
-
+    
     return(list(plot = ggplotGrob(gout),
                 interthres_dt = data.table(
                   learner = as.character(tasklearner_unique$learner[tsklrn]),
@@ -5852,8 +6046,8 @@ analyze_benchmark <- function(in_bm, in_measure) {
     )
   }) %>%
     unlist(recursive=F)
-
-
+  
+  
   return(list(
     bm_misclasscomp=do.call("grid.arrange",
                             list(grobs=glist[seq(1, length(glist), 2)])), #Get all plots out of the nested list
@@ -5865,7 +6059,7 @@ analyze_benchmark <- function(in_bm, in_measure) {
 #------ compute_confustats ----------------
 compute_confustats <- function(in_gselpreds, ndigits=2) {
   confu <- in_gselpreds[, .N, by=.(truth, response)]
-
+  
   outvec <- data.table(
     inter_confu =  paste0(confu[truth==1 & response==1, max(0L, N)], '|',
                           confu[truth==1 & response==0, max(0L, N)]),
@@ -5896,34 +6090,34 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
     if (inherits(in_resampleresult, 'list')) {
       in_resampleresult <- get_outerrsmp(in_resampleresult, spatial_rsp=spatial_rsp)
     }
-
+    
     in_predictions <- in_resampleresult$prediction() %>%
       as.data.table
-
+    
     #Get average predicted probability and response across CV repeats
     predsformat <- in_predictions[, list(prob.1 = mean(prob.1)),
                                   by=.(row_id, truth)] %>%
       .[, response := fifelse(prob.1 >= interthresh, 1, 0)]
-
+    
     #Get discharge data
     rspdat <- in_resampleresult$task$data()
     if (is.null(in_gaugestats) & (binvar %in% names(rspdat))) {
       in_gaugestats <- rspdat
     }
-
+    
     #Get bins
     bin_gauges <- bin_dt(in_dt = in_gaugestats, binvar = 'dis_m3_pyr',
                          binfunc = 'manual', binarg=binarg,
                          bintrans=NULL, na.rm=FALSE)%>%
       .[, row_id := .I]
-
+    
   } else if (is.null(in_resampleresult) & !is.null(in_predictions)) {
     #Get bins
     bin_gauges <- bin_dt(in_dt = in_predictions, binvar = 'dis_m3_pyr',
                          binfunc = 'manual', binarg=binarg,
                          bintrans=NULL, na.rm=FALSE) %>%
       .[, row_id := .I]
-
+    
     if (!is.null(spatial_rsp) & is.null(rspcol)) {
       if (spatial_rsp) {
         rspcol <- 'IRpredcat_CVsp'
@@ -5931,32 +6125,32 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
         rspcol <- 'IRpredcat_CVnosp'
       }
     }
-
+    
     predsformat <- in_predictions[, `:=`(truth = intermittent_o1800,
                                          response = get(rspcol),
                                          row_id = .I)]
   }
-
+  
   #Merge bins with predictions
   gselpreds <- merge(bin_gauges, predsformat, by='row_id', all.y=F)
-
+  
   #Function to get statistics for each bin
-
-
+  
+  
   #Run function for each bin
   performtable <- gselpreds[, compute_confustats(.SD),
                             by=.(bin, paste0(round(bin_lmin, 2), '-',
                                              round(bin_lmax, 2)))] %>%
     setorder(bin) %>%
     rbind(compute_confustats(gselpreds)[, paste0 := 'All'], use.names=T, fill=T)
-
+  
   return(performtable)
 }
 
 #------ ggvimp -----------------
 ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-
+  
   #Get variable importance and format them
   varimp_basic <- weighted_vimportance_nestedrf(rfresamp = rsmp_res,
                                                 pvalue = FALSE) %>%
@@ -5964,10 +6158,10 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     .[, `:=`(varname = factor(varname, varname[order(-imp_wmean)]),
              Category = factor(Category,
                                levels = c('Climate', 'Hydrology', 'Landcover',
-                                 'Physiography', 'Soils & Geology'))
-             )] %>%
+                                          'Physiography', 'Soils & Geology'))
+    )] %>%
     setorder(-imp_wmean)
-
+  
   #Plot 'em
   outp <- ggplot(varimp_basic[1:varnum,],aes(x=varname,
                                              color =Category, fill=Category)) +
@@ -5991,7 +6185,7 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
     scale_y_continuous(expand=c(0,0), position = 'right') +
     coord_flip(ylim=c(0, min(varimp_basic[, max(imp_wmean+imp_wsd)+1], 100)),
                clip='off')
-
+  
   return(outp)
 }
 
@@ -5999,22 +6193,22 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
 ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                           nvariate = 2,
                           parallel=T, spatial_rsp=FALSE) {
-
+  
   #Get outer resampling of interest
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-
+  
   #Get partial dependence across all folds and repeats
   nlearners <-with(rsmp_res$resampling$param_set$values, folds*repeats)
   datdf <- as.data.frame(rsmp_res$task$data()) #This may be shortened
   varimp <- weighted_vimportance_nestedrf(rsmp_res, pvalue=FALSE) %>%
     setorder(-imp_wmean)
-
+  
   if (length(colnums) > nrow(varimp)) {
     colnums <- colnums[1:nrow(varimp)]
     print('colnums argument exceeded the number of variables,
           reduced it to ', nrow(varimp), ' variables')
   }
-
+  
   if (nodupli) {
     selcols <- as.character(
       varimp$varnames[!duplicated(substr(varimp$varnames, 1,3))][colnums])
@@ -6022,7 +6216,7 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     selcols <- as.character(
       varimp$varnames[colnums])
   }
-
+  
   if (parallel) {
     print(paste("Computing partial dependence with future.apply across", nlearners,
                 "CV folds"))
@@ -6035,7 +6229,7 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                                       ngrid = ngrid,
                                       future.scheduling = structure(TRUE,ordering = "random"),
                                       future.packages = c("data.table","edarf","ranger"))
-
+    
   } else {
     print(paste("Computing partial dependence iteratively across", nlearners,
                 "CV folds"))
@@ -6047,20 +6241,20 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                  nvariate = nvariate,
                  ngrid = ngrid)
   }
-
+  
   #Get weighted mean
   varvec <- paste0('var', 1:nvariate)
   valvec <- paste0('value', 1:nvariate)
-
+  
   pdformat <- do.call(rbind, pd) %>%
     setDT %>%
     .[, list(mean1 = weighted.mean(`1`, classif.bacc)),
       by= c(varvec, valvec)] %>%
     .[, variables := var1] %>%
     merge(in_predvars[, .(varcode, varname)], by.x='var1', by.y='varcode')
-
+  
   datdf2 <- as.data.table(datdf)[, intermittent_o1800 := as.numeric(as.character(intermittent_o1800))]
-
+  
   if (nvariate ==1) {
     tileplots_l <- pdformat[,list(list(ggplotGrob(
       ggplot(.SD, aes(x=value1, y=mean1)) +
@@ -6076,15 +6270,15 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
         theme(text = element_text(size=12),
               axis.title.y = element_blank())
     ))), by=.(var1)]
-
+    
   } else if (nvariate == 2) {
     pdformat[, variables := paste(var1, var2)]
-
+    
     vargrid <- t(combn(1:length(selcols), 2))
     #leglims <- pdformat[, c(min(mean1), max(mean1))]
-
+    
     #Iterate over every pair of variables
-
+    
     tileplots_l <- pdformat[,list(list(ggplotGrob(
       ggplot(.SD, aes(x=value1, y=value2)) +
         geom_tile(aes(fill = mean1)) +
@@ -6102,7 +6296,7 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     )))
     , by=.(var1, var2)]
   }
-
+  
   pagelayout <-   lapply(1:(nrow(tileplots_l) %/% 9), function(p_i) {
     (p_i-1)*9+(1:9)
   })
@@ -6110,8 +6304,8 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
     pagelayout[[nrow(tileplots_l) %/% 9 + 1]] <-
       (nrow(tileplots_l) %/% 9)*9+(1:(nrow(tileplots_l) %% 9))
   }
-
-
+  
+  
   tileplots_multipl <- lapply(pagelayout, function(page) {
     print(page)
     return(do.call("grid.arrange",list(
@@ -6124,16 +6318,16 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 #------ gggaugeIPR -----------------
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                        interthresh = 0.5, yearthresh) {
-
+  
   SenCapstr <- function(y) {
     paste0(toupper(substring(y, 1,1)),
            tolower(substring(y, 2, 100)))
   }
-
+  
   #Plot numeric variables
   in_gpredsdt[, DApercsdiff := abs(
     (area_correct-UPLAND_SKM)/mean(c(area_correct, UPLAND_SKM))), by=GAUGE_NO]
-
+  
   if (spatial_rsp) {
     predcol <- 'IRpredprob_CVsp'
     uncertcol <- 'preduncert_CVsp'
@@ -6141,19 +6335,19 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     predcol <- 'IRpredprob_CVnosp'
     uncertcol <- 'preduncert_CVnosp'
   }
-
+  
   predmelt_num <- in_gpredsdt[
     , which(as.vector(unlist(lapply(in_gpredsdt, is.numeric)))), with=F] %>%
     cbind(in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800'), with=F]) %>%
     melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', predcol, uncertcol))
-
+  
   predmelt_num[, IPRclass := fcase(
     intermittent_o1800 == "0" & get(predcol) < 0.5, 'True: perennial | Pred: perennial',
     intermittent_o1800 == "0" & get(predcol) >= 0.5, 'True: perennial | Pred: non-perennial',
     intermittent_o1800 == "1" & get(predcol) < 0.5, 'True: non-perennial | Pred: perennial',
     intermittent_o1800 == "1" & get(predcol) >= 0.5, 'True: non-perennial | Pred: non-perennial'
-    )]
-
+  )]
+  
   #Set variable labels
   varlabels <- copy(in_predvars) %>%
     .[, .(varcode, varname)] %>%
@@ -6169,27 +6363,27 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     .[varcode=='UPLAND_SKM', varname :='Drainage area (km2)'] %>%
     .[varcode=='dor_pc_pva', varname :='Degree of regulation'] %>%
     .[, varname := str_wrap(varname, 30)]
-
+  
   levels(predmelt_num$variable) <-  varlabels$varname
-
+  
   varlabels[, varname := SenCapstr(varname)]
-
+  
   #levels(predmelt_num$variable) <-  varlabels[varname %in% predmelt_num$variable, varname]
   varstoplot_continuous <- varlabels[varcode %in% c('totalYears_kept_o1800',
                                                     'mDur_o1800',
                                                     'mFreq_o1800',
                                                     'DApercsdiff',
                                                     'ari_ix_uav'),]
-
+  
   varstoplot_log <- varlabels[varcode %in% c('UPLAND_SKM',
                                              'dis_m3_pyr',
                                              'dor_pc_pva'),]
-
+  
   colorpal_continuous = c("#FFAA00", "#a80000", "#004DA8", "#7AB6F5")
-
-
+  
+  
   #plotdt = predmelt_num[variable %in% "DApercdiff",]
-
+  
   ggIPR_util <- function(plotdt, logx = FALSE, legend=FALSE) {
     p <- ggplot(plotdt) +
       # geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
@@ -6201,7 +6395,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
       # scale_fill_manual(values=colorpal,
       #                   name='Predicted regime',
       #                   labels = c('Perennial', 'Intermittent')) +
-
+      
       scale_color_manual(values=colorpal_continuous) +
       labs(x='Value', y='Intermittence Prediction Residuals (IPR)') +
       geom_hline(yintercept=0, alpha=1/2) +
@@ -6221,22 +6415,22 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
       theme_classic() +
       theme(legend.position = c(0.85, 0.2),
             legend.title = element_blank())
-
+    
     if (logx) {
       p <- p + scale_x_continuous(
         trans='log1p',
         breaks = c(1, 10, 100, 1000, 10000, 100000,1000000),
         labels = scientific_10)
     }
-
+    
     if (!legend) {
       p <- p + theme(legend.position = 'none')
     }
-
+    
     return(p)
   }
-
-
+  
+  
   p_continuous <- ggIPR_util(
     plotdt = predmelt_num[variable %in% varstoplot_continuous$varcode |
                             variable %in% varstoplot_continuous$varname,],
@@ -6247,8 +6441,8 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                             variable %in% varstoplot_log$varname,],
     logx=T, legend=F) +
     labs(y="", x='')
-
-
+  
+  
   #Plot categorical variables
   predmelt_cat <- in_gpredsdt[, c('GAUGE_NO', 'intermittent_o1800', uncertcol,
                                   'ENDORHEIC', 'clz_cl_cmj'), with=F] %>%
@@ -6256,8 +6450,8 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     melt(id.vars=c('GAUGE_NO', 'intermittent_o1800', uncertcol))
   levels(predmelt_cat$variable) <- c('Endorheic',
                                      'Climate Zone (catchment majority)')
-
-
+  
+  
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf_cat <- data.table(
     xmin=rep(-Inf, 4),
@@ -6290,16 +6484,16 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     coord_cartesian(expand=FALSE, clip='off') +
     theme_classic() +
     theme(legend.position='none')
-
-
+  
+  
   outp <- grid.arrange(p_continuous, p_log, gaugeIPR_catplot,
                        layout_matrix = rbind(c(1,1,1),
                                              c(1,1,1),
                                              c(2,2,2),
                                              c(3,3,3))
   )
-
-
+  
+  
   return(outp)
 }
 
@@ -6307,40 +6501,40 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
 krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
                              kcutoff=100000, inp_bufrasdir=NULL,
                              overwrite = FALSE) {
-
+  
   predsp_gaugep <- st_as_sf(in_gpredsdt)
-
+  
   # bufras_vec <- file.path(inp_bufrasdir,
   #                         grep('bufras_T.*proj[.]tif$',
   #                              list.files(inp_bufrasdir),
   #                              value=T)
   # )
-
+  
   #Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
   crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
   predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
     as_Spatial()
-
+  
   #Possible models
   varmods <- as.character(vgm()[,'short'])
-
+  
   in_sf = predsp_gaugep_df
   ycol = 'intermittent_o1800'
   in_varmods = varmods
-
+  
   customfit_variogram <- function(in_sf, ycol, in_varmods, kcutoff) {
     # Compute the sample variogram; note that the f.1 trend model is one of the
     # parameters passed to variogram(). This tells the function to create the
     # variogram on the de-trended data.
     var_out <- gstat::variogram(intermittent_o1800 ~ 1, in_sf,
                                 cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
-
+    
     # Compute the variogram model by passing the nugget, sill and range values
     # to fit.variogram() via the vgm() function.
     fit_out  <- fit.variogram(var_out, fit.ranges = TRUE, fit.sills = T,
                               vgm(in_varmods[!(varmods %in% c('Pow', 'Int'))]),
                               fit.kappa = TRUE)
-
+    
     plot <- ggplot(var_out, aes(x=dist, y=gamma)) +
       geom_point(alpha=1/3) +
       geom_line(data = variogramLine(fit_out, maxdist = kcutoff)) +
@@ -6349,45 +6543,45 @@ krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
       scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
                    labels=c(0,100,1000,10000,25000,50000, 100000)) +
       theme_classic()
-
+    
     return(list(
       plot = plot,
       mod = fit_out
     ))
-
+    
   }
-
+  
   bas = names(table(predsp_gaugep_df$PFAF_ID03) > 20)[8]
   lapply(names(table(predsp_gaugep_df$PFAF_ID03) > 20),
          function(bas) {
            subdat <- subset(predsp_gaugep_df, PFAF_ID03 == bas)
-
-
+           
+           
            fit_out <- customfit_variogram(in_sf = subdat, ycol='intermittent_o1800',
                                           in_varmods = varmods, kcutoff=kcutoff)
            fit_out$plot
-
-
-  })
-
-
-
+           
+           
+         })
+  
+  
+  
   ################### Kriging on fit data #################################
   # Compute the sample variogram; note that the f.1 trend model is one of the
   # parameters passed to variogram(). This tells the function to create the
   # variogram on the de-trended data.
   var_smpl <- gstat::variogram(IRpredcat_CVsp ~ 1, predsp_gaugep_df,
                                cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
-
+  
   ggplot(var_smpl, aes(x=dist, y=gamma)) +
     geom_point(alpha=1/3) +
     coord_cartesian(expand=T) +
     scale_y_log10() +
     theme_classic()
-
+  
   # scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
   #              labels=c(0,100,1000,10000,25000,50000, 100000)) +
-
+  
   # Compute the variogram model by passing the nugget, sill and range values
   # to fit.variogram() via the vgm() function.
   varmods <- as.character(vgm()[,'short'])
@@ -6397,24 +6591,24 @@ krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
   # The following plot allows us to assess the fit
   plot(var_smpl, dat_fit)
   attr(dat_fit, "SSErr")
-
-
+  
+  
   ################### Kriging on residuals ####################################
   # Compute the sample variogram; note that the f.1 trend model is one of the
   # parameters passed to variogram(). This tells the function to create the
   # variogram on the de-trended data.
   var_smpl <- gstat::variogram(preduncert_CVsp ~ 1, predsp_gaugep_df,
                                cutoff=kcutoff, width=500, cressie=TRUE) #cloud=T)
-
+  
   ggplot(var_smpl, aes(x=dist, y=gamma)) +
     geom_point(alpha=1/3) +
     coord_cartesian(expand=F) +
     scale_y_log10() +
     theme_classic()
-
+  
   # scale_x_sqrt(breaks=c(0,100,1000,10000,25000,50000, 100000),
   #              labels=c(0,100,1000,10000,25000,50000, 100000)) +
-
+  
   # Compute the variogram model by passing the nugget, sill and range values
   # to fit.variogram() via the vgm() function.
   varmods <- as.character(vgm()[,'short'])
@@ -6423,10 +6617,10 @@ krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
                             fit.kappa = TRUE)
   # The following plot allows us to assess the fit
   plot(var_smpl, dat_fit)
-
+  
   # Import gauge buffer mask
-
-
+  
+  
   #Predict error
   # kmod <- gstat(formula=IPR~1, locations=predsp_gaugep_df, model=dat_fit,
   #               maxdist = kcutoff)
@@ -6444,22 +6638,22 @@ krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
   #   return(outras)
   # }) %>%
   #   do.call(rbind, .)
-
+  
   return(kpl)
 }
 #------ mosaic_kriging -------------
 mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
   kpl <- in_kpathlist
-
+  
   kplextents <- lapply(kpl, function(ras_path) {
     ras <- raster(ras_path)
     data.table(x=c(xmin(ras),xmax(ras)), y= c(ymin(ras),ymax(ras)))
   }) %>%
     rbindlist %>%
     .[, lapply(.SD, function(i) c(min(i), max(i)))]
-
+  
   template <- raster(extent(kplextents[, x], kplextents[, y]))
-
+  
   writeRaster(template, file=outp_krigingtif, datatype='INT2S',
               format="GTiff", overwrite=overwrite)
   gdalUtils::mosaic_rasters(gdalfile=as.vector(kpl),
@@ -6467,7 +6661,7 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
                             force_ot = "Int16",
                             of="GTiff")
   gdalinfo(out_krigingtif)
-
+  
   return(out_krigingtif)
 }
 
@@ -6479,37 +6673,37 @@ test_joincount <- function(in_gauges) {
   crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
   predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
     as_Spatial()
-
+  
   baslist = names(which(table(predsp_gaugep_df$PFAF_ID03) > 20))
   jclist <- lapply(baslist, function(bas) {
     print(bas)
     subdat <- subset(predsp_gaugep_df, PFAF_ID03 == bas)
     g.nb <- knn2nb(knearneigh(subdat,k=4))
-
+    
     if ((length(unique(subdat$intermittent_o1800)) > 1) &
         all(table(subdat$intermittent_o1800)>1)) {
       jc_ref <- joincount.mc(subdat$intermittent_o1800,
                              listw2U(nb2listw(g.nb)),
                              alternative = "greater",
                              nsim = 1000)
-
+      
       stdeviate_ref <- with(jc_ref[[2]],
                             (statistic-estimate[1])/sqrt(estimate[2]))
       pref <- jc_ref[[2]]$p.value
-
+      
     } else {
       jc_ref <- NA
       stdeviate_ref <- NA
       pref <- NA
     }
-
+    
     if ((length(unique(subdat$IRpredcat_CVsp)) > 1) &
         all(table(subdat$IRpredcat_CVsp)>1)) {
       jc_pred <- joincount.mc(as.factor(subdat$IRpredcat_CVsp),
                               listw2U(nb2listw(g.nb)),
                               alternative = "greater",
                               nsim = 1000)
-
+      
       stdeviate_pred <- with(jc_pred[[2]],
                              (statistic-estimate[1])/sqrt(estimate[2]))
       ppred <- jc_pred[[2]]$p.value
@@ -6518,7 +6712,7 @@ test_joincount <- function(in_gauges) {
       stdeviate_pred <- NA
       ppred <- NA
     }
-
+    
     outdat <- list(
       PFAF_ID03 = bas,
       #jc_ref = jc_ref,
@@ -6528,12 +6722,12 @@ test_joincount <- function(in_gauges) {
       stdeviate_ref = stdeviate_ref,
       stdeviate_pred = stdeviate_pred
     )
-
+    
     return(outdat)
   }
   ) %>%
     rbindlist
-
+  
   return(jclist)
 }
 
@@ -6545,32 +6739,32 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                           spatial_rsp) {
   bas03 <- st_read(dsn = dirname(inp_basin),
                    layer = basename(inp_basin))
-
+  
   if (spatial_rsp) {
     predcol <- 'IRpredcat_CVsp'
   } else {
     predcol <- 'IRpredcat_CVnosp'
   }
-
+  
   classcol='intermittent_o1800'
   dat <- in_gaugepred[, .N, by=classcol]%>%
     setnames(old=classcol, new='classcol')
   minoratio <- dat %>%
     setorder(N) %>%
     .[, list(minoclass=classcol[1], ratio=N[2]/N[1])]
-
+  
   in_gaugepred[, ':='(classweights = fifelse(intermittent_o1800 == minoratio$minoclass,
                                              minoratio$ratio, 1)
   )]
-
+  
   in_rivernetwork[, PFAF_ID03 := substr(PFAF_ID05, 1, 3)]
   gnetjoin <- merge(in_gaugepred,
                     in_rivernetwork[,.(HYRIV_ID, PFAF_ID03)],
                     by='HYRIV_ID', all.x=T, all.y=F)
-
+  
   #Join count test for each basin with more than 20 gauges
   jclist <- test_joincount(gnetjoin)
-
+  
   #Compute statistics by basin
   basbacc <- gnetjoin[, list(
     basbacc =  sum((intermittent_o1800==get(predcol)) *
@@ -6583,8 +6777,8 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     merge(jclist, by='PFAF_ID03', all.x=T) %>%
     .[, `:=`(stdeviate_diff = stdeviate_pred - stdeviate_ref,
              stdeviate_ratio = stdeviate_pred/stdeviate_ref
-             )]
-
+    )]
+  
   #Investigate how join count statistics of predictions relate to ref data
   compare_deviatep <- ggplot(basbacc, aes(x=stdeviate_ref, y=stdeviate_pred)) +
     geom_point() +
@@ -6593,10 +6787,10 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
          y='Standard deviate - predicted flow intermittency class') +
     coord_fixed() +
     theme_bw()
-
+  
   #Check relationship between accuracy and number of gauges
   palette_acc <- c('#314D8F', '#3C8A9E', '#3EB591', '#2BD93D',
-    '#8EF026', '#FCF228', '#F2C035', '#E08E46', '#CC6D5A')
+                   '#8EF026', '#FCF228', '#F2C035', '#E08E46', '#CC6D5A')
   basbacc[, colacc := factor(
     fcase(
       acc >= 0.95, 1L,
@@ -6608,11 +6802,11 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
       ((0.50 <= acc) & (acc < 0.60)), 7L,
       ((0.005 <= acc) & (acc < 0.50)), 8L,
       acc < 0.005, 9L
-  )
+    )
   ), by=.I]
-
+  
   plot_acc <- ggplot(basbacc[, .N, by=.(gnum, acc, colacc)],
-         aes(x=gnum, y=100*acc, size=as.numeric(N), fill=colacc)) +
+                     aes(x=gnum, y=100*acc, size=as.numeric(N), fill=colacc)) +
     geom_point(colour="black",pch=21) +
     #geom_quantile() +
     scale_size_continuous(name='# of basins', breaks=c(1, 2, 5, 10)) +
@@ -6624,12 +6818,12 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
           legend.spacing.y = unit(0, 'cm'),
           legend.key.height=unit(0.75,"line")
     )
-
-
+  
+  
   #Check relationship between bias and number of gauges
   palette_bias <- c('#a8273a', '#d46e4c', '#ffac70',
-                   '#76c284',
-                   '#00ffff', '#3d7294') #, '#374559')
+                    '#76c284',
+                    '#00ffff', '#3d7294') #, '#374559')
   basbacc[, colbias := factor(
     fcase(
       predbias >= 0.50, 1L,
@@ -6641,9 +6835,9 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
       predbias < -0.50, 7L
     )
   ), by=.I]
-
+  
   plot_bias <-ggplot(basbacc[, .N, by=.(gnum, predbias, colbias)],
-         aes(x=gnum, y=100*predbias, size=as.numeric(N), fill=colbias)) +
+                     aes(x=gnum, y=100*predbias, size=as.numeric(N), fill=colbias)) +
     geom_hline(yintercept=0, alpha=1/2) +
     geom_point(colour="black",pch=21) +
     scale_size_continuous(name='# of basins', breaks=c(1, 2, 5, 10)) +
@@ -6653,20 +6847,20 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     theme_classic() +
     theme(legend.position = c(0.85, 0.8),
           legend.background = element_blank())
-
-
+  
+  
   #Output stats to .gpkg
   basbacc_format <- base::merge(
     bas03, basbacc,
     by.x='PFAF_ID', by.y='PFAF_ID03',
     all.x.=T, all.y=T)
   basbacc_format$gdens <- with(basbacc_format, gnum/UP_AREA)
-
+  
   st_write(obj=basbacc_format,
            dsn=outp_basinerror,
            driver = 'gpkg',
            delete_dsn=F)
-
+  
   return(list(
     plot_acc = plot_acc,
     plot_bias = plot_bias
@@ -6677,7 +6871,7 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
 #------ get_basemaps ------------
 get_basemapswintri <- function() {
   crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
-
+  
   wcountries <- rnaturalearth::ne_countries(
     scale = "medium", returnclass = "sf") %>%
     sfformat_wintri
@@ -6687,11 +6881,11 @@ get_basemapswintri <- function() {
   wlakes <- rnaturalearth::ne_download(
     scale = 110, type = 'lakes', category = 'physical') %>%
     sfformat_wintri
-
+  
   grat_wintri <-
     st_graticule(lat = c(-89.9, seq(-80, 80, 20), 89.9)) %>%
     st_transform(crs = crs_wintri)
-
+  
   # riv_query <- "SELECT HYRIV_ID, ORD_STRA, dis_m3_pyr FROM \"RiverATLAS_v10\" WHERE ORD_STRA > 4"
   # riv_lines <- st_read(dsn = dirname(in_filestructure['in_riveratlas']),
   #                      layer = basename(in_filestructure['in_riveratlas']),
@@ -6699,7 +6893,7 @@ get_basemapswintri <- function() {
   #
   # riv_wintri <- sfformat_wintri(riv_lines)
   # riv_simple <-  sf::st_simplify(riv_wintri, preserveTopology = TRUE, dTolerance = 1000)
-
+  
   return(list(wcountries = wcountries,
               wland = wland,
               wlakes = wlakes,
@@ -6729,7 +6923,7 @@ ggrivers <- function(in_basemaps) {
           legend.text = element_text(size=12),
           legend.title = element_text(size=12),
           legend.key.height = unit(0.1,"in"))
-
+  
   return(p)
 }
 
@@ -6738,49 +6932,49 @@ gggauges <- function(in_gaugepred, in_basemaps,
                      binarg, binvar) {
   gaugepred <- in_gaugepred %>%
     sfformat_wintri
-
+  
   #Bin data
   dt <- as.data.table(gaugepred)
   byd <- dt[, binvar, with=F]
   l_freq    <- append(min(byd), binarg)
   u_freq    <- c(binarg, (max(byd, na.rm = TRUE) + 1))
   bins      <- length(binarg) + 1
-
+  
   for (i in seq_len(bins)) {
     gaugepred[dt[,get(binvar)] >= l_freq[[i]] &
                 dt[,get(binvar)] < u_freq[[i]], 'bin'] <- i
-
+    
     if (i == bins) {
       gaugepred[dt[,get(binvar)]  == u_freq[i], 'bin'] <- i
     }
   }
-
+  
   gaugepred$bin <- factor(gaugepred$bin, levels=seq_len(bins))
-
-
+  
+  
   #Create color scales
   cs_per <- scales::seq_gradient_pal('#45c6f7', '#152540', "Lab")(
     seq(0,1,length.out=bins)) #'#0F9FD6'
   cs_ir <- scales::seq_gradient_pal('#ffb88f','#940404', "Lab")( #'#ff9b52'  '#a32d18'
     seq(0,1,length.out=bins)) #
-
-
+  
+  
   #Subset data into perennial and intermittent rivers
   perennial_gauges <- gaugepred[gaugepred$intermittent_o1800=='0',]
   ir_gauges <-  gaugepred[gaugepred$intermittent_o1800=='1',]
-
-
+  
+  
   #Make histograms
   gggaugehist <- function(in_gdf, cs) {
     x_tick <- c(0, unique(as.numeric(levels(in_gdf$bin)))) + 0.5
     binarg_tick <- c(0, seq_len(bins))
     len <- length(x_tick)
-
+    
     permean <- as.data.table(in_gdf)[,  mean(get(binvar))]
     permeanbindiff <- c(permean - l_freq)
     meanbin <- which(permeanbindiff > 0)[which.min(permeanbindiff[permeanbindiff  > 0])]
     meanpos <- meanbin + (permean-l_freq[meanbin])/(u_freq[meanbin]-l_freq[meanbin])
-
+    
     gaugehist <- ggplot(in_gdf, aes(x=as.numeric(bin), fill=bin)) +
       geom_histogram(stat="count", width=1) +
       geom_vline(xintercept = meanpos - 0.5) +
@@ -6804,11 +6998,11 @@ gggauges <- function(in_gaugepred, in_basemaps,
                                                   rep("black", len))))
     return(gaugehist)
   }
-
+  
   histper <- gggaugehist(perennial_gauges, cs=cs_per)
   histir <- gggaugehist(ir_gauges, cs=cs_ir)
-
-
+  
+  
   #Plot it
   p_pr <- ggrivers(in_basemaps) +
     geom_sf(data=perennial_gauges, aes(color=bin), size=1.2, alpha=0.8) +
@@ -6821,8 +7015,8 @@ gggauges <- function(in_gaugepred, in_basemaps,
                       xmax = -8000000,
                       ymin = -9000000,
                       ymax = -1000000)
-
-
+  
+  
   p_ir <- ggrivers(in_basemaps) +
     geom_sf(data=ir_gauges, aes(color=bin), size=1) +
     scale_color_manual(values=cs_ir) +
@@ -6834,7 +7028,7 @@ gggauges <- function(in_gaugepred, in_basemaps,
                       xmax = -8000000,
                       ymin = -9000000,
                       ymax = -1000000)
-
+  
   p_patch <- p_pr/p_ir
   outp <- p_patch + plot_annotation(tag_levels = 'A')
   return(outp)
@@ -6846,24 +7040,24 @@ comp_GRDCqstats <- function(path, maxgap,
   if (verbose) {
     print(path)
   }
-
+  
   #Read and format discharge records
   gaugeno <- strsplit(basename(path), '[.]')[[1]][1]
   gaugetab <- readformatGRDC(path)
-
+  
   #Remove years with too many gaps, no data records, and
   gaugetabsub <- gaugetab[(missingdays <= maxgap) &
                             (year >= minyear & year <= maxyear) &
                             !(Original %in% c(-999, -99, -9999, 99, 999, 9999) |
                                 is.na(Original)),]
-
+  
   gaugestatsyr <- gaugetabsub[, list(
     qminyr = min(Original, na.rm=T),
     q3minyr = min(frollmean(Original, 3, align='center'), na.rm=T)
   ),by=year] %>%
     .[, list(qminyr = mean(qminyr, na.rm=T),
              q3minyr = mean(q3minyr, na.rm=T))]
-
+  
   gaugestats <- gaugetabsub[, list(
     GRDC_NO = unique(GRDC_NO),
     nyears = length(unique(year)),
@@ -6873,7 +7067,7 @@ comp_GRDCqstats <- function(path, maxgap,
     q99 = quantile(Original, 0.01, na.rm=T)
   )] %>%
     cbind(gaugestatsyr)
-
+  
   return(gaugestats)
 }
 
@@ -6886,11 +7080,11 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
     .[!(GRDC_NO %in% c('5204010')),]
   #5204010 - issue with units which does not affect zero flow assessment
   #Checked 1160520 - mixed but not clear enough
-
+  
   qsubp <- merge(qsub, in_selgauges, by='GRDC_NO', all.x=T, all.y=F) %>%
     .[dor_pc_pva < 100,]
   qsubp_bin <- bin_dt(in_dt = qsubp, binvar='qmean', binarg = binarg, binfunc = 'manual')
-
+  
   #Compute a simple set of performance statistics, including rsquare for ols without studentized outliers
   getqstats <- function(dt, x, y, rstudthresh= 3, log=FALSE) {
     if (log) {
@@ -6898,9 +7092,9 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
     } else {
       in_form = paste0(y,'~',x)
     }
-
+    
     mod <- lm(as.formula(in_form), data=dt)
-
+    
     outrows <- setDT(olsrr::ols_prep_rstudlev_data(mod)$`levrstud`)[
       abs(rstudent)>rstudthresh & color == 'outlier & leverage',]
     if (nrow(outrows) >0) {
@@ -6908,9 +7102,9 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
     } else {
       dtsub <- dt
     }
-
+    
     mod_nooutliers <- lm(as.formula(in_form), data=dtsub)
-
+    
     outstats <- dt[, list(pearsonr = round(cor(get(y), get(x)), 3),
                           mae = round(Metrics::mae(get(y), get(x)), 2),
                           smape = round(Metrics::smape(get(y), get(x)), 2),
@@ -6921,15 +7115,15 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
                           noutliers = nrow(outrows)
     )
     ,]
-
+    
     return(outstats)
   }
-
+  
   qsubp_bin[qmean >= 100,
             getqstats(dt=.SD, x='dis_m3_pyr', y='qmean',
                       rstudthresh = 3)]
-
-
+  
+  
   #Get stats for mean Q ~ dis_m3_pyr (watergap mean annual)
   qmean_stats <- qsubp_bin[,
                            getqstats(dt=.SD, x='dis_m3_pyr', y='qmean',
@@ -6940,7 +7134,7 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
         , `:=`(bin_lformat='all', bin=length(binarg)+1)]
     ) %>%
     .[, comp := 'qmean_dism3pyr']
-
+  
   #Get stats for Q90 ~ dis_m3_pyr (watergap min monthly)
   q90_stats <- qsubp_bin[,
                          getqstats(dt=.SD, x='dis_m3_pmn', y='q90',
@@ -6949,7 +7143,7 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
     rbind(getqstats(dt=qsubp_bin, x='dis_m3_pmn', y='q90', log=T)[
       , `:=`(bin_lformat='all', bin=length(binarg)+1)]) %>%
     .[, comp := 'q90_dism3mn']
-
+  
   outstats <- rbind(qmean_stats, q90_stats) %>%
     setorder(-comp, bin)
   return(outstats)
@@ -7005,23 +7199,23 @@ formatscales <- function(in_df, varstoplot) {
   ) %>%
     .[(names(.) %in% names(in_df)) & names(.) %in% varstoplot]
   #Only keep those variables that are actually in df and that we want to plot
-
+  
   scales_y <- unlist(rep(list(scale_y_continuous(expand=c(0,0))),
                          labels = scientific_format(),
                          length(scales_x)),
                      recursive=F) %>%
     setNames(names(scales_x))
-
+  
   scales_y[['dis_m3_pmn']] <- scale_y_sqrt(expand=c(0,0))
   scales_y[['glc_pc_u16']] <- scale_y_continuous(trans='log1p',
                                                  breaks=c(10, 1000, 100000, 10000000))
-
+  
   coordcart <- lapply(varstoplot, function(var) {
     coord_cartesian(xlim=as.data.table(in_df)[, c(min(get(var), na.rm=T),
                                                   max(get(var), na.rm=T))])
   }) %>%
     setNames(varstoplot)
-
+  
   coordcart[['clz_cl_cmj']] <-  coord_cartesian(
     xlim=c(1,max(in_df$clz_cl_cmj)))
   coordcart[['kar_pc_use']] <-  coord_cartesian(
@@ -7032,7 +7226,7 @@ formatscales <- function(in_df, varstoplot) {
     xlim=c(1, 10))
   coordcart[['ari_ix_uav']] <-  coord_cartesian(
     xlim=c(0, 100))
-
+  
   return(list(scales_x=scales_x, scales_y=scales_y, coordcart=coordcart))
 }
 
@@ -7043,29 +7237,29 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
   if (intermittent) {
     vartoplot2 <- c(vartoplot, 'intermittent_o1800')
   }
-
+  
   varname <- in_predvars[varcode==vartoplot, Attribute]
   #paste0(Attribute, ' ',Keyscale,Keystat,' (',unit,')')]
-
+  
   if (vartoplot == "clz_cl_cmj") {
     rivclz <- in_rivdt[, sum(LENGTH_KM)/in_rivdt[,sum(LENGTH_KM)],
                        by=as.factor(clz_cl_cmj)]
     gclz <- in_gaugedt[,.N/in_gaugedt[,.N],by=as.factor(clz_cl_cmj)]
     bindclz <- rbind(rivclz, gclz, idcol='source')%>%
       setnames(c( 'source', vartoplot, 'density'))
-
+    
     penvhist <- ggplot(bindclz, aes_string(x=vartoplot, y='density')) +
       geom_bar(aes(fill=as.factor(source)), stat='identity',
                position = 'dodge', alpha=1/2, width=.6) +
       scale_fill_manual(values=c('#2b8cbe', '#dd3497'))
-
+    
   } else if (vartoplot == "glc_pc_u16") {
     rivclz <- in_rivdt[, sum(LENGTH_KM)/in_rivdt[,sum(LENGTH_KM)],
                        by=glc_pc_u16]
     gclz <- in_gaugedt[,.N/in_gaugedt[,.N],by=glc_pc_u16]
     bindclz <- rbind(rivclz, gclz, idcol='source')%>%
       setnames(c( 'source', vartoplot, 'density'))
-
+    
     penvhist <- ggplot(bindclz, aes_string(x=vartoplot, y='density')) +
       geom_bar(aes(fill=as.factor(source)), stat='identity',
                position = 'identity', alpha=1/2, width=.6) +
@@ -7075,7 +7269,7 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
     #       geom_histogram(data=in_rivdt, aes(weight = LENGTH_KM),
     #                      fill='#2b8cbe', alpha=0.5, bins=101) +
     #       geom_histogram(fill='#dd3497', alpha=0.5, bins=101)
-
+    
   } else {
     penvhist <- ggplot(in_gaugedt, aes_string(x=vartoplot)) +
       geom_density(data=in_rivdt, aes(weight = LENGTH_KM),
@@ -7083,7 +7277,7 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
       geom_density(fill='#dd3497', alpha=0.5) +
       ylab('Density')
   }
-
+  
   penvhist <- penvhist +
     scalesenvhist$scales_x[[vartoplot]] +
     #scalesenvhist$scales_y[[vartoplot]] +
@@ -7094,12 +7288,12 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
           legend.position = 'none',
           axis.title.y = element_blank(),
           axis.title = element_text(size=12))
-
+  
   # if (which(vartoplot %in% varstoplot_hist)!=length(varstoplot_hist)) {
   #   penvhist <- penvhist +
   #     theme(legend.position='none')
   # }
-
+  
   return(ggplotGrob(penvhist))
 }
 
@@ -7109,12 +7303,12 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
     "bio1_dc_uav", "bio7_dc_uav", "bio12_mm_uav", "bio14_mm_uav", "clz_cl_cmj",
     "ari_ix_uav", "dis_m3_pyr", "sdis_ms_uyr", "gwt_m_cav", "UPLAND_SKM",
     "lka_pc_use", "snw_pc_uyr", "kar_pc_use", "for_pc_use") #, "glc_pc_u16")
-
+  
   if ("dis_m3_pyr" %in% varstoplot_hist) {
     setDT(in_rivernetwork)[, dis_m3_pyr := dis_m3_pyr + 1]
     setDT(in_gaugepred)[, dis_m3_pyr := dis_m3_pyr + 1]
   }
-
+  
   #Get legend
   pleg <- ggplot(in_gaugepred, aes(x=dis_m3_pyr, fill=factor(IRpredcat_full))) +
     geom_density(alpha=1/2) +
@@ -7123,15 +7317,15 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
                       labels=c('Global river network',
                                'Training gauges')) +
     theme(text=element_text(size=14))
-
+  
   tmp <- ggplot_gtable(ggplot_build(pleg))
   leg <- tmp$grobs[[
     which(sapply(tmp$grobs, function(y) y$name) == "guide-box")
   ]]
-
+  
   #Get scales
   scalesenvhist <- formatscales(in_df=in_rivernetwork, varstoplot=varstoplot_hist)
-
+  
   #Plot each facet
   penvhist_grobs <- lapply(varstoplot_hist, ggenvhist,
                            in_gaugedt = in_gaugepred,
@@ -7140,7 +7334,7 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
                            scalesenvhist = scalesenvhist)
   #Add legend
   penvhist_grobs[[length(penvhist_grobs) + 1]] <- leg
-
+  
   #Plot
   grid.newpage()
   do.call("grid.arrange", list(grobs=penvhist_grobs, nrow=5))
@@ -7148,16 +7342,16 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 
 #------ tabulate_benchmarks ------------
 tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
-
+  
   #If path, read qs
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
   }
-
+  
   print('Getting table content...')
   tbbm <- bm_msrtab(in_bm, interthresh=interthresh) %>%
     format_modelcompdat(typecomp=in_bmid)
-
+  
   metrics_dat <- data.table(selection=character(),
                             type=character(),
                             learner_format=character(),
@@ -7177,7 +7371,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
                             outer_repeats=integer(),
                             outer_folds=integer()) %>%
     rbind(tbbm, use.names=TRUE, fill=TRUE)
-
+  
   #Continue formatting table
   print('Format table...')
   metrics_dat[is.na(ntree), ntree := numtrees]
@@ -7185,8 +7379,8 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
   metrics_dat[, `minor_weight|ratio` := fifelse(is.na(minor_weight),
                                                 as.numeric(ratio),
                                                 as.numeric(minor_weight))]
-
-
+  
+  
   #Create model specification tables
   setup_table <- metrics_dat[, .(selection, type, learner_format,
                                  inner_folds, inner_n_evals,
@@ -7196,7 +7390,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
     .[!grepl('(CIF)|(MAXSTAT)', learner_format), alpha := NA] %>%
     .[grepl('MAXSTAT', learner_format), minnodesize := NA] %>%
     unique(by='learner_format')
-
+  
   #Create model results table
   results_table <- metrics_dat[, .(selection, learner_format,
                                    resampling_id, outer_repeats, outer_folds,
@@ -7206,7 +7400,7 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
                                    spe = round(spe, 3), sen = round(sen, 3),
                                    bbrier=round(bbrier, 3), auc=round(auc, 3)
   )]
-
+  
   return(list(setup=setup_table, results=results_table))
 }
 
@@ -7216,11 +7410,11 @@ compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
     merge(in_rivpred, by.x = 'VALUE', by.y = 'HYRIV_ID', all.x=T, all.y=T)
   linkpop[!is.na(VALUE) & is.na(dis_m3_pyr), .N]
   linkpop[is.na(VALUE) & !is.na(dis_m3_pyr), .N]
-
+  
   #Compute number of people living nearest to a IRES
   globalestimate <- linkpop[, list(popsum=sum(SUM, na.rm=T)), by=valuevar] %>%
     .[, popperc:=popsum/sum(.$popsum)]
-
+  
   return(globalestimate)
 }
 
@@ -7230,7 +7424,7 @@ formatmisclass_bm <- function(in_bm, in_bmid) {
   if (inherits(in_bm, "character")) {
     in_bm <- qs::qread(in_bm)
   }
-
+  
   print('Getting table content...')
   thresh_dt <- threshold_dat(bmres =in_bm) %>%
     format_modelcompdat(in_bmid)
@@ -7240,13 +7434,13 @@ formatmisclass_bm <- function(in_bm, in_bmid) {
 
 #------ ggmisclass_bm -------------
 ggmisclass_bm <- function(in_threshdts) {
-
+  
   #
   threshplot_datall <- rbindlist(in_threshdts) %>%
     .[, list(value_mean = mean(value)),
       by=.(threshold_class, variable, learner_format, selection)]
-
-
+  
+  
   ggthresh_benchmark <- ggplot(threshplot_datall[variable %in% c('sens', 'spec'),],
                                aes(x=threshold_class, y=value_mean,
                                    linetype=variable,
@@ -7262,7 +7456,7 @@ ggmisclass_bm <- function(in_threshdts) {
     theme_bw() +
     theme(panel.spacing = unit(0.75, "cm"),
           legend.title = element_blank())
-
+  
   return(ggthresh_benchmark)
 }
 
@@ -7275,22 +7469,22 @@ test_thresholdsensitivity <- function(in_gpredsdt,
                                       mincutoff = 0.1,
                                       gaugescol = 'IRpredprob_CVnosp',
                                       netcol = 'predbasic800') {
-
+  
   #--------------- Compute sensitivity for gauges -------------------
   gpreds_format <- in_gpredsdt[dis_m3_pyr >= mincutoff,] %>%
     .[,`:=`(truth = intermittent_o1800,
             row_id = .I)]
-
+  
   threshgrid <- expand.grid(threshrange_gauges, threshrange_gauges) %>%
     setnames(c('thresh_u10', 'thresh_o10'))
-
+  
   gstats <- mapply(function(tu10, to10) {
     #print(paste('thresh_u10:', tu10, 'thresh_o10:', to10))
     gpreds_format[dis_m3_pyr < 10,
                   response := as.numeric(get(gaugescol) >= tu10)]
     gpreds_format[dis_m3_pyr >= 10,
                   response := as.numeric(get(gaugescol) >= to10)]
-
+    
     confustats <- compute_confustats(gpreds_format, ndigits=4) %>%
       .[, predratio := (as.numeric(gsub("[|][0-9]+", "", predtrue_inter)) -
                           as.numeric(gsub("[0-9]+[|]", "", predtrue_inter)))/
@@ -7299,9 +7493,9 @@ test_thresholdsensitivity <- function(in_gpredsdt,
         bacc = mlr3measures::bacc(truth, as.factor(response)),
         threshold_u10 = tu10,
         threshold_o10 = to10
-    )]
-    )
-
+      )]
+      )
+    
     return(confustats)
   },
   tu10 = threshgrid$thresh_u10,
@@ -7309,7 +7503,7 @@ test_thresholdsensitivity <- function(in_gpredsdt,
   SIMPLIFY = F
   ) %>%
     do.call(rbind, .)
-
+  
   #--------------- Plot sensitivity for gauges -------------------
   collimit_bias <- max(abs(gstats$predratio)) * c(-100, 100)
   minmax_gpoints <- gstats[c(which.min(abs(predratio)),
@@ -7318,50 +7512,50 @@ test_thresholdsensitivity <- function(in_gpredsdt,
                              which.min(abs(sens-spec))),] %>%
     .[, perfstat := c('Minimum bias', 'Maximum accuracy',
                       'Maximum BACC', 'Sensitivity = Specificity')]
-
+  
   threshpoly_gpredratio <- gstats[
     which(abs(predratio)<=min(abs(predratio))+0.01),] %>%
     .[, perfstat := 'Bias']
   threshpoly_gpredratio[, .(min(predratio), max(predratio))]
-
+  
   threshpoly_gmisclass <- copy(gstats)[
     which(misclas<=min(misclas)+0.01),] %>%
     .[, perfstat := 'Raw accuracy']
-
+  
   threshpoly_gmisclass[, .(1-max(misclas), 1-min(misclas))]
-
+  
   threshpoly_gbacc <- copy(gstats)[
     which(bacc>=max(bacc)-0.01),] %>%
     .[, perfstat := 'Balanced accuracy (BACC)']
-
+  
   threshpoly_gbacc[, .(min(bacc), max(bacc))]
-
+  
   threshpoly_gsenspec <- gstats[
     which(abs(sens-spec)<=min(abs(sens-spec)+0.01)),] %>%
     .[,perfstat := 'Sensitivity = Specificity']
   threshpoly_gsenspec[, .(min(abs(sens-spec)), max(abs(sens-spec)))]
-
+  
   thresh_ghexdt <- rbindlist(list(
     threshpoly_gpredratio,
     threshpoly_gmisclass,
     threshpoly_gbacc,
     threshpoly_gsenspec
   ))
-
+  
   thresh_gpolydt <-thresh_ghexdt[, .SD[chull(threshold_u10, threshold_o10)],
                                  by=perfstat]
-
+  
   minnetrhesh <- min(threshrange_network)
   maxnethresh <- max(threshrange_network)
   boxnet <- data.table(xstart=c(minnetrhesh, minnetrhesh,
-                                   maxnethresh , maxnethresh ),
-                          xend=c(minnetrhesh, maxnethresh ,
-                                 minnetrhesh, maxnethresh ),
-                          ystart=c(minnetrhesh, minnetrhesh,
-                                   maxnethresh , maxnethresh ),
-                          yend=c(maxnethresh , minnetrhesh,
-                                 maxnethresh , minnetrhesh))
-
+                                maxnethresh , maxnethresh ),
+                       xend=c(minnetrhesh, maxnethresh ,
+                              minnetrhesh, maxnethresh ),
+                       ystart=c(minnetrhesh, minnetrhesh,
+                                maxnethresh , maxnethresh ),
+                       yend=c(maxnethresh , minnetrhesh,
+                              maxnethresh , minnetrhesh))
+  
   sensitivityplot_gperf <- ggplot(data=threshpoly_gpredratio,
                                   aes(x=threshold_u10, y=threshold_o10)) +
     geom_vline(xintercept=0.5, color='black') +
@@ -7393,13 +7587,13 @@ test_thresholdsensitivity <- function(in_gpredsdt,
     theme_classic() +
     theme(legend.position = c(0.20, 0.12),
           legend.background = element_blank())
-
+  
   #--------------- Compute sensitivity for global network -------------------
   in_rivpred[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)]
-
+  
   threshgrid_net <- expand.grid(threshrange_network, threshrange_network) %>%
     setnames(c('thresh_u10', 'thresh_o10'))
-
+  
   netstats <- mapply(function(tu10, to10) {
     print(paste(tu10, to10))
     in_rivpred[(dis_m3_pyr>=0.1) & (INLAKEPERC < 1),
@@ -7421,13 +7615,13 @@ test_thresholdsensitivity <- function(in_gpredsdt,
   SIMPLIFY = F
   ) %>%
     do.call(rbind, .)
-
+  
   predbounds <- netstats[
     (threshold_u10 %in% c(minnetrhesh, maxnethresh ))
     &
       (threshold_o10 %in%  c(minnetrhesh, maxnethresh )),
   ]
-
+  
   sensitivityplot_netpred <- ggplot(
     netstats, aes(x=threshold_u10, y=threshold_o10)) +
     geom_vline(xintercept=0.5, color='black') +
@@ -7441,7 +7635,7 @@ test_thresholdsensitivity <- function(in_gpredsdt,
       name=expression(Probability~threshold~"for"~gauges~with~MAF >= 10~m^3~s^-1)) +
     coord_fixed(clip='off', expand=c(0,0)) +
     theme_classic()
-
+  
   return(list(gperf = sensitivityplot_gperf,
               netpred = sensitivityplot_netpred,
               predbounds = predbounds
@@ -7475,66 +7669,66 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
                                    na.rm=T, tidy=FALSE,
                                    nolake = TRUE,
                                    mincutoff = 0) {
-
-
+  
+  
   #Import global predictions
   if (is.character(outp_riveratlaspred)) {
     rivpred <- fread(outp_riveratlaspred)
   }
-
+  
   #Columns to import from full network
   incols <- c('HYRIV_ID', 'INLAKEPERC', castvar, idvars, valuevar, weightvar)
   #Import global river network and join to predictions
   riveratlas <- fread_cols(file_name=inp_riveratlas,
                            cols_tokeep = incols) %>%
     .[rivpred, on='HYRIV_ID']
-
+  
   #Exclude either those that intersect lakes and/or those that have zero discharge
   if (nolake) {
     riveratlas <- riveratlas[, LENGTH_KM_NOLAKE := LENGTH_KM*(1-INLAKEPERC)]
     weightvar = 'LENGTH_KM_NOLAKE'
   }
-
+  
   riveratlas <- riveratlas[dis_m3_pyr >= mincutoff,]
-
+  
   riveratlas[, sum(LENGTH_KM_NOLAKE)]
   riveratlas[, mean(LENGTH_KM_NOLAKE)]
   riveratlas[, .N]
-
-
+  
+  
   #If global administrative boundaries were selected for idvar, get country names
   if ('gad_id_cmj' %in% incols) {
     gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='gad_id') %>%
       setDT
-
+    
     riveratlas <- merge(riveratlas, gadnames, by.x='gad_id_cmj', by.y='Country_ID') %>%
       .[, gad_id_cmj := Country_Name]
   } else if ('fmh_cl_cmj' %in% incols) {
     gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='fmh_cl') %>%
       setDT
-
+    
     riveratlas <- merge(riveratlas, gadnames, by.x='fmh_cl_cmj', by.y='MHT_ID') %>%
       .[, fmh_cl_cmj := MHT_Name]
   } else if ('tbi_cl_cmj' %in% incols) {
     gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='tbi_cl') %>%
       setDT
-
+    
     riveratlas <- merge(riveratlas, gadnames, by.x='tbi_cl_cmj', by.y='Biome_ID') %>%
       .[, tbi_cl_cmj := Biome_Name]
   } else if ('clz_cl_cmj' %in% incols) {
     gadnames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='clz_cl') %>%
       setDT
-
+    
     riveratlas <- merge(riveratlas, gadnames, by.x='clz_cl_cmj', by.y='GEnZ_ID') %>%
       .[, clz_cl_cmj := GEnZ_Name]
   }
-
+  
   format_tidyperc <- function(interthresh,
                               riveratlas, castvar, newvar, binfunc,
                               binarg, bintrans, na.rm, cast, tidy) {
     newvar <- paste0(valuevar, 'cat')
     riveratlas[, (newvar) := fifelse(get(valuevar)>=interthresh, valuevarsub, 0)]
-
+    
     #Bin castvar if needed
     if (!is.null(binfunc) & !is.null(binarg)) {
       riveratlas_format <- bin_dt(in_dt = riveratlas, binvar = castvar, valuevar = newvar,
@@ -7543,7 +7737,7 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
       castvar = 'bin_lformat'
       castvar_num = FALSE
     }
-
+    
     #Compute overall number or weight for all combinations of castvar, valuevar and idvars
     #e.g. total number or river length for each flow state category for each country and river order
     statall <- riveratlas_format[if (na.rm) {!is.na(eval(newvar))},
@@ -7553,20 +7747,20 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
         .[, list('World', sum(V1)), by=c(eval(castvar), eval(newvar))] %>%
           setnames(c('V1', 'V2'), c(idvars, 'V1'))
       )
-
-
+    
+    
     #Compute for each cast and id var, the percentage of the newvar that is of the category of interest
     #(e.g. for each country and river order, percentage of river length that is intermittent)
     tidyperc <- statall[, 100*.SD[get(newvar)==valuevarsub, sum(V1)]/sum(V1),
                         by=c(eval(castvar), eval(idvars))]
-
+    
     #If cast variable is a numeric (e.g. Strahler Order), sort table in increasing order
     if (castvar_num) {
       tidyperc[, eval(castvar) := as.numeric(as.character(get(eval(castvar))))]
     }
     setorderv(tidyperc, cols=c(castvar, idvars))
-
-
+    
+    
     #Compute totals for each newvar and idvar summed across castvar
     #e.g. (total length of rivers for each country, and of each flow regime)
     tidytotal <- statall[, list('Total intermittency (%)',
@@ -7576,82 +7770,82 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
                       by=c(eval(idvars))]) %>%
       setnames(c('V1', 'V2'), c(castvar, 'V1'))
     totalcols <- unique(tidytotal[, get(eval(castvar))]) #Name of total cols
-
+    
     #Prepare casting formula for formatting
     castformula <- as.formula(paste0(paste(idvars, collapse='+'),
                                      '~',
                                      paste(castvar, collapse='+')))
-
+    
     #Merge percentages and totals, then cast table if tidy != TRUE
     tidypercformat <- tidyperc[, eval(castvar) := as.factor(get(eval(castvar)))] %>%
       rbind(tidytotal)
-
+    
     if (!tidy) {
       tidyperc_cast <- dcast(tidypercformat, castformula, value.var = 'V1') %>%
         .[, (totalcols) := lapply(.SD, function(x) fifelse(is.na(x), 0 , x)), #Replace NAs in total cols by 0
           .SDcols = totalcols]
-
+      
       tidyperc_format <- rbind(tidyperc_cast[get(eval(idvars)) != 'World',],
                                tidyperc_cast[get(eval(idvars)) == 'World',])
     }
-
+    
     return(tidyperc_format)
   }
-
+  
   tidyperc_list <- lapply(interthresh, format_tidyperc,
                           riveratlas, castvar, newvar, binfunc,
                           binarg, bintrans, na.rm, cast, tidy)
-
+  
   names(tidyperc_list) <- interthresh
-
+  
   return(tidyperc_list)
 }
 
 #------ extend_globalsummary ---------
 extend_globalsummary_clz <- function(
   in_IRESextra, in_globaltable, inp_riveratlas_legends) {
-
+  
   in_IRESextra <- in_IRESextra$preds
-
+  
   worldpred_belowcutoff <- in_IRESextra[
     , list(`0.01-0.099` = 100*sum(percinter_gam_belowcutoff*cumL_predextra, na.rm=T)/sum(cumL_predextra, na.rm=T),
            clz_cl_cmj = 'World')]
-
+  
   clzpred_belowcutoff <- in_IRESextra[
     , list(`0.01-0.099` = 100*sum(percinter_gam_belowcutoff*cumL_predextra, na.rm=T)/sum(cumL_predextra, na.rm=T)),
     by=clz_cl_cmj] %>%
     rbind(worldpred_belowcutoff) %>%
     setorder(clz_cl_cmj)
-
+  
   worldpred <- in_IRESextra[
     , list(`Total intermittence extra (%)` = 100*sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T),
            `Total stream length extra` = sum(cumL_pred)/1000,
            clz_cl_cmj = 'World')]
-
+  
   clzpred <- in_IRESextra[
     , list(`Total intermittence extra (%)` = 100*sum(percinter_all_GAM*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T),
            `Total stream length extra` = sum(cumL_pred, na.rm=T)/1000
-           ),
+    ),
     by=clz_cl_cmj] %>%
     rbind(worldpred) %>%
     setorder(clz_cl_cmj)
-
+  
   clznames <- readxl::read_xlsx(inp_riveratlas_legends, sheet='clz_cl') %>%
     setDT
-
+  
   clzpred_bind <- cbind(clzpred_belowcutoff, clzpred[, -c('clz_cl_cmj'), with=F]) %>%
     .[, clz_cl_cmj := as.numeric(as.character(clz_cl_cmj))] %>%
     merge(clznames, by.x = 'clz_cl_cmj', by.y='GEnZ_ID', all.x=T) %>%
     .[is.na(clz_cl_cmj), GEnZ_Name := 'World']
-
+  
   tableextend <- merge(in_globaltable[[0.5]],
                        clzpred_bind[, -c('GEnZ_Code', 'clz_cl_cmj'), with=F],
                        by.x='clz_cl_cmj', by.y = 'GEnZ_Name') %>%
     setorder(-'Total stream length extra')
-
-
+  
+  
   numcols <-  names(tableextend)[unlist(tableextend[, lapply(.SD, is.numeric)])]
-
+  
   tableextend[, (numcols) := lapply(.SD, function(x) {
     fifelse(is.na(x), '-', as.character(round(x)))}),
     .SDcols=numcols] %>%
@@ -7664,7 +7858,7 @@ extend_globalsummary_clz <- function(
       `Total stream length (10^3 km)` = NULL,
       `Total stream length extra` = NULL
     )]
-
+  
   return(tableextend)
 }
 
@@ -7674,22 +7868,22 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
   in_netpath <- file.path(inp_frdir, 'network')
   in_baspath <- file.path(inp_frdir, 'hydrobasins12')
   valuevarsub <- "1"
-
+  
   net_all <- st_read(dsn = dirname(in_netpath),
                      layer = basename(in_netpath))
   net <- net_all[((net_all$rhtvs2_all_phi_qclass_MODULE >= mincutoff) |
                     (net_all$rhtvs2_all_phi_qclass_SURF_BV >= 10)),]
-
+  
   bas <- st_read(dsn = dirname(in_baspath),
                  layer = basename(in_baspath)) %>%
     .[, 'HYBAS_ID', with=F]
-
+  
   rivpredsub <- merge(in_rivpred, bas, by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) %>%
     .[, UPLAND_SKM := round(UPLAND_SKM)]
-
+  
   binlabels <- label_manualbins(binarg=binarg,
                                 minval=min(net$rhtvs2_all_phi_qclass_SURF_BV))
-
+  
   tidyperc_fr <- formathistab(in_dt = net,
                               castvar = "rhtvs2_all_phi_qclass_MODULE",
                               valuevar = "INT_RF_txt_V1",
@@ -7700,7 +7894,7 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
                               binlabels = binlabels,
                               datname = 'France') %>%
     .[, binsumlength := binsumlength/1000]
-
+  
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'dis_m3_pyr',
                                 valuevar = predcol,
@@ -7710,13 +7904,13 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
                                 binarg =  binarg,
                                 binlabels = binlabels,
                                 datname = 'Global')
-
+  
   datmerge <- rbind(tidyperc_fr, tidyperc_riv) %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
   print('Percentage intermittence for France')
   print(datmerge[bin > 1, weighted.mean(perc, binsumlength), by=dat])
-
+  
   return(
     list(
       plot = ggcompare(datmerge, binarg) +
@@ -7737,7 +7931,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   in_netpath_mr <- file.path(inp_usdatdir, 'NHDmr_attris.csv')
   in_baspath <- file.path(inp_usresdir, 'hydrobasins12')
   valuevarsub <- "1"
-
+  
   #GEt NHD high and medium resolution
   #55800: Artificial path
   #46000: Stream/River
@@ -7745,13 +7939,13 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   #46006: Stream/River: Hydrographic Category = Perennial
   #46007: Stream/River: Hydrographic Category = Ephemeral
   keepfcodes <- c(55800, 46000, 46003, 46007, 46006) #Flow line types to keep
-
+  
   #Read and format NHD high res
   nethr <- fread(in_netpath_hr,
                  colClasses = c('character', 'character', 'numeric', 'character',
                                 'integer', 'numeric', 'numeric'))
   nethr[, HUC8 := substr(ReachCode, 1, 8)]
-
+  
   #Read NHD medium res
   mrcolclasses <- list(character=c('COMID', 'REACHCODE'),
                        numeric=c('LENGTHKM', 'TotDASqKM', 'QE_MA'),
@@ -7763,25 +7957,25 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
     .[,unlist(mrcolclasses), with=F]
   netmr[, `:=`(HUC8 = substr(REACHCODE, 1, 8),
                QE_MAm3 = QE_MA*0.028316847)]
-
+  
   netmrsubhr <- netmr[HUC8 %in% unique(nethr$HUC8),]
-
+  
   #Get HydroSHEDS basins that overlap with selected NHD HUC8s
   bas <- st_read(dsn = dirname(in_baspath),
                  layer = basename(in_baspath)) %>%
     .[, c('HYBAS_ID', 'HUC8'), with=F]
-
+  
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
   rivpredbas <- merge(in_rivpred, bas,
                       by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
   rivpredsubhr <- rivpredbas[, UPLAND_SKM := round(UPLAND_SKM)] %>%
     .[HUC8 %in% unique(nethr$HUC8),]
   rivpredsubmr <- rivpredbas[HUC8 %in% unique(netmr$HUC8),]
-
+  
   #Compare some statistics
   nethrlen <- nethr[FCode %in% keepfcodes,
                     round(sum(LengthKM, na.rm=T)/(10^6), 1)]
-
+  
   print(paste0('Total length of streams in NHDplus highres:' ,
                nethrlen,
                ' million km'))
@@ -7792,8 +7986,8 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   print(paste0(round(nethrlen/rivpredsubhr[, sum(LENGTH_KM)/(10^6)],
                      1),
                ' times the length in HydroSHEDS'))
-
-
+  
+  
   print(paste0('% of stream length in NHDplus highres with DA < 10 km2:' ,
                round(
                  100 * nethr[FCode %in% keepfcodes &
@@ -7802,7 +7996,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                    nethr[FCode %in% keepfcodes & !is.na(TotDASqKm),
                          sum(LengthKM, na.rm=T)]
                ), ' %'))
-
+  
   #Total range in intermittency
   print(paste0(
     'Range of prvalence of intermittency in NHDplus high resolution,',
@@ -7813,7 +8007,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
     round(100*nethr[FCode %in% c(46003, 46007, 46000, 55800), sum(LengthKM)]/
             nethr[FCode %in% keepfcodes, sum(LengthKM)]),
     '%'))
-
+  
   print(paste0(
     'Range of prevalence of intermittency in NHDplus medium resolution,',
     'depending on whether unclassified reaches are counted as fully intermittent or perennial: ',
@@ -7823,10 +8017,10 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
     round(100*netmrsubhr[FCODE %in% c(46003, 46007, 46000, 55800), sum(LENGTHKM)]/
             netmrsubhr[FCODE %in% keepfcodes, sum(LENGTHKM)]),
     '%'))
-
-
+  
+  
   netmr_o01 <- netmr[QE_MAm3 >= mincutoff,]
-
+  
   print(paste0(
     'Range of prevalence of intermittency in NHDplus medium resolution >= 1 m3/s,',
     'depending on whether unclassified reaches are counted as fully intermittent or perennial: ',
@@ -7836,21 +8030,21 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
     round(100*netmr_o01[FCODE %in% c(46003, 46007, 46000, 55800), sum(LENGTHKM)]/
             netmr_o01[FCODE %in% keepfcodes, sum(LENGTHKM)]),
     '%'))
-
+  
   print(paste0(
     'Total estimated prevalence in HydroSHEDS: ',
     rivpredsubmr[dis_m3_pyr >= mincutoff & get(predcol)==1, sum(LENGTH_KM)]/
       rivpredsubmr[dis_m3_pyr >= mincutoff, sum(LENGTH_KM)]
   ))
-
-
+  
+  
   #Check the percentage of each type of line in the NHD by HUC8 and Drainage area
   netmr_fsub <- copy(netmr[FCODE %in% keepfcodes,])
   netmr_fsub[, HUC8sum := sum(LENGTHKM), by=HUC8]
   FCode_HUC8 <- netmr_fsub[FCODE %in% keepfcodes,
                            as.integer(100*.SD[,sum(LENGTHKM)]/max(HUC8sum)),
                            by=.(HUC8, FCODE)]
-
+  
   netmrbinned <- bin_dt(in_dt=netmr,
                         binvar='QE_MAm3',
                         valuevar='intermittent',
@@ -7860,16 +8054,16 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   #           DAsum := .N, by=bin_lformat]
   # FCode_DA <- netmrbinned[FCode %in% c(55800, 46000, 46003, 46006, 46007),
   #                       as.integer(100*max(.SD[, .N]/DAsum)), by=.(bin_lformat, FCode)]
-
+  
   #Create intermittency variable
   netmr_fsub[, intermittent := fifelse(FCODE %in% c(46003, 46007), '1', '0')]
   netmr_fsub[FCODE %in% c(46000, 55800), intermittent := -1]
   netmr_fsub[!(FCODE %in% keepfcodes), intermittent := NA]
-
+  
   #Get bin labels
   binlabels <- label_manualbins(binarg=binarg,
                                 minval=min(netmr_fsub$QE_MAm3))
-
+  
   # --------------------- Compute HUC8 comparison ----------------------------------
   # tidyperc_nhdHUC <- netmr_fsub[!is.na(intermittent),][
   #   ,
@@ -7933,7 +8127,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
   #   geom_point() +
   #   geom_smooth() +
   #   facet_wrap(~bin, scales='free')
-
+  
   # --------------------- Compute national hist. comparison ----------------------------------
   #Compute bin statistics ncluding "artificial flow path"
   tidyperc_usall <- formathistab(in_dt = netmr_fsub[!is.na(intermittent),],
@@ -7946,7 +8140,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                                  binlabels = binlabels,
                                  datname = 'U.S.') %>%
     .[, binsumlength := binsumlength]
-
+  
   #Compute bin statistics excluding "artificial flow path"
   tidyperc_usnoartificial <- formathistab(in_dt = netmr_fsub[!is.na(intermittent) &
                                                                intermittent != -1,],
@@ -7959,7 +8153,7 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                                           binlabels = binlabels,
                                           datname = 'U.S.') %>%
     .[, binsumlength := binsumlength]
-
+  
   #Compute bin statistics for river networks
   tidyperc_riv  <- formathistab(in_dt = rivpredsubmr,
                                 castvar = 'dis_m3_pyr',
@@ -7970,17 +8164,17 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                                 binarg =  binarg,
                                 binlabels = binlabels,
                                 datname = 'Global predictions')
-
-
+  
+  
   #Merge statistics
   datmerge_all <- rbind(tidyperc_usall, tidyperc_riv) %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
-
+  
   datmerge_noartificial <- rbind(tidyperc_usnoartificial, tidyperc_riv) %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
-
+  
   #Create plot
   return(
     list(
@@ -8002,17 +8196,17 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
 #------ compare_au ----------------
 compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
   valuevarsub <- "1"
-
+  
   #Get Australian network
   net <- fread(file.path(inp_resdir, 'netbas12_inters_australia.csv'))%>%
     .[, UpstrDArea := UpstrDArea/(10^6)]  %>%
     .[UpstrDArea >=10,]
-
+  
   #Join HydroSHEDS basins with RiverATLAS network and subselect network to match NHD selection
   rivpredbas <- merge(in_rivpred, unique(net[, .(HYBAS_ID)]),
                       by.x="HYBAS_L12", by.y="HYBAS_ID", all.x=F) #To match full US
   rivpredsub <- rivpredbas[dis_m3_pyr > 0 & UPLAND_SKM >= 10,] #Remove segments with 0 discharge
-
+  
   #Comparing by basin (adjusting prevalence of intermittence predicted by RF based
   # on length of rivers in Geofabric)
   # bastats_au <- net[,list(sumlen_IRES_au = .SD[Perennial == "Non Perennial", sum(LENGTH_GEO)],
@@ -8025,11 +8219,11 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
   # bastats <- merge(bastats_au, bastats_riv, by.x='HYBAS_ID', by.y='HYBAS_L12')
   # bastats[, sum((sumlen_IRES_riv/sumlen_all_riv)*sumlen_all_au)/sum(sumlen_all_au)]
   # bastats[, sum((sumlen_IRES_au/sumlen_all_au)*sumlen_all_riv)/sum(sumlen_all_riv)]
-
+  
   #Get binned prevalence of IRES and length
   binlabels <- label_manualbins(binarg=binarg,
                                 minval=10)
-
+  
   tidyperc_au <- formathistab(in_dt = net,
                               castvar = "UpstrDArea",
                               valuevar = "Perennial",
@@ -8039,7 +8233,7 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
                               binarg =  binarg,
                               binlabels = binlabels,
                               datname = 'Australia')
-
+  
   tidyperc_riv  <- formathistab(in_dt = rivpredsub,
                                 castvar = 'UPLAND_SKM',
                                 valuevar = predcol,
@@ -8049,24 +8243,24 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
                                 binarg =  binarg,
                                 binlabels = binlabels,
                                 datname = 'Global')
-
+  
   datmerge <- rbind(tidyperc_au, tidyperc_riv) %>%
     .[, dat:=factor(dat, levels=c('Global', 'Australia'))] %>%
     setorder(bin) %>%
     .[, binformat := factor(binformat, levels=unique(binformat))]
   print('Percentage intermittence for Australia')
   print(datmerge[, weighted.mean(perc, binsumlength), by=dat])
-
+  
   # dcast(datmerge, formula=binformat~dat, value.var = c('perc', 'binsumlength')) %>%
   #   .[, weighted.mean(perc_Global, binsumlength_Geofabric)]
-
+  
   return(
     list(
       plot = ggcompare(datmerge, binarg, insetx = 0.85, insety = 0.9),
       data = datmerge
     )
   )
-
+  
 }
 
 #------ qc_pnw ------------
@@ -8074,17 +8268,17 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                    interthresh=0.5, mincutoff = 0) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
   in_fulldat <- file.path(inp_pnwresdir, 'StreamflowPermObs_sub')
-
+  
   valuevarsub <- "1"
   probcol <- gsub('cat', '', predcol)
-
+  
   #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
   refpts <- st_read(dsn=dirname(in_refpts),
                     layer=basename(in_refpts)
-                    ) %>%
+  ) %>%
     setDT %>%
     setkey('OBJECTID')
-
+  
   #All observations (excluding those that were not kept by PROSPER (aside from more recent osb, see python code for details)
   #with duplicate records for single locations (multiple observations for different dates)
   fulldat <-  st_read(dsn=dirname(in_fulldat),
@@ -8092,37 +8286,37 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
   ) %>%
     setDT %>%
     setkey('OBJECTID')
-
+  
   #fulldat[OBJECTID %in% refpts$OBJECTID, .N]
-
+  
   ################# for peer-review ############################################
   check_nobsinter <- fulldat[, list(nobs=.N,
                                     refinter=as.numeric(any(Category == "Non-perennial"))),
-                   by=.(POINT_X, POINT_Y)]
-
+                             by=.(POINT_X, POINT_Y)]
+  
   nobs_inter_ratio <- check_nobsinter[, .SD[refinter == 1, .N]/
                                         .SD[refinter == 0, .N],
                                       by = nobs] %>%
     setorder(nobs)
-
+  
   summary(glm(refinter~nobs, data=check_nobsinter, family=binomial(link='logit')))
-
-
+  
+  
   ##############################################################################
-
-
+  
+  
   #Join points and compute # of observations, min and max months of observations
   refpts_full <- merge(refpts, fulldat[, c('OBJECTID', 'dupligroup'), with=F],
                        by='OBJECTID', all.y=F) %>%
     .[fulldat, on='dupligroup', allow.cartesian=T] %>%
     .[!is.na(distatlas),]
-
+  
   refpts_stats <- refpts_full[, `:=`(nobs=.N,
                                      minmonth = min(Month),
                                      maxmonth = max(Month)),
                               by = dupligroup] %>%
     .[!duplicated(dupligroup),]
-
+  
   #Merge points with rivernetwork by HYRIV_ID
   refpts_join <- merge(refpts_stats,
                        in_rivpred[, c('HYRIV_ID', 'HYBAS_L12', 'dis_m3_pyr',
@@ -8130,8 +8324,8 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                                   with = F],
                        by='HYRIV_ID', all.y=F) %>%
     .[, refinter := fifelse(Category == 'Non-perennial', 1, 0)] #Assign ephemeral and intermittent categories to 1, perennial to 0 for PNW obs
-
-
+  
+  
   #Consider that if one location is non-perennial, that reach is not perennial
   refpts_reach <- refpts_join[
     , `:=`(refinter_reach = as.numeric(any(refinter == 1)),
@@ -8141,13 +8335,13 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     .[!duplicated(HYRIV_ID),] %>%
     .[dis_m3_pyr >= mincutoff,] %>%
     .[, IPR := get(probcol) - refinter] #Compute prediction error
-
-
+  
+  
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
                       response = factor(get(predcol),levels=c('0','1'))
   )]
-
+  
   pnw_measures <- refpts_reach[, list(
     bacc = mlr3measures::bacc(truth, response),
     auc = mlr3measures::auc(truth, get(probcol), positive='1'),
@@ -8159,10 +8353,10 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     nreaches_perennial = .SD[truth=='0', .N],
     nreaches_nonperennial = .SD[truth=='1', .N]
   )]
-
+  
   #Compute relative position of observation point on HydroSHEDS reach line
   refpts_reach[, RATIOLENGTH := min(c(1, (fromM*95)/LENGTH_KM)), by=OBJECTID]
-
+  
   #Write data out to points
   predtowrite <- merge(
     st_read(dsn = inp_pnwresdir,
@@ -8173,7 +8367,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                    predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp")) %>%
     setnames(new=unlist(lapply(names(.), function(x) gsub('[.]','_', x))))
-
+  
   st_write(obj=predtowrite[,c('OBJECTID', 'HYRIV_ID',
                               'IPR',
                               "LINEdis", "LINEDA",
@@ -8185,7 +8379,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                         predcol,
                         format(Sys.time(), '%Y%m%d%H%M'), '.shp'),
            driver='ESRI Shapefile')
-
+  
   #Scatterpoint of x = drainage area, y = predprobability - refinter_reach
   refpts_reachmelt <- melt(
     refpts_reach[, .(OBJECTID, IPR,
@@ -8193,15 +8387,15 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                      nobs, refinter_reach,
                      pop_ct_usu)],
     id.vars = c('OBJECTID', 'IPR', 'refinter_reach'))
-
-
+  
+  
   levels(refpts_reachmelt$variable) <- c(
     'HydroSHEDS Discharge (m3)',
     'Length ratio',
     '# of field obs.',
     'Watershed population density'
   )
-
+  
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf <- data.table(
     xmin=rep(0, 4),
@@ -8210,7 +8404,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
-
+  
   pnw_qcplot <- ggplot(refpts_reachmelt) +
     geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, fill=fillpal),
@@ -8238,7 +8432,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     theme(legend.position = c(0.92, 0.1),
           legend.background = element_blank()) +
     facet_wrap(~variable, scales ='free_x', ncol=2)
-
+  
   return(list(plot = pnw_qcplot,
               stats = pnw_measures)
   )
@@ -8249,32 +8443,32 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                     in_rivpred, predcol, interthresh=0.5, mincutoff=0) {
   in_refpts <- file.path(inp_onderesdir, 'obs_finalwgs')
   in_fulldat <- file.path(inp_ondedatdir, 'onde_france_merge.csv')
-
+  
   valuevarsub <- "1"
   probcol <- gsub('cat', '', predcol)
-
+  
   #Georeferenced/Snapped points to RiverATLAS network after removing duplicate observations at single sites
   refpts <- st_read(dsn = inp_onderesdir,
                     layer = basename(in_refpts)) %>%
     setDT %>%
     setnames(gsub('(F_)|_', '', names(.))) %>%
     setkey('CdSiteHydro')
-
+  
   #All observations with duplicate records for single locations (multiple observations for different dates)
   fulldat <- fread(in_fulldat) %>%
     setnames(gsub('<|>', '', names(.))) %>%
     setkey('CdSiteHydro')
-
+  
   #Join formmatted and snapped points to full dataset of observations (keeping all
   #observation instances)
   refpts_colstokeep <- c("CdSiteHydro",
                          names(refpts)[!(names(refpts) %in% names(fulldat))])
-
+  
   refpts_full <- merge(fulldat, refpts[, refpts_colstokeep, with=F], all.x=F) %>%
     .[!is.na(fromM),]
-
+  
   refpts_full[, Month := format.Date(DtRealObservation, '%m')]
-
+  
   #Get statistics for each site: total number of observations + N of each type of obs
   #min and max year and months of observation
   obstats <- refpts_full[, list(nobs=.N,
@@ -8286,7 +8480,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     merge(dcast(refpts_full[, .N, by=.(CdSiteHydro, LbRsObservationNat)],
                 CdSiteHydro~LbRsObservationNat, value.var='N'),
           by='CdSiteHydro')
-
+  
   setnames(obstats,
            old=c('Assec',
                  'Ecoulement visible',
@@ -8296,12 +8490,12 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                  'Flow',
                  'NoFlow',
                  'ObsImp'))
-
+  
   obstats[is.na(Dry), Dry := 0]
   obstats[is.na(Flow), Flow := 0]
   obstats[is.na(NoFlow), NoFlow := 0]
   obstats[is.na(ObsImp), ObsImp := 0]
-
+  
   #Re-merge with site characteristics attributes
   uniquesites <- refpts_full[, .(CdSiteHydro, LbSiteHydro,
                                  NomEntiteHydrographique, Etat,
@@ -8309,16 +8503,16 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                                  HYDROSHEDSDA, HYDROSHEDSdis,
                                  POINTdis, POINTDA)] %>%
     unique
-
+  
   obsattri <- merge(obstats, uniquesites, by='CdSiteHydro') %>%
     .[nobs > 20,]
-
+  
   #Compute (observation point/hydrosheds reach pour point) ratio of discharge and drainage area
   obsattri[, `:=`(RATIODA = POINTDA/(HYDROSHEDSDA*100),
                   RATIOdis = POINTdis/(HYDROSHEDSdis*10^5),
                   refinter_perc = (Dry + NoFlow)/nobs)]
   obsattri[, refinter := as.numeric(refinter_perc > 0)]
-
+  
   #Get population density and agricultural cover
   riveratlas <- fread_cols(inp_riveratlas,
                            cols_tokeep = c('HYRIV_ID',
@@ -8326,7 +8520,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                                            'ire_pc_cse', 'ire_pc_use',
                                            'glc_pc_c16', 'glc_pc_u16')
   )
-
+  
   #Merge points with rivernetwork by HYRIV_ID
   refpts_join <- merge(obsattri,
                        in_rivpred[, c('HYRIV_ID', 'HYBAS_L12', 'LENGTH_KM',
@@ -8335,7 +8529,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                        by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
     merge(riveratlas, by.x='HYRIVIDjoinedit', by.y='HYRIV_ID', all.y=F) %>%
     .[, IPR := get(probcol) - refinter] #Compute prediction error
-
+  
   #Consider that if one location is non-perennial, that reach is not perennial
   refpts_reach <- refpts_join[
     , refinter_reach := as.numeric(any(refinter == 1)), by=HYRIVIDjoinedit] %>%
@@ -8343,8 +8537,8 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     .[!duplicated(HYRIVIDjoinedit),] %>%
     .[dis_m3_pyr >= mincutoff,] %>%
     .[, IPR := get(probcol) - refinter] #Compute prediction error
-
-
+  
+  
   #Compute BACC
   refpts_reach[, `:=`(truth = factor(as.character(refinter_reach),levels=c('0', '1')),
                       response = factor(get(predcol),levels=c('0','1'))
@@ -8360,10 +8554,10 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     nreaches_perennial = .SD[truth=='0', .N],
     nreaches_nonperennial = .SD[truth=='1', .N]
   )]
-
+  
   #Compute relative position of observation point on HydroSHEDS reach line
   refpts_join[, RATIOLENGTH := (fromM/1000)/LENGTH_KM]
-
+  
   #Write data out to points
   predtowrite <- merge(st_read(dsn = inp_onderesdir,
                                layer = basename(in_refpts))[, "F_CdSiteHydro_"],
@@ -8372,17 +8566,17 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     setnames(old=c("HYDROSHEDSdis", "HYDROSHEDSDA",
                    predcol, probcol),
              new=c("LINEdis", "LINEDA", "predcat", "predp"))
-
+  
   write_sf(predtowrite, file.path(dirname(inp_onderesdir),
                                   paste0(
                                     'ondeobs_IPR_',
                                     predcol,
                                     format(Sys.time(), '%Y%m%d%H%M'), '.shp')
   ))
-
+  
   #Remove those whose ID doesn't fit what they were snapped to? (to inspect another time?)
   refpts_joinsub <- refpts_join[RATIOLENGTH < 1.01 & RATIODA< 1.01,]
-
+  
   #Scatterpoint of x = drainage area, y = predprobability - refinter
   refpts_joinmelt <- melt(
     refpts_joinsub[, .(CdSiteHydro, IPR,
@@ -8391,8 +8585,8 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                        nobs, refinter, refinter_perc,
                        pop_ct_usu)],
     id.vars = c('CdSiteHydro', 'IPR', 'refinter'))
-
-
+  
+  
   levels(refpts_joinmelt$variable) <- c(
     'HydroSHEDS Discharge (m3)',
     #'HydroSHEDS Drainage area (DA, km2)',
@@ -8403,7 +8597,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     'Percentage intermittent observations',
     'Watershed population density'
   )
-
+  
   colorpal <- c('#1f78b4', '#ff7f00')
   rectdf <- data.table(
     xmin=rep(0, 4),
@@ -8412,7 +8606,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     ymax=c(interthresh-1, 0, interthresh, 1),
     fillpal = rep(colorpal, 2)
   )
-
+  
   onde_qcplot <- ggplot(refpts_joinmelt) +
     geom_rect(data=rectdf, aes(xmin=xmin, xmax=xmax,
                                ymin=ymin, ymax=ymax, fill=fillpal),
@@ -8438,7 +8632,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
           legend.background = element_blank(),
           panel.spacing = unit(1.5, "lines")) +
     facet_wrap(~variable, scales ='free_x', ncol=2)
-
+  
   return(list(plot=onde_qcplot,
               stats = onde_measures)
   )
