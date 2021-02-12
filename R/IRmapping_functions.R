@@ -1818,6 +1818,46 @@ rsmp_spe <- function(bmres, rsmp_i, threshold_class) {
   return(spe)
 }
 
+#------ rsmp_pre ---------
+#' Resample precision
+#'
+#' Compute the precision (proportion of stations classified as non-perennial that are actually IRES)
+#' from a single \link[mlr3]{ResampleResult} extracted from an mlr3
+#' \code{\link[mlr3]{BenchmarkResult}}. \cr
+#' This is a utility function.
+#'
+#' @inheritParams rsmp_bbrier
+#'
+#' @return (numeric) precision
+#'
+#' @details Precision is computed as the number of true positives (i.e. the 
+#' number of items correctly labelled as belonging to the positive class) divided 
+#' by the total number of elements labelled as belonging to the positive class. 
+#' [Wikipedia](https://en.wikipedia.org/wiki/Precision_and_recall)
+#' actually has a nice explanation for it.
+#'
+#' @export
+rsmp_pre <- function(bmres, rsmp_i, threshold_class) {
+  rsmp <- bmres$resample_result(rsmp_i)
+  rsmp_pred<- rsmp$prediction()
+  
+  if (inherits(rsmp_pred, 'PredictionClassif')) {
+    prob_resp <- rsmp_pred$prob[,'1']
+  }
+  
+  if (inherits(rsmp_pred, 'PredictionRegr')) {
+    prob_resp <- rsmp_pred$response
+  }
+  
+  response <- as.data.table(prob_resp)[
+    , c(fifelse(prob_resp>=threshold_class, 1, 0))]
+  
+  pre <- Metrics::precision(as.numeric(as.character(rsmp_pred$truth)),
+                            response)
+  return(pre)
+}
+
+
 #------ bm_paramstime ----------------
 #' Benchmark result parameters and time
 #'
@@ -2027,6 +2067,13 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
   }) %>%
     unlist
   
+  print('Getting precision')
+  pre_vec <- lapply(1:bmres$n_resample_results, function(i) {
+    print(i)
+    rsmp_pre(bmres=bmres, rsmp_i=i, threshold_class=interthresh)
+  }) %>%
+    unlist
+  
   print('Getting smp design')
   outer_smp <- lapply(bmres$resamplings$resampling, function(rsmp_design) {
     as.data.table(rsmp_design$param_set$get_values()) %>%
@@ -2058,7 +2105,8 @@ bm_msrtab <- function(bmres, interthresh=NULL) {
     .[,`:=`(bbrier = bbrier_vec,
             auc = auc_vec,
             sen = sen_vec,
-            spe = spe_vec)]
+            spe = spe_vec,
+            pre = pre_vec)]
   
   return(moddt)
 }
@@ -3227,7 +3275,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   GSIMtoremove_unstableIR <- data.table(
     gsim_no = GSIMstatsdt[(mDur_o1800 >= 1) & (!movinginter_o1800), gsim_no],
     flag = 'removed',
-    comment = 'automatic filtering: at least one no-flow day/year on average but no zero-flow event during >= 20 years'
+    comment = 'automatic filtering: at least one no-flow day/year on average but no zero-flow event during >= 20 years of data'
   )
   
   #------ Remove stations based on examination of plots and data series
@@ -3324,6 +3372,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c('CA_0003488', 'removed', "only one flow intermittency event"),
     c('CA_0003526', 'removed', "only one flow intermittency event over the winter"),
     c('CA_0003544', 'removed', "abrupt decreases to 0 flow, probably gaps in data"),
+    c('CA_0004132', 'removed', "urban, probably changed flow permanence"),
     c('CA_0004177', 'removed', "data look rounded"),
     c('CA_0004191', 'removed', "data look rounded"),
     c('CA_0004799', 'removed', "looks regulated"),
@@ -3674,10 +3723,48 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     setnames(c('gsim_no', 'flag', 'comment'))
   
   
-  GSIMtoremove_perartifacts <- c(
-    'AR_0000023'
+  GSIMtoremove_perartifacts <- list(
+    c('AR_0000023', 'removed', 'regulated'),
+    c('BR_0000809', 'removed', 'regulated'),
+    c('BR_0002561', 'removed', 'regulated'),
+    c('BR_0003275', 'removed', 'regulated'),
+    c('CA_0000215', 'inspected', 'natural lake outlet'),
+    c('CA_0000665', 'removed', 'regulated, urban'),
+    c('CA_0000765', 'removed', 'regulated, urban'),
+    c('CA_0000838', 'removed', 'regulated, urban'),
+    c('CA_0000844', 'removed', 'regulated, urban'),
+    c('CA_0004040', 'removed', 'regulated'),
+    c('CA_0004808', 'removed', 'regulated'),
+    c('ES_0000899', 'removed', 'regulated'),
+    c('IN_0000087', 'removed', 'appears downstream of dam, unsure'),
+    c('IN_0000276', 'removed', 'both tributaries are regulated'),
+    c('NO_0000061', 'removed', 'regulated'),
+    c('RU_0000263', 'removed', 'regulated'),
+    c('RU_0000264', 'removed', 'regulated'),
+    c('RU_0000297', 'removed', 'regulated'),
+    c('RU_0000360', 'removed', 'reservoirs on two of the main tributaries'),
+    c('US_0000083', 'removed', 'regulated'),
+    c('US_0000085', 'removed', 'regulated'),
+    c('US_0000150', 'removed', 'regulated, urban'),
+    c('US_0005594', 'removed', 'regulated, urban'),
+    c('US_0005866', 'removed', 'reservoirs on headwaters of every tributary totalling 1/3 of watershed'),
+    c('US_0006172', 'removed', 'regulated, urban'),
+    c('US_0006173', 'removed', 'regulated, urban'),
+    c('US_0006174', 'removed', 'regulated, urban'),
+    c('US_0006175', 'removed', 'regulated, urban'),
+    c('US_0006177', 'removed', 'regulated, urban'),
+    c('US_0006180', 'removed', 'regulated, urban'),
+    c('US_0006181', 'removed', 'regulated, urban'),
+    c('US_0006182', 'removed', 'regulated, urban'),
+    c('US_0006186', 'removed', 'regulated, urban'),
+    c('US_0006187', 'removed', 'regulated, urban'),
+    c('US_0006328', 'removed', 'regulated, urban'),
+    c('US_0006454', 'removed', 'changed flow permanence, reservoir upstream')
   )
   
+  
+  
+  #-----  Check that US stations actually have 0 flow events -------
   USstats <- as.data.table(in_gaugep)[
     substr(gsim_no, 1, 2) == 'US' & 
       !(gsim_no %in% c(GSIMtoremove_irartifacts$gsim_no, 
@@ -3705,16 +3792,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
          comment = 'automatic filtering: incorrect rounding of flow values during conversion by GSIM'
     )
   ]
-  
-  #-----  Check that US stations actually have 0 flow events -------
-  
-  # readformatGSIMmon(
-  #   GSIMstatsdt[gsim_no == 'US_0000546', path]) %>%
-  #   .[MIN != 0, min(MIN)]
-  # sort(GSIMtoremove_unstableIR)
-  # 'ES_0000806' %in% GSIMstatsdt$gsim_no
-  # GSIMstatsdt[gsim_no == 'ES_0000818', ]
-  #
+
   #-----  Check flags in winter IR for GSIM
   wintergaugesall_GSIM <- plot_winterir(
     dt = GSIMstatsdt, dbname = 'gsim', inp_resdir = inp_resdir,
@@ -3879,7 +3957,9 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(1837430, 'inspected', 'nearly same as 1837410. Naturally intermittent before dam'),
     c(1897550, 'removed', 'abrupt decreases to 0'),
     c(1898501, 'removed', 'abrupt decreases to 0'),
+    c(1992840, 'removed', 'changed flow permanence'),
     c(1992400, 'removed', 'most 0 values look like outliers'),
+    c(2181960, 'removed', 'series of small reservoirs upstream on both tributaries'),
     c(2588500, 'removed', 'abrupt decreases to 0'),
     c(2588551, 'removed', 'abrupt decreases to 0'),
     c(2588630, 'removed', 'abrupt decreases to 0'),
@@ -3911,6 +3991,7 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c(4103700, 'removed', '0 values come from integer-based part of the record'),
     c(4150605, 'inspected', 'just downstream of lwesville dam in Dallas. previously intermittent as well but will be removed anyways as >50% dor'),
     c(4151513, 'inspected', 'looks regulated but will be removed as > 50% regulated'),
+    c(4185051, 'removed', 'regulated'),
     c(4203820, 'removed', 'only 1 occurrence of 0 flow values'),
     c(4208043, 'removed', 'changed from perennial to non-perennial'),
     c(4208195, 'removed', 'unreliable record, 0 flow values stem from interpolation'),
@@ -3987,13 +4068,32 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   # whose perennial character is dam-driven or maybe irrigation driven (changed from IR to perennial but hard to find)
   # whose missing data are actually 0s
   # whose quality is too low to be reliable
+  for (i in gpredsdt[!is.na(GRDC_NO) & intermittent_o1800 == '0', GRDC_NO]) {
+    delfile = file.path('C:/globalIRmap/results/GRDCper_rawplots_1800_20210208',
+                        paste0(i, '.png'))
+    if (file.exists(delfile)) {
+      print(delfile)
+      file.remove(delfile)
+    }
+  }
+  
+  
   GRDCtoremove_pereartifacts <- list(
     c(1159800, 'removed', 'regulated'),
+    c(1160324, 'removed', 'regulated'),
     c(1160331, 'removed', 'low-flow plateaus are likely overestimated 0 values'),
+    c(1160520, 'removed', 'regulated by diversions'),
+    c(1160602, 'removed', 'regulated'),
+    c(1160709, 'removed', 'regulated'),
     c(1160788, 'removed', 'low-flow plateaus may be overestimated 0 values'),
+    c(1197310, 'removed', 'regulated'),
+    c(1255100, 'inspected', 'now regulated, but naturally perennial, Cunene River'),
     c(1593100, 'inspected', 'bad quality but clearly not IRES'),
     c(1593751, 'inspected', 'missing values may contain intermittency, strange regular patterns, maybe interpolated'),
+    c(2357750, 'inspected', 'not regulated, in Sri Lanka'),
+    c(2588707, 'removed', 'regulated'),
     c(3628200, 'removed', 'appears to change flow permanence'),
+    c(3650634, 'removed', 'regulated, probably changed flow permanence'),
     c(3652030, 'removed', '0s in missing years and low flows in other years may also be 0s'),
     c(4101200, 'removed', 'low-flow plateaus are likely overestimated 0 values'),
     c(4115225, 'removed', 'regulated, may have been IRES otherwise'),
@@ -4064,7 +4164,8 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   GSIMflags <- rbindlist(list(GSIMtoremove_irartifacts,
                               GSIMtoremove_winterIR,
                               GSIMtoremove_unstableIR,
-                              GSIMtoremove_USroundingfuckup
+                              GSIMtoremove_USroundingfuckup,
+                              GSIMtoremove_perartifacts
   ))
   
   #Add US_0004962 as it used to be intermittent https://pubs.usgs.gov/pp/1277/report.pdf
@@ -6171,9 +6272,9 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
       stringr::str_wrap(tolower(x), width = 27)
     },
     limits=rev) +
-    scale_fill_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#d9d9d9'),
+    scale_fill_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#696868'),
                       drop=FALSE) +
-    scale_color_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#d9d9d9'),
+    scale_color_manual(values=c('#fdb462','#80b1d3','#b3de69','#bc80bd','#696868'),
                        drop=FALSE) +
     theme_classic() +
     theme(axis.text.x = element_text(size=8),
@@ -6780,7 +6881,7 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
     )]
   
   #Investigate how join count statistics of predictions relate to ref data
-  compare_deviatep <- ggplot(basbacc, aes(x=stdeviate_ref, y=stdeviate_pred)) +
+  plot_jcdeviate <- ggplot(basbacc, aes(x=stdeviate_ref, y=stdeviate_pred)) +
     geom_point() +
     geom_abline(size=1) +
     labs(x='Standard deviate - reference flow intermittency class',
@@ -6863,7 +6964,8 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
   
   return(list(
     plot_acc = plot_acc,
-    plot_bias = plot_bias
+    plot_bias = plot_bias,
+    plot_jcdeviate = plot_jcdeviate
   ))
 }
 
@@ -7398,7 +7500,8 @@ tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
                                    time_predict=round(time_predict),
                                    bacc=round(bacc, 3), threshold_class,
                                    spe = round(spe, 3), sen = round(sen, 3),
-                                   bbrier=round(bbrier, 3), auc=round(auc, 3)
+                                   pre = round(pre, 3), bbrier=round(bbrier, 3), 
+                                   auc=round(auc, 3)
   )]
   
   return(list(setup=setup_table, results=results_table))
@@ -8348,6 +8451,7 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
     ce = mlr3measures::ce(truth, response),
     sen = mlr3measures::sensitivity(truth, response, positive='1'),
     spe = mlr3measures::specificity(truth, response, positive='1'),
+    pre = mlr3measures::precision(truth, response, positive='1'),
     nobs_total = sum(nobs),
     nreaches = .N,
     nreaches_perennial = .SD[truth=='0', .N],
@@ -8549,6 +8653,7 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
     ce = mlr3measures::ce(truth, response),
     sen = mlr3measures::sensitivity(truth, response, positive='1'),
     spe = mlr3measures::specificity(truth, response, positive='1'),
+    pre = mlr3measures::precision(truth, response, positive='1'),
     nobs_total = sum(nobs),
     nreaches = .N,
     nreaches_perennial = .SD[truth=='0', .N],

@@ -52,7 +52,6 @@ plan_preprocess <- drake_plan(
                 inp_riveratlas2 = path_riveratlas2
     )
     ,
-    desc = 'This is the formatted gauging stations geometry'
   )
   ,
 
@@ -105,15 +104,15 @@ plan_setupdata <- drake_plan(
                                mdurthresh = 1,
                                .progress = TRUE),
 
-  GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
-                             yearthresh = 1800,
-                             inp_resdir = path_resdir,
-                             maxgap = 20),
-  GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
-                        yearthresh = 1800,
-                        inp_resdir = path_resdir,
-                        maxgap = 20,
-                        showmissing = TRUE),
+  # GRDCplots = plot_GRDCflags(in_GRDCgaugestats = GRDCgaugestats,
+  #                            yearthresh = 1800,
+  #                            inp_resdir = path_resdir,
+  #                            maxgap = 20),
+  # GSIMplots = plot_GSIM(in_GSIMgaugestats = GSIMgaugestats,
+  #                       yearthresh = 1800,
+  #                       inp_resdir = path_resdir,
+  #                       maxgap = 20,
+  #                       showmissing = TRUE),
 
   gaugestats_analyzed = analyzemerge_gaugeir(in_GRDCgaugestats = GRDCgaugestats,
                                              in_GSIMgaugestats = GSIMgaugestats,
@@ -221,7 +220,7 @@ plan_runmodels <- drake_plan(
                in_measure = measures,
                nfeatures = length(tasks$classif$feature_names),
                insamp_nfolds = 4, insamp_neval = 100,
-               insamp_nbatch = parallel::detectCores(logical=FALSE)-2
+               insamp_nbatch = parallel::detectCores(logical=FALSE)-1
     ),
     dynamic = map(seplearners)
     # ,
