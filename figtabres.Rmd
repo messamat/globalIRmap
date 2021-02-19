@@ -52,9 +52,9 @@ loadd(IRpop)
 - Total number of predictor variables: \
 `r length(tasks_u10$classif$feature_names)` \
 - Total number of predictor variables kept in model for gauges < 10 m3/s: \
-`r length(tasks_featsel_u10$classif$feature_names)` \
+`r length(tasks_featsel_u10[[2]]$feature_names)` \
 - Total number of predictor variables kept in model for gauges >= 1 m3/s: \
-`r length(tasks_featsel_o1$classif$feature_names)` \
+`r length(tasks_featsel_o1[[2]]$feature_names)` \
 - Number of people living nearest to an IRES: \
 `r flextable(IRpop)` \
 
@@ -99,6 +99,15 @@ print(paste0(
 print(paste0('For a total river length of ',IRESextra$preds[, sum(cumL_pred)], ' km'
              ))
 
+
+print(paste0(
+  'For mdur >= 1, assuming that rivers < 0.1 m3/s are as intermittent as those [0.1, 0.2),  we predict that ',
+  round(100*IRESextra$preds[
+    , sum(percinter_all_conservative*cumL_pred, na.rm=T)/sum(cumL_pred, na.rm=T)]),
+  '% of rivers >= 0.01 m3/s are intermittent'
+))
+
+
 print('Example plots')
 png(paste0(file.path(resdir, 'figures//extraIRESplot_62_18_'), 
            format(Sys.Date(), '%Y%m%d'), '.png'), 
@@ -139,9 +148,15 @@ gc()
 ```
 
 #Gauges map
-```{r basic-map, echo = FALSE, fig.width = 7,  fig.height = 5, dpi=600}
+```{r basic-map, echo = FALSE, fig.width = 5,  fig.height = 6, dpi=1000}
 loadd(gauges_plot)
+
+png(paste0(file.path(resdir, 'figures//gauges_plot'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=178, height=178, units='mm', res=1000)
 print(gauges_plot)
+dev.off()
+
 
 remove(gauges_plot)
 gc()
@@ -380,7 +395,12 @@ loadd(au_plot)
 au_plot <- au_plot$plot + theme(axis.title.y = element_blank(), 
                                 legend.title=element_blank()) + 
   labs(x=bquote('Surface area'~km^2))
-grid.arrange(fr_plot$plot, us_plot$plot, au_plot, left = 'Prevalence of intermittency (% river length)') 
+
+pdf(paste0(file.path(resdir, 'figures//comparisonhist_'), 
+           format(Sys.Date(), '%Y%m%d'), '.pdf'), 
+    width=5, height=11)
+grid.arrange(fr_plot$plot, us_plot$plot, au_plot, left = 'Prevalence of intermittency (% river length)')
+dev.off()
 
 print("Data for comparison: US - all")
 getdisplay_totalest(us_plot, subtarget='data_all')
@@ -405,8 +425,12 @@ loadd(au_plot_mdur30)
 au_plot_mdur30 <- au_plot_mdur30$plot + theme(axis.title.y = element_blank(), 
                                               legend.title=element_blank()) + 
     labs(x=bquote('Surface area'~km^2))
+pdf(paste0(file.path(resdir, 'figures//comparisonhist_mdur30_'), 
+           format(Sys.Date(), '%Y%m%d'), '.pdf'), 
+    width=5, height=11)
 grid.arrange(fr_plot_mdur30$plot, us_plot_mdur30$plot, au_plot_mdur30, 
              left = 'Prevalence of intermittency (% river length)') 
+dev.off()
 
 print("Data for comparison, mdur >= 30: US - all")
 getdisplay_totalest(us_plot_mdur30, subtarget='data_all')

@@ -3202,8 +3202,11 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
 
 
 #------ get_USdata ---------------------------------
-get_USdata <- function(in_ids, maxyear) {
-  print(paste0('Getting USGS data for', in_ids))
+get_USdata <- function(in_ids, maxyear, verbose = F) {
+  if (verbose) {
+    print(paste0('Getting USGS data for', in_ids))
+  }
+  
   gaugetab <- dataRetrieval::readNWISdv(
     siteNumbers = in_ids,
     startDate = "1750-01-01",
@@ -3760,7 +3763,10 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
     c('US_0006187', 'removed', 'regulated, urban'),
     c('US_0006328', 'removed', 'regulated, urban'),
     c('US_0006454', 'removed', 'changed flow permanence, reservoir upstream')
-  )
+  ) %>%
+    do.call(rbind, .) %>%
+    as.data.table %>%
+    setnames(c('gsim_no', 'flag', 'comment'))
   
   
   
@@ -4068,16 +4074,6 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
   # whose perennial character is dam-driven or maybe irrigation driven (changed from IR to perennial but hard to find)
   # whose missing data are actually 0s
   # whose quality is too low to be reliable
-  for (i in gpredsdt[!is.na(GRDC_NO) & intermittent_o1800 == '0', GRDC_NO]) {
-    delfile = file.path('C:/globalIRmap/results/GRDCper_rawplots_1800_20210208',
-                        paste0(i, '.png'))
-    if (file.exists(delfile)) {
-      print(delfile)
-      file.remove(delfile)
-    }
-  }
-  
-  
   GRDCtoremove_pereartifacts <- list(
     c(1159800, 'removed', 'regulated'),
     c(1160324, 'removed', 'regulated'),
@@ -4947,10 +4943,10 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
 #------ dynamic_resamplebm ------------------
 #Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
 dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
-                               store_models = FALSE) {
+                               inp_resdir = NULL, store_models = FALSE) {
   #If path, read qs
   if (inherits(in_bm, "character")) {
-    in_bm <- qs::qread(in_bm)
+    in_bm <- qs::qread(file.path(inp_resdir, in_bm))
   }
   
   #get desired resampled_results/learner
@@ -6057,11 +6053,11 @@ ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=
 }
 
 #------ analyze_benchmark -----------------
-analyze_benchmark <- function(in_bm, in_measure) {
+analyze_benchmark <- function(in_bm, in_measure, inp_resdir=NULL) {
   
   #If path, read qs
   if (inherits(in_bm, "character")) {
-    in_bm <- qs::qread(in_bm)
+    in_bm <- qs::qread(file.path(inp_resdir, in_bm))
   }
   
   print(paste('It took',
@@ -6172,6 +6168,9 @@ compute_confustats <- function(in_gselpreds, ndigits=2) {
       ndigits),
     spec  = round(
       confu[truth=='0' & response==0, max(0L, N)]/confu[truth=='0', sum(N)],
+      ndigits),
+    prec = round(
+      confu[truth == '1' & response == '1', max(0L, N)]/confu[response == '1', sum(N)],
       ndigits),
     N = sum(confu$N),
     predtrue_inter = paste0(round(confu[response==1, 100*sum(N)/sum(confu$N)]),
@@ -6511,7 +6510,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
       #          color = colorpal[[2]]) +
       #scale_x_sqrt(expand=c(0,0)) +
       coord_cartesian(expand=FALSE, clip='off') +
-      facet_wrap(~variable, scales='free', ncol=3,
+      facet_wrap(~variable, scales='free', ncol=1,
                  labeller=as_labeller(varlabels)) +
       theme_classic() +
       theme(legend.position = c(0.85, 0.2),
@@ -6587,12 +6586,14 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
     theme(legend.position='none')
   
   
-  outp <- grid.arrange(p_continuous, p_log, gaugeIPR_catplot,
-                       layout_matrix = rbind(c(1,1,1),
-                                             c(1,1,1),
-                                             c(2,2,2),
-                                             c(3,3,3))
-  )
+  # outp <- grid.arrange(p_continuous, p_log, gaugeIPR_catplot,
+  #                      layout_matrix = rbind(c(1,1,1),
+  #                                            c(1,1,1),
+  #                                            c(2,2,2),
+  #                                            c(3,3,3))
+  # )
+  
+  outp <- grid.arrange(p_continuous, ncol=1)
   
   
   return(outp)
@@ -6923,8 +6924,7 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
   
   #Check relationship between bias and number of gauges
   palette_bias <- c('#a8273a', '#d46e4c', '#ffac70',
-                    '#76c284',
-                    '#00ffff', '#3d7294') #, '#374559')
+                    '#76c284', '#00ffff', '#3d7294', '#374559')
   basbacc[, colbias := factor(
     fcase(
       predbias >= 0.50, 1L,
@@ -7132,7 +7132,7 @@ gggauges <- function(in_gaugepred, in_basemaps,
                       ymax = -1000000)
   
   p_patch <- p_pr/p_ir
-  outp <- p_patch + plot_annotation(tag_levels = 'A')
+  outp <- p_patch + plot_annotation(tag_levels = 'a')
   return(outp)
 }
 
@@ -7443,11 +7443,11 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 }
 
 #------ tabulate_benchmarks ------------
-tabulate_benchmarks <- function(in_bm, in_bmid, interthresh=NULL) {
+tabulate_benchmarks <- function(in_bm, in_bmid, inp_resdir=NULL, interthresh=NULL) {
   
   #If path, read qs
   if (inherits(in_bm, "character")) {
-    in_bm <- qs::qread(in_bm)
+    in_bm <- qs::qread(file.path(inp_resdir, in_bm))
   }
   
   print('Getting table content...')
@@ -7522,10 +7522,10 @@ compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
 }
 
 #------ formatmisclass_bm -------------
-formatmisclass_bm <- function(in_bm, in_bmid) {
-  #If in_bm is a path, read qs
+formatmisclass_bm <- function(in_bm, in_bmid, inp_resdir=NULL) {
+  #If path, read qs
   if (inherits(in_bm, "character")) {
-    in_bm <- qs::qread(in_bm)
+    in_bm <- qs::qread(file.path(inp_resdir, in_bm))
   }
   
   print('Getting table content...')

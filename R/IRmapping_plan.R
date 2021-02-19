@@ -276,7 +276,8 @@ plan_runmodels <- drake_plan(
       in_bm = rfbm_classif,
       in_lrnid =  selected_learner,
       in_task = tasks$classif,
-      pcutoff = 0.05
+      pcutoff = 0.05,
+      inp_resdir = path_resdir
     )
     # ,
     # trigger  = trigger(mode = "condition", condition =FALSE)
@@ -302,6 +303,7 @@ plan_runmodels <- drake_plan(
                        in_lrnid =  selected_learner,
                        in_resampling = in_resampling,
                        store_models = store_models,
+                       inp_resdir = path_resdir,
                        type = 'classif'),
     transform= map(in_taskfeatsel = c(tasks_featsel[[1]], tasks_featsel[[2]],
                                       tasks_featsel[[1]], tasks_featsel[[2]]),
@@ -356,7 +358,7 @@ plan_runmodels <- drake_plan(
                          spatial_rsp = FALSE),
 
   table_allbm = target(
-    tabulate_benchmarks(in_bm, in_bmid, interthresh=0.5),
+    tabulate_benchmarks(in_bm, in_bmid, inp_resdir = path_resdir, interthresh=0.5),
     transform = map(
       in_bm = list(
         rfbm_classif,

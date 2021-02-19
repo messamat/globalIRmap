@@ -2,7 +2,8 @@ library(drake)
 source('R/IRmapping_packages.R')
 
 #### Choose whether to run full plan or simplified plan to get main results ######
-#plan_choice <- 'trimmed'
+plan_choice <-'full' #'trimmed'
+
 
 if (plan_choice == 'trimmed') {
   source('R/IRmapping_plan_trimmed.R')
