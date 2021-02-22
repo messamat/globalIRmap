@@ -375,6 +375,12 @@ png(paste0(file.path(resdir, 'figures//basbias_'),
 basinBACC$plot_bias
 dev.off()
 
+png(paste0(file.path(resdir, 'figures//jcdeviate_'), 
+           format(Sys.Date(), '%Y%m%d'), '.png'), 
+    width=5, height=5, units='in', res=1000)
+basinBACC$plot_jcdeviate
+dev.off()
+
 gc()
 ```
 

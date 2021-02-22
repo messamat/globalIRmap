@@ -5767,8 +5767,10 @@ extrapolate_IRES <- function(in_rivpred,
   in_extranet <- in_extranet$preds
   #Format rivp
   binlog <- function(x) {
-    round(x/10^floor(log10(x)))*10^floor(log10(x))
+    #log10 scale
+    10^(floor(log10(x)*10)/10)
   }
+  
   netsub <- in_rivpred %>%
     .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
     .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 2
@@ -5858,8 +5860,8 @@ extrapolate_IRES <- function(in_rivpred,
         
         ggplot(gamsubdat, aes(x=dislogbin, y=100*percinter_bin, group=1)) +
           geom_step(size=1, stat='identity') +
-          geom_step(data=preds, color='red') +
-          geom_step(data=preds[dislogbin <= min(gamsubdat$dislogbin),],
+          geom_line(data=preds, color='red') +
+          geom_line(data=preds[dislogbin <= min(gamsubdat$dislogbin),],
                     aes(y=100*percinter_bin_adjust, group=1),color='blue') +
           scale_x_log10(name=bquote(
             'Binned naturalized long-term \nmean annual discharge'~(m^3~s^-1)),
@@ -5943,7 +5945,19 @@ extrapolate_IRES <- function(in_rivpred,
   #Conservatively compute IRES prevalence assuming plateauing below minimum cutoff
   #(based on last log bin
   #e.g. for a cutoff of 0.1, use IRES prevalence from reaches with discharge [0.1,0.2) )
-  netsub_IRESconservative <- netsub[
+  binlog_alt <- function(x) {
+    #Mixed linear-log10 scale NOT USED
+    round(x/10^floor(log10(x)))*10^floor(log10(x))
+  }
+  
+  netsub_alt <- in_rivpred %>%
+    .[dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,] %>% #Exclude reaches below discharge cutoff and within lakes
+    .[, `:=`(PFAF_IDclz = paste0(floor(PFAF_ID05/1000), '_', clz_cl_cmj), #Get PFAF_ID for HydroBASINS level 2
+             dislogbin = binlog_alt(dis_m3_pyr), #Get discharge log bins e.g. [0.1,0.2) ; [0.2,0.3) ... [1,2) ; [2,3) ... [10) ...
+             LENGTH_KM_NOLAKE = LENGTH_KM*(1-INLAKEPERC)
+    )]
+  
+  netsub_IRESconservative <- netsub_alt[
     dis_m3_pyr >= min_cutoff & INLAKEPERC < 1,
     list(percinter_ref_overcutoff = sum(get(valuevar)*LENGTH_KM_NOLAKE)/sum(LENGTH_KM_NOLAKE),
          percinter_ref_lastbin = .SD[dislogbin == min(dislogbin),
