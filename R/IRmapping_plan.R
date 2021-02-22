@@ -34,13 +34,13 @@ plan_preprocess <- drake_plan(
   path_ondedatdir = file.path(path_insitudatdir, 'OndeEau'),
   path_onderesdir = file.path(path_insituresdir, 'ondeeau.gdb'),
 
+  outpath_riveratlaspred = file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv'),
   outpath_gaugep = file_out(!!file.path(rootdir, 'results\\GRDCstations_predbasic800.gpkg')),
-  outpath_riveratlaspred = file_out(!!file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv')),
   outpath_bas03error = file_out(!!file.path(rootdir, 'results\\BasinATLAS_v10_lev03_errors.gpkg')),
   path_bufrasdir = file.path(path_resdir, 'bufrasdir')
   ,
 
-  outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
+  #outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
 
   #-------------------- Pre-analysis ------------------------------------------
   #monthlydischarge = read_monthlydis(in_path = path_monthlynetdischarge),
