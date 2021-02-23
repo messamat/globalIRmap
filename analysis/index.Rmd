@@ -9,3 +9,4 @@ editor_options:
 ---
 
 # **Welcome to the research compendium for the article "Global prevalence of non-perennial rivers and streams"!**
+#!! Note that this website is still under development. For reviewing purposes, please refer to the provided PDF with the scientific content from this compendium !!#
