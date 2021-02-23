@@ -4,6 +4,8 @@ site: workflowr::wflow_site
 output:
   workflowr::wflow_html:
     toc: false
+    theme: flatly
+    highlight: espresso
 editor_options:
   chunk_output_type: console
 ---
@@ -59,17 +61,42 @@ When calling `renv::restore()`, all required packages will be installed with the
 Please note that this project was built with R version 4.0.3 on a Windows 10 operating system.
 The renv packages from this project **are not compatible with R versions prior to version 3.6.0.**
 
-To clone the project, a working installation of `git` is required.
-Open a terminal in the directory of your choice and execute:
-  
-```sh
-git clone git@github.com:messamat/globalIRmap.git
+**To copy (i.e., clone) this repository to your local machine (for Windows only, please contact author for guidance on other platforms).**  
+In Git Bash, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap :
+```{r, engine = 'bash', eval = FALSE}
+Mathis@DESKTOP MINGW64 /c/temp
+$ cd /c/
+Mathis@DESKTOP MINGW64 /c
+$ mkdir test_globalIRmap
+Mathis@DESKTOP MINGW64 /c
+$ cd /c/test_globalIRmap
+Mathis@DESKTOP MINGW64 /c/test_globalIRmap
+$ git clone https://github.com/messamat/globalIRmap.git
+Cloning into 'globalIRmap'...
+remote: Enumerating objects: 116, done.
+remote: Counting objects: 100% (116/116), done.
+remote: Compressing objects: 100% (89/89), done.
+remote: Total 7363 (delta 48), reused 75 (delta 19), pack-reused 7247
+Receiving objects: 100% (7363/7363), 1.91 GiB | 3.78 MiB/s, done.
+Resolving deltas: 100% (925/925), done.
 ```
 
-Then start R in this directory and run
+In R Studio for Windows, the following procedure can be used:  
 
+* Click on “File” in the menu ribbon  
+* Select “New project…”  
+* Choose the “Version control” option in the New Project Wizard window.
+* Then, select “Git” in the next window.
+* In the next window, fill the fields as follows:  
+  * Repository URL: https://github.com/messamat/globalIRmap  
+  * Project directory name: [will autofill as “globalIRmap”]  
+  * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap]  
+* Tick “Open in new session” and then click “Create project”.  
+* Then start R in this directory and run  
+
+**After cloning the project, open it in R and type the following:**
 ```{r README-4, eval = FALSE}
-packrat::restore() # restores all R packages with their specific version
+renv::restore() # restores all R packages with their specific version
 r_make() # recreates the analysis
 ```
 
