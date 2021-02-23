@@ -31,6 +31,15 @@ div.section {
 }
 </style>
 
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
   pre:not([class]) {
@@ -75,6 +84,7 @@ h6 {
   text-align: left;
 }
 </style>
+
 
 
 
@@ -299,7 +309,7 @@ $(document).ready(function () {
       <a href="methods_workflow.html">Analysis workflow</a>
     </li>
     <li>
-      <a href="methods_refdisdat.html">Reference stream gauging stations</a>
+      <a href="methods_refdisdat.html">Reference streamflow gauging stations</a>
     </li>
   </ul>
 </li>
@@ -352,7 +362,7 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-01-06
+<strong>Last updated:</strong> 2021-02-22
 </p>
 <p>
 <strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 2 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
@@ -383,16 +393,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree9b48bde36604b05bd1464fcdb5fd26a3c05a8f88targetblank9b48bdea"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/9b48bde36604b05bd1464fcdb5fd26a3c05a8f88" target="_blank">9b48bde</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreeaea8ddf42e02f343c893fc08258254e08db90765targetblankaea8ddfa"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/aea8ddf42e02f343c893fc08258254e08db90765" target="_blank">aea8ddf</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree9b48bde36604b05bd1464fcdb5fd26a3c05a8f88targetblank9b48bdea" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreeaea8ddf42e02f343c893fc08258254e08db90765targetblankaea8ddfa" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/9b48bde36604b05bd1464fcdb5fd26a3c05a8f88" target="_blank">9b48bde</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/aea8ddf42e02f343c893fc08258254e08db90765" target="_blank">aea8ddf</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -401,19 +411,20 @@ Note that you need to be careful to ensure that all relevant files for the analy
 Ignored files:
     Ignored:    .Rhistory
     Ignored:    .Rproj.user/
-    Ignored:    .drake/config/
-    Ignored:    .drake/data/
-    Ignored:    .drake/drake/
-    Ignored:    .drake/keys/
-    Ignored:    .drake/scratch/
+    Ignored:    R/.Rhistory
+    Ignored:    analysis/.Rhistory
     Ignored:    renv/library/
     Ignored:    renv/staging/
 
 Untracked files:
     Untracked:  .Rbuildignore
+    Untracked:  .drake/
+    Untracked:  .gitignore
     Untracked:  Compare_models_20201026.Rmd
+    Untracked:  Rplots.pdf
     Untracked:  figtabres.docx
     Untracked:  figtabres_20201220_1.docx
+    Untracked:  figtabres_20210216.docx
     Untracked:  log/
     Untracked:  schema.ini
     Untracked:  tabs_quick.Rmd
@@ -422,10 +433,8 @@ Untracked files:
     Untracked:  test.html
 
 Unstaged changes:
-    Modified:   IntermittentAnalysis_MasterScript_reproduced.R
-    Modified:   R/IRmapping_functions.R
-    Modified:   _drake.R
-    Modified:   globalIRmap.Rproj
+    Modified:   interactive.R
+    Modified:   workflowr_commands.R
 
 </code></pre>
 <p>
@@ -464,6 +473,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/aea8ddf42e02f343c893fc08258254e08db90765/analysis/index.Rmd" target="_blank">aea8ddf</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-02-22
+</td>
+<td>
+wflow_publish(“analysis/index.Rmd”)
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/9eafc3df838b6d8dfa6e460530853a6384027850/docs/index.html" target="_blank">9eafc3d</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-06
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 html
@@ -593,6 +636,9 @@ Start workflowr project.
 <div id="welcome-to-the-research-compendium-for-the-article-global-prevalence-of-non-perennial-rivers-and-streams" class="section level1">
 <h1><strong>Welcome to the research compendium for the article “Global prevalence of non-perennial rivers and streams”!</strong></h1>
 </div>
+<div id="please-note-that-this-website-is-still-under-development.-for-reviewing-purposes-please-refer-to-the-provided-pdf-which-contains-the-scientific-content-that-will-be-provided-on-this-website" class="section level1">
+<h1><strong>!! Please note that this website is still under development. For reviewing purposes, please refer to the provided PDF, which contains the scientific content that will be provided on this website !!</strong></h1>
+</div>
 
 
 <!-- Adjust MathJax settings so that all math formulae are shown using
@@ -615,7 +661,7 @@ footer is added to webpages before the MathJax javascript. -->
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
