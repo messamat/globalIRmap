@@ -31,6 +31,15 @@ div.section {
 }
 </style>
 
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
 <style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
   pre:not([class]) {
@@ -75,6 +84,7 @@ h6 {
   text-align: left;
 }
 </style>
+
 
 
 
@@ -352,7 +362,7 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-01-08
+<strong>Last updated:</strong> 2021-02-23
 </p>
 <p>
 <strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
@@ -443,16 +453,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree10e5aa9f84a84764eb006f5a5d34cf76bd608c95targetblank10e5aa9a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/10e5aa9f84a84764eb006f5a5d34cf76bd608c95" target="_blank">10e5aa9</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree091901053c77ff6daf75fab9cddf6e13a72c2f2atargetblank0919010a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/091901053c77ff6daf75fab9cddf6e13a72c2f2a" target="_blank">0919010</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree10e5aa9f84a84764eb006f5a5d34cf76bd608c95targetblank10e5aa9a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree091901053c77ff6daf75fab9cddf6e13a72c2f2atargetblank0919010a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/10e5aa9f84a84764eb006f5a5d34cf76bd608c95" target="_blank">10e5aa9</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/091901053c77ff6daf75fab9cddf6e13a72c2f2a" target="_blank">0919010</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -461,38 +471,34 @@ Note that you need to be careful to ensure that all relevant files for the analy
 Ignored files:
     Ignored:    .Rhistory
     Ignored:    .Rproj.user/
-    Ignored:    .drake/config/
-    Ignored:    .drake/data/
-    Ignored:    .drake/drake/
-    Ignored:    .drake/keys/
-    Ignored:    .drake/scratch/
+    Ignored:    R/.Rhistory
+    Ignored:    analysis/.Rhistory
     Ignored:    renv/library/
     Ignored:    renv/staging/
 
 Untracked files:
     Untracked:  .Rbuildignore
+    Untracked:  .drake/
+    Untracked:  .gitignore
     Untracked:  Compare_models_20201026.Rmd
     Untracked:  Rplots.pdf
     Untracked:  figtabres.docx
     Untracked:  figtabres_20201220_1.docx
+    Untracked:  figtabres_20210216.docx
     Untracked:  log/
     Untracked:  schema.ini
-    Untracked:  shinyapp/globalIRmap_gaugesel/rsconnect/
     Untracked:  tabs_quick.Rmd
     Untracked:  tabs_quick.docx
     Untracked:  tabs_quick.html
     Untracked:  test.html
 
 Unstaged changes:
-    Modified:   IntermittentAnalysis_MasterScript_reproduced.R
-    Modified:   R/IRmapping_functions.R
-    Modified:   R/IRmapping_plan.R
-    Modified:   _drake.R
-    Modified:   analysis/_site.yml
-    Modified:   drake_cache.csv
-    Modified:   globalIRmap.Rproj
+    Modified:   analysis/about.Rmd
+    Modified:   interactive.R
     Modified:   shinyapp/globalIRmap_gaugesel/app.R
+    Modified:   shinyapp/globalIRmap_gaugesel/rsconnect/shinyapps.io/messamat/globalIRmap_gaugesel.dcf
     Modified:   shinyapp/globalIRmap_gaugesel/www/shinygdat.fst
+    Modified:   workflowr_commands.R
 
 </code></pre>
 <p>
@@ -531,6 +537,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/091901053c77ff6daf75fab9cddf6e13a72c2f2a/analysis/methods_refdisdat.Rmd" target="_blank">0919010</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-02-23
+</td>
+<td>
+wflow_publish(“analysis/methods_refdisdat.Rmd”)
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/59c783ab7bb44f1a802703dbaee139f182733ff0/docs/methods_refdisdat.html" target="_blank">59c783a</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-01-08
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -797,18 +837,51 @@ Start building up workflowr website, start incorporating mandrake (but wait as v
 <h1>Source datasets</h1>
 <p>Two streamflow gauging station datasets were used as the source of training and cross-validation data for study models — the World Meteorological Organization Global Runoff Data Centre (GRDC) database (n ≈ 10,000) and a complementary subset of the Global Streamflow Indices and Metadata archive (GSIM, n ≈ 25,000), a compilation of twelve free-to-access national and international streamflow gauging station databases.<br />
 Whereas the GRDC offers daily water discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.</p>
-<p>A GSIM station was included only if:<br />
-1. it was not already part of the GRDC database,<br />
-2. it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and if it was located either<br />
-3. on an IRES or<br />
-4. in a river basin which did not already contain a GRDC station (assessed based on level 5 sub-basins of the global BasinATLAS database52, average sub-basin area = 2.9 x 104 km2).<br />
-We applied the described GSIM selection criteria to balance the relative amount of non-perennial vs. perennial records and the spatial distribution of stations in the model training dataset.</p>
+<p>A GSIM station was included only if:</p>
+<ol style="list-style-type: decimal">
+<li>it was not already part of the GRDC database, and<br />
+</li>
+<li>it included auxiliary information on the drainage area of the monitored reach (for reliably associating it to RiverATLAS), and<br />
+</li>
+<li>had a reported drainage area ≥ 5 km2 or a reported mean annual discharge ≥ 0.01 m3 s-1 (as RiverATLAS only includes rivers with a drainage area ≥ 10 km2 or mean annual discharge ≥ 0.1 m3 s-1 to which we added a margin of error), and<br />
+</li>
+<li>either:
+<ul>
+<li>had a drainage area &lt; 100 km2 or,<br />
+</li>
+<li>was located on an IRES or,<br />
+</li>
+<li>was located in a river basin which did not already contain a selected GRDC station (based on HydroBASINS Pfafstetter level 5 sub-basins, average area globally = 2.9 x 10^4 km2).</li>
+</ul></li>
+</ol>
 </div>
 <div id="processing-and-selecting-gauging-stations-data" class="section level1">
 <h1>Processing and selecting gauging stations data</h1>
-<p>Each station in the combined dataset was geographically associated with a reach in the RiverATLAS stream network and every discharge time series was quality-checked through statistical and manual outlier detection (see Supplementary Information B1 for details on these procedures).</p>
-<p>Non-perennial gauging stations were only included in the dataset if they were free of anomalous zero-flow values (e.g. from instrument malfunction, gauge freezing, tidal flow reversal). We also excluded stations whose streamflow was potentially dominated by reservoir outflow regulation (i.e. with a degree of regulation &gt; 50% or whose discharge time series exhibited an obvious alteration from natural flow permanence, see Supplementary Information B1), as flow regulating structures may change the flow class of a river either from perennial to non-perennial or vice-versa depending on their mode and rules of operation. We further narrowed our selection by adding only gauging stations with streamflow time series spanning at least 10 years — excluding years with more than 20 days of missing records for the calculation of this criterion and in subsequent analysis. Finally, we classified stations as non-perennial if their recorded discharge dropped to zero at least one day per year on average over the years of record, and as perennial otherwise. Stations with at least one zero-flow day per year on average (i.e. non-perennial) but without a zero-flow day during 20 consecutive valid years of data (those with ≤ 20 missing days), anywhere in their record, were deemed either to have experienced a shift in flow intermittence class (regardless of the direction of the shift) or to have ceased to flow due to exceptional conditions of drought and were also excluded.</p>
-<p>Based on these selection criteria, the training dataset contained data for 3,967 perennial river reaches and for 1,388 non-perennial reaches, with 45 and 34 years of daily streamflow data on average, respectively, across all continents (except Antarctica).</p>
+<div id="assignment-of-river-network-location" class="section level2">
+<h2>Assignment of river network location</h2>
+<p>We first linked the Global Runoff Data Center (GRDC) hydrometric dataset to the RiverATLAS global river network. We then complemented the GRDC dataset with a subset of Global Streamflow Indices and Metadata Archive (GSIM) gauging stations (Do et al., 2018; Gudmundsson et al., 2018).</p>
+<p>The linkage of GRDC stations to RiverATLAS followed a three-step process: i) The stations were associated with the HydroSHEDS flow accumulation grids (Lehner et al., 2008) based on the procedure documented in GRDC report number 41 (Lehner, 2012): each station was automatically linked to the location within five kilometres around the original location reported in the GRDC database that optimized the agreement between the reported drainage area in the GRDC database and the modelled drainage area derived from HydroSHEDS, while limiting the distance from its original location. ii) Following this placement, only stations whose HydroSHEDS drainage area diverged by less than 5% from the reported GRDC areas were retained for subsequent steps. Each station was then associated with a river reach in the RiverATLAS river network (vector-based): - Each station was first associated with the nearest river reach (from the location determined in the previous step). - If the drainage area at the pour point of the reach differed by more than 10% from the reported drainage area in the GRDC database, we manually inspected, and corrected if appropriate, the location of the station (next step). iii) Manual inspection involved verifying that the reach a station had been associated with in the RiverATLAS digital river network corresponded to the actual waterway the station was located on, based on topographic and high-resolution satellite imagery (ESRI ArcGIS basemaps). If we could not ascertain the position of the gauging station, the GRDC-reported river and station names were verified in close vicinity (~10 km), exploiting the fact that station names often originate from nearby settlements, roads, or other geographic features. If a station could not be verified within this vicinity, the search was extended to within 50-100 km. If still no location was found that matched the river and/or station name, the station name was queried in search engines and online maps to see whether a location with this name existed. In all cases, the final decision on whether a station was moved to a new and “reliable” location depended on whether at least two out of the following four indicators could be matched reasonably well: a) location on corresponding waterway based on satellite imagery or topographic map; b) river name; b) station name and c) drainage area (match between reported GRDC value and modeled RiverATLAS value). Some final decisions were subjective as difficult combinations could arise (e.g., multiple agreements yet also disagreement(s) in the different indices).</p>
+<p>Of the 6,543 GRDC stations with point coordinates that had daily streamflow data post-1961 (as of July 2014), 2,001 were removed in step (ii) and 25 were removed in step (iii), yielding a set of 4,517 stations (including 225 stations whose position was manually adjusted) that could be reliably matched with a river reach in RiverATLAS for subsequent analysis. Following this spatial pre-processing/filtering, we removed GRDC stations with less than 10 years of daily discharge data (excluding years with more than 20 missing days), yielding a final dataset of 3,748 stations.</p>
+<p>We applied a similar process of spatial pre-processing to an initial subset of 4,080 GSIM stations (out of 30,959) which: - were not already part of the GRDC database, and - included auxiliary information on the size of the drainage area associated with the station, and - had at least 10 years of daily discharge data (excluding years with more than 20 missing days), and - had a reported drainage area ≥ 5 km2 or a reported mean annual discharge ≥ 0.01 m3 s-1 (as RiverATLAS only includes rivers with a drainage area ≥ 10 km2 or mean annual discharge ≥ 0.1 m3 s-1 to which we added a margin of error), and - either: o had a drainage area &lt; 100 km2 or, o were located on an IRES or, o were located in a river basin which did not already contain a selected GRDC station (based on HydroBASINS Pfafstetter level 5 sub-basins, average area globally = 2.9 x 104 km2).</p>
+<p>All GSIM stations had already been associated with the HydroSHEDS flow accumulation grids by Do et al. (2018) following the same procedure documented in Lehner (2012) and outlined above for GRDC stations (step i). Therefore, we directly associated all GSIM stations with a river reach in the RiverATLAS river network following the same approach as described for GRDC stations above (step ii). Given the diversity of original data sources compiled in the GSIM database, an additional level of caution was applied in linking GSIM stations to the network so that every station was manually inspected following the procedure described above for GRDC stations (step iii). We manually modified the position of 1,736 GSIM stations and removed 791, keeping 3,289 stations for subsequent analysis.</p>
+<p>Following this spatial pre-processing, we also removed 179 stations located on the same RiverATLAS river reach as another station (keeping the station with the smallest difference in reported drainage area compared to that computed in RiverATLAS for the reach’s pour point). There was no instance of stations with different flow intermittence classes being associated with the same RiverATLAS reach. We also removed 719 stations whose degree of flow regulation (DOR) by upstream reservoirs (Lehner et al., 2011) exceeded 50%. The resulting dataset contained 6,162 stations.</p>
+</div>
+<div id="quality-checking-of-discharge-information" class="section level2">
+<h2>Quality-checking of discharge information</h2>
+<p>A custom procedure was developed to ensure the quality of the streamflow time series (rather than the spatial location) associated with the gauging stations. The focus of this quality-checking procedure was to ensure the validity of zero-flow readings and the flow intermittence class assigned to each gauge (i.e., perennial or non-perennial). Zero-flow readings at streamflow gauging stations can stem from multiple circumstances. Usually, these readings reflect true river drying due to various natural or anthropogenic processes. However, river freezing, flow reversal (e.g., due to tidal influence), instrument malfunctioning, and data entry or processing errors are also common events that result in zero-flow readings in spite of the continued flow of water in the channel (Zimmer et al., 2020). Reported time series data may contain ambiguity between zero-flow and no-data entries, leading to potential underestimation of zero-flow (if masked as no-data). In addition, river diversions and reservoirs associated with dams can modify the flow intermittence of a monitored river reach from perennial to non-perennial (e.g., interrupting water flow as a single event during the initial filling of the reservoir; or periodic or permanent dewatering of the downstream channel due to water diversion) and vice versa (e.g., keeping a constant flow of water for hydroelectricity production). Ideally, each streamflow record would be accompanied by detailed information and flags describing the quality of individual daily values. However, this information is typically unavailable or difficult to access. Notably, the GRDC has stopped providing data quality flags in recent updates, and both the GRDC and the European Water Association (EWA) recommend users not to rely on existing quality flags (Gudmundsson et al., 2018).</p>
+<p>For GSIM stations, a statistical quality-checking procedure was already performed by Gudmundsson et al. (2018) to flag suspect daily values and remove them prior to computing hydrological indices. For databases that provided reliable quality (QA/QC) flags, all flagging typology were translated to a common framework (see Table 1 in Gudmundsson et al., 2018) and suspect values were removed. For station records originating from databases that did not provide quality flags (or that recommended not to use them, i.e., EWA and GRDC), a statistical procedure was applied by Gudmundsson et al. (2018) to flag and remove suspect values:</p>
+<ul>
+<li>Days with negative recorded discharge were flagged.</li>
+<li>Daily values with more than 10 consecutive equal discharge values larger than zero were flagged. This rule is motivated by the fact that many days with consecutive streamflow values often occur due to instrument failure (e.g., damaged sensors, ice jams) or flow regulations.</li>
+<li>Daily streamflow values (Q) were flagged if values of log (Q+0.01) are larger or smaller than the mean value of log (Q+0.01) plus or minus 6 times the standard deviation of log (Q+0.01) computed for that calendar day for the entire length of the series. The mean and standard deviation are computed for a 5-day window centred on the calendar day to ensure that enough data are considered.</li>
+</ul>
+<p>See Gudmundsson et al. (2018), Gudmundsson &amp; Seneviratne (2016), and Klein Tank et al. (2009) for the rationale behind these criteria. We used the same criteria to automatically flag individual daily streamflow values in the streamflow records of the GRDC gauging stations. However, rather than directly removing flagged daily streamflow values as was done for GSIM by Gudmundsson et al. (2018), the values that were flagged as being suspect were identified as such for subsequent visual inspection of GRDC streamflow records. Prior to visual inspection, we removed all stations for which only integer streamflow values were available, as any daily discharge value &lt; 0.5 m3 s-1 is reported as zero by the data provider at these stations.</p>
+<p>We visually inspected plots of the discharge time series for both GSIM and GRDC stations. For GRDC stations, we inspected time series of daily streamflow values with flagged suspect values. For GSIM stations, we inspected plots depicting the mean (± 2 SD), minimum and maximum monthly discharge, as daily streamflow records from GSIM stations are unavailable. In addition, as we did not have access to the daily streamflow records used in producing GSIM, none of the values flagged and removed by Gudmundsson et al. 2018 were available for our visual inspection. If unable to determine the validity of the record with reasonable confidence (often a subjective decision given the lack of auxiliary information), we erred on the side of caution, deemed the gauging station as unreliable, and excluded it from subsequent analysis.</p>
+<p>When a station exhibited a flow regime that we suspected was caused by a flow regulating structure (e.g., a dam or reservoir), we inspected satellite and topographic imagery for the presence of a regulating structure upstream of the station and excluded the station if one was present. Indicators of flow regulation included abrupt changes in seasonality or decreases in the magnitude of peak or low flows, or signs of hydropeaking (i.e., short duration, high flow events at regular intervals), sometimes following a temporary dip in discharge (due to reservoir filling). See map below documenting every station that was removed, the reason for its removal, and associated time-series plots [interactive map on website].</p>
+<p>Due to a pre-processing artefact in the production of GSIM by Gudmundsson et al. (2018), daily streamflow values for stations located in the U.S. had been rounded to two decimals, leading to very low discharge values (&lt; 0.005 m3 s-1) being rounded to 0. Therefore, we made sure of the validity of zero-flow values for all U.S. stations which, according to GSIM records, had at least one zero-flow day per year on average (i.e., would be considered non-perennial in the subsequent analysis): we downloaded and computed flow intermittence statistics directly on the original daily discharge data from the United States Geological Survey (USGS). All stations with ≥ 1 zero-flow day per year according to GSIM but &lt; 1 zero-flow day per year according to USGS data were excluded from further analysis.</p>
+<p>An additional level of caution was used for stations on river reaches undergoing flow cessation exclusively in winter and for stations in the vicinity of a marine coastline, as instrument freeze-up and tidal flow reversal are both documented sources of anomalous zero-flow values (Zimmer et al., 2020). “Winter-only” non-perennial gauging stations were defined as those whose stream record contained less than one zero-flow day per year on average during months with long-term mean air temperature over 10°C (averaged across the local catchment immediately draining to the river reach, according to WorldClim 2). In other words, “winter-only” non-perennial gauging stations were those which would not have qualified as non-perennial according to our criterion if only non-winter months were taken into account. “Marine” stations were defined as those within 3 km of a coastline. For GSIM stations with visually suspect anomalous records (e.g., abrupt shift down to 0 m3 s-1 that may be driven by station freezing), we attempted to obtain original daily streamflow records from the original agencies whose data was used to produce GSIM if they were freely available online (e.g., from HYDAT in Canada or the USGS in the United States).</p>
+<p>Following this statistical outlier detection and manual time series inspection, we conducted the rest of the analysis with 5,615 gauging stations for model training and cross-validation, with 3,967 perennial river reaches and 1,388 non-perennial reaches, with 45 and 34 years of daily streamflow data on average, respectively, across all continents (except Antarctica, see Extended Data Fig. 8 in Main Text for details on their environmental distribution).</p>
+</div>
 </div>
 <div id="map-of-gauging-stations-included-or-exluded-from-the-analysis" class="section level1">
 <h1>Map of gauging stations included or exluded from the analysis</h1>
@@ -846,7 +919,7 @@ We applied the described GSIM selection criteria to balance the relative amount 
 </ul></li>
 <li><strong>To see a hydrograph for a station</strong>, left-click the corresponding point. This feature is only available for stations with at least 10 years of valid data. Two types of graphs may be displayed:
 <ul>
-<li><em>For a GRDC station</em>: the graph shows the time series of daily streamflow values for that station, excluding calendar years with more than 20 missing daily records. The y-axis is square-root transformed. Individual points show daily values, blue lines link daily values (which may result in unusual patterns due to missing years), green points are non-zero flow daily values statistically flagged as potential outliers (see flagging process in Supplementary Information B1b), red points are zero-flow flow values, black points are zero-flow values flagged as potential outliers.<br />
+<li><em>For a GRDC station</em>: the graph shows the time series of daily streamflow values for that station, excluding calendar years with more than 20 missing daily records. The y-axis is square-root transformed. Individual points show daily values, blue lines link daily values (which may result in unusual patterns due to missing years), green points are non-zero flow daily values statistically flagged as potential outliers, red points are zero-flow flow values, black points are zero-flow values flagged as potential outliers.<br />
 </li>
 <li><em>For a GSIM station</em>: daily streamflow records from GSIM stations are unavailable. Therefore, the graph shows the mean (blue points), ± 2SD (light blue background shading), minimum and maximum monthly discharge (black points), excluding calendar years with more than 20 missing daily record. The y-axis is square-root transformed. Red points show minimum monthly discharge values equal to 0, purple points show months for which all daily discharge values are equal to 0.</li>
 </ul></li>
@@ -882,12 +955,12 @@ other attached packages:
 
 loaded via a namespace (and not attached):
  [1] Rcpp_1.0.4.6     rstudioapi_0.11  whisker_0.4      knitr_1.29      
- [5] magrittr_1.5     R6_2.4.1         rlang_0.4.7      highr_0.8       
+ [5] magrittr_1.5     R6_2.4.1         rlang_0.4.10     highr_0.8       
  [9] stringr_1.4.0    tools_4.0.2      xfun_0.17        git2r_0.27.1    
 [13] htmltools_0.5.0  ellipsis_0.3.0   rprojroot_1.3-2  yaml_2.2.1      
 [17] digest_0.6.25    tibble_3.0.1     lifecycle_0.2.0  crayon_1.3.4    
 [21] later_1.0.0      vctrs_0.3.4      promises_1.1.0   fs_1.5.0        
-[25] glue_1.4.0       evaluate_0.14    rmarkdown_2.3    stringi_1.4.6   
+[25] glue_1.4.0       evaluate_0.14    rmarkdown_2.6    stringi_1.4.6   
 [29] compiler_4.0.2   pillar_1.4.4     backports_1.1.10 httpuv_1.5.4    
 [33] renv_0.9.3       pkgconfig_2.0.3 </code></pre>
 </div>
@@ -915,7 +988,7 @@ footer is added to webpages before the MathJax javascript. -->
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
