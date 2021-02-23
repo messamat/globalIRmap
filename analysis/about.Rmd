@@ -92,9 +92,8 @@ In R Studio for Windows, the following procedure can be used:
   * Project directory name: [will autofill as “globalIRmap”]  
   * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap]  
 * Tick “Open in new session” and then click “Create project”.  
-* Then start R in this directory and run  
 
-**After cloning the project, open it in R and type the following:**
+**Then open this project in R and run:**  
 ```{r README-4, eval = FALSE}
 renv::restore() # restores all R packages with their specific version
 r_make() # recreates the analysis
