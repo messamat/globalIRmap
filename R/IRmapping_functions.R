@@ -724,9 +724,55 @@ comp_ymean<- function(in_dt, fieldex, mstart, outcol) {
 }
 
 #------ comp_irstats -----------
+#' Compute flow intermittence statistics
+#'
+#' Format and compute a set of summary statistics based on a yearly streamflow 
+#' gauging station time series. Used in \code{\link{comp_GRDCdurfreq}}. 
+#' 
+#'
+#' @param tabyearly data.table 
+#' @param maxgap (integer) maximum number of days with missing data beyond which a year is
+#' not used in the computation of statistics.
+#' @param mdurthresh (numeric) threshold of mean annual number of zero-flow days beyond
+#' which to classify gauge as intermittent.
+#' @param yearthresh (integer) minimum year from which to analyze discharge record.
+#' @param windowsize (integer) window size to check for zero-flow days. 
+#' @param fullwindow (logical) whether years for which the window is truncated 
+#' (e.g., beginning and end of time series) are taken in account in moving window analysis.
+#'
+#' 
+#' @return link[data.table]{data.table} with 1 row and 10 columns:
+#' \itemize{
+#'   \item firstYear_kept: the first year in the time series with a number of missing daily values <= \code{maxgap} 
+#'   (i.e., the first year in the subset of the time series kept for further analysis)
+#'   \item lastYear_kept: the last year in the time series with a number of missing daily values <= \code{maxgap} 
+#'   (i.e., the first year in the subset of the time series kept for further analysis)
+#'   \item totalYears_kept: total number of years in the time series with a number of missing daily values <= \code{maxgap} 
+#'   (i.e., the number of years in the subset of the time series kept for further analysis)
+#'   \item totaldays: total number of days with data in years with a number of missing daily values <= \code{maxgap} 
+#'   (i.e., total number of days of data kept for further analysis)
+#'   \item integerperc: proportion of daily values which are in integer format. 
+#'   Only including years with <= maxgap missing daily discharge values.
+#'   \item sumDur: total number of daily zero-flow values. 
+#'   Only including years with <= maxgap missing daily discharge values.
+#'   \item mDur: mean annual number of daily zero-flow values. 
+#'   Only including years with <= maxgap missing daily discharge values.
+#'   \item mFreq: mean annual frequency of zero flow events. A zero-flow event is defined 
+#'   as one or more consecutive days with a recorded daily discharge of zero. 
+#'   Only including years with <= maxgap missing daily discharge values.
+#'    \item intermittent: binary flow intermittence class. 1: non-perennial (if mDur >= 1, i.e., 
+#'    if gauging station recorded zero-flow for at least one day per year on average); 0: perennial.
+#'    \item movinginter: whether there is at least one zero-flow day in every \code{windowsize}-year (e.g., 20-year) moving window across the record.
+#' } 
+#' 
+#'
+#' @export
 comp_irstats <- function(tabyearly, maxgap, mdurthresh, yearthresh,
                          windowsize, fullwindow) {
+  
   checkpos <- function(x) {any(x>0)}
+  
+  #
   if ((windowsize %% 2)==0) {
     windowsize <- windowsize + 1
   }
@@ -2270,7 +2316,6 @@ sfformat_wintri <- function(in_sp) {
 #' \code{\link{formathistab}}, \code{\link{compare_us}}
 #'
 #' @export
-
 bin_dt <- function(in_dt, binvar, binfunc, binarg,
                    bintrans=NULL, ndigits=2,
                    na.rm=FALSE, valuevar=NULL) {
@@ -2473,7 +2518,6 @@ scientific_10 <- function(x) {
 #' and \code{\link{compare_au}}
 #'
 #' @export
-#Plot comparing intermittency prevalence and network length by drainage area for two datasets
 ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
   x_tick <- c(0, unique(datmerge$bin)) + 0.5
   binarg_tick <- c(0, binarg)
@@ -2766,7 +2810,6 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
 }
 
 #------ comp_GRDCdurfreq -------------------------------
-##################################################################################DOCUMENT
 #' Compute intermittency statistics for GRDC gauging stations
 #'
 #' Determine general characteristics of the whole time series and of the subset
@@ -2774,27 +2817,47 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
 #' intermittency statistics. The intermittency statistics can be computed for a
 #' subset of months of the year (e.g. only winter months)
 #'
-#' @param path file path to a GRDC-formatted streamflow time series table
-#' @param maxgap maximum number of days with missing data beyond which a year is
+#' @param path (character) file path to a GRDC-formatted streamflow time series table
+#' @param in_gaugep (table; data.frame or data.table) of gauges' hydro-environmental attributes (including mean monthly temperature data)
+#' @param maxgap (integer) maximum number of days with missing data beyond which a year is
 #' not used in the computation of statistics
-#' @param mdurthresh threshold of mean annual number of zero-flow days beyond
+#' @param mdurthresh (numeric) threshold of mean annual number of zero-flow days beyond
 #' which to classify gauge as intermittent.
-#' @param monthsel selected months to compute the statistics over
+#' @param windowsize (integer) window size to check for zero-flow days. 
+#' @param fullwindow (logical) whether years for which the window is truncated 
+#' (e.g., beginning and end of time series) are taken in account in moving window analysis.
+#' @param monthsel (integer vector) selected months to compute the statistics over
+#' @param verbose whether to print input path
 #'
-#' @return One row data.table with the following columns: \cr
+#' @return One row data.table with 110 columns: \cr
 #' \describe{
-#' \item{GRDC_NO} - (char) unique identifier for the gauge
-#' \item{firstYear} - (num) first year on full record
-#' \item{lastYear} - (num) last year on full record
-#' \item{totalYears} - (int) total number of years on full record
-#' \item{firstYear_kept} - (num) first year on record with < maxgap missing days
-#' \item{lastYear_kept} - (num) first year on record with < maxgap missing days
-#' \item{totalYears_kept} - (int) total number of years with < maxgap missing days
-#' \item{totaldays} - (num) total number of days with discharge data
-#' \item{sumDur} - (int) total number of days with discharge = 0
-#' \item{mDur} - (num) mean number of days/year with discharge = 0
-#' \item{mFreq} - (num) mean number of periods with discharge = 0
-#' (with at least one day of flow between periods)
+#' \itemize{
+#'   \item{GRDC_NO} - (char) unique identifier for the gauge
+#'   \item{firstYear} - (num) first year on full record
+#'   \item{lastYear} - (num) last year on full record
+#'   \item{totalYears} - (int) total number of years on full record \cr
+#'   For three subsets of the time series post-1800, post-1961, and post-1971 (e.g., suffix "mDur_o1800"):
+#'   \itemize{
+#'     \item{firstYear_kept} - (num) first year on record with < maxgap missing days
+#'     \item{lastYear_kept} - (num) first year on record with < maxgap missing days
+#'     \item{totalYears_kept} - (int) total number of years with < maxgap missing days
+#'     \item{totaldays} - (num) total number of days with discharge data
+#'     \item{integerperc} - (num) proportion of daily values which are in integer format. 
+#'     Only including years with <= maxgap missing days.
+#'     \item{sumDur} - (int) total number of days with discharge = 0
+#'     \item{mDur} - (num) mean number of days/year with discharge = 0
+#'     \item{mFreq} - (num) mean number of periods with discharge = 0
+#'     \item{intermittent} - (factor): binary flow intermittence class. 1: non-perennial (if mDur >= 1, i.e., 
+#'    if gauging station recorded zero-flow for at least one day per year on average); 0: perennial.
+#'    `\item{movinginter} - (logical): whether there is at least one zero-flow day 
+#'    in every \code{windowsize}-year (e.g., 20-year) moving window across the record. (with at least one day of flow between periods)
+#'    `\item{monthly statistics} - (numeric) long-term mean frequency of zero-flow events 
+#'    and number of zero-flow days for each month (column name example: 'Jan_mdur_o1800')
+#'     \item{winteronlyir} - Indicates whether gauge is only non-perennial during winter months. 
+#'     if intermittent == 1 AND the average annual number of zero-flow days during warm months < 1. 
+#'     Warm months are those with mean monthly catchment air temperature >= 10 (WorldClim v2; Fick and Hijmans 2017).
+#'     0: either perennial, or non-perennial outside of winter months.
+#'     Only including years with <= maxgap missing daily discharge values.
 #' }
 #'
 #' @export
@@ -2929,6 +2992,56 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
 
 
 #------ comp_GSIMdurfreq -------------------------------
+#' Compute intermittency statistics for GSIM gauging stations
+#'
+#' Determine general characteristics of the whole time series and of the subset
+#' of years that have less than a given threshold of missing data as well as
+#' intermittency statistics. The intermittency statistics can be computed for a
+#' subset of months of the year (e.g. only winter months)
+#'
+#' @param path_mo (character) file path to a GSIM-formatted monthly streamflow time series table (e.g., ""C:/globalIRmap/data/GSIM/GSIM_indices/TIMESERIES/monthly/MA_0000010.mon")
+#' @param path_sea (character) file path to a GSIM-formatted seasonal streamflow time series table (e.g., ""C:/globalIRmap/data/GSIM/GSIM_indices/TIMESERIES/seasonal/MA_0000010.seas")
+#' @param in_gaugep (table; data.frame or data.table) of gauges' hydro-environmental attributes (including mean monthly temperature data)
+#' @param maxgap (integer) maximum number of days with missing data beyond which a year is
+#' not used in the computation of statistics
+#' @param mdurthresh (numeric) threshold of mean annual number of zero-flow days beyond
+#' which to classify gauge as intermittent.
+#' @param windowsize (integer) window size to check for zero-flow days. 
+#' @param fullwindow (logical) whether years for which the window is truncated 
+#' (e.g., beginning and end of time series) are taken in account in moving window analysis.
+#' @param monthsel (integer vector) selected months to compute the statistics over
+#' @param verbose whether to print input path
+#'
+#'
+#'
+#' @return One row data.table with 110 columns: \cr
+#' \describe{
+#' \itemize{
+#'   \item{gsim_no} - (char) unique identifier for the gauge
+#'   \item{firstYear} - (num) first year on full record
+#'   \item{lastYear} - (num) last year on full record
+#'   \item{totalYears} - (int) total number of years on full record \cr
+#'   For three subsets of the time series post-1800, post-1961, and post-1971 (e.g., suffix "mDur_o1800"):
+#'   \itemize{
+#'     \item{firstYear_kept} - (num) first year on record with < maxgap missing days
+#'     \item{lastYear_kept} - (num) first year on record with < maxgap missing days
+#'     \item{totalYears_kept} - (int) total number of years with < maxgap missing days
+#'     \item{totaldays} - (num) total number of days with discharge data
+#'     \item{sumDur} - (int) total number of days with discharge = 0
+#'     \item{mDur} - (num) mean number of days/year with discharge = 0
+#'     \item{intermittent} - (factor): binary flow intermittence class. 1: non-perennial (if mDur >= 1, i.e., 
+#'    if gauging station recorded zero-flow for at least one day per year on average); 0: perennial.
+#'    `\item{movinginter} - (logical): whether there is at least one zero-flow day 
+#'    in every \code{windowsize}-year (e.g., 20-year) moving window across the record. (with at least one day of flow between periods)
+#'     \item{monthly statistics} - (numeric) long-term mean monthly number of zero-flow days (column name example: 'Jan_mdur_o1800')
+#'     \item{winteronlyir} - Indicates whether gauge is only non-perennial during winter months. 
+#'     if intermittent == 1 AND the average annual number of zero-flow days during warm months < 1. 
+#'     Warm months are those with mean monthly catchment air temperature >= 10 (WorldClim v2; Fick and Hijmans 2017).
+#'     0: either perennial, or non-perennial outside of winter months.
+#'     Only including years with <= maxgap missing daily discharge values.
+#' }
+#'
+#' @export
 comp_GSIMdurfreq <- function(path_mo, path_sea,
                              in_gaugep, maxgap, mdurthresh = 1,
                              windowsize = 100, fullwindow = FALSE,
@@ -3103,6 +3216,39 @@ comp_GSIMdurfreq <- function(path_mo, path_sea,
 }
 
 #------ plot_GRDCflags ------
+#' Plot all GRDC time series with data quality flags
+#'
+#' Creates pngs of streamflow time series plots of daily discharge ({m^3}/s; with flags 
+#' for 0-flow values and potential outlier) for all GRDC gauges with at least 
+#' 10 years of data, excluding years with more than 20 days of missing data. 
+#'
+#' @param in_GRDCgaugestats data.table (or list of data.tables) with time series 
+#' and intermittency statistics for all GRDC gauging stations. 
+#' @param yearthresh  (integer) minimum year from which to plot discharge record.
+#' @param inp_resdir (character) path to the results directory in which to create folder and write output plots
+#' @param maxgap (integer) threshold number of missing daily records to consider a calendar year unfit for analysis.
+#' @param showmissing (logical) whether to show records in years with number of missing daily records beyond \code{maxgap}.
+#'
+#' @details the output graphs are written into two separate newly created directories in \code{inp_resdir} called
+#' GRDCir_rawplots_\code{yearthresh}_\code{YYYYMMDD} and GRDCper_rawplots_\code{yearthresh}_\code{YYYYMMDD}
+#' (e.g., GRDCir_rawplots_1800_20200512 and GRDCper_rawplots_1800_20200512). The first contains plots for non-perennial
+#' gauging stations and the second contains plots for perennial gauging stations. \cr
+#' \cr
+#' Each plot is generated by \code{\link{plotGRDCtimeseries}} and shows
+#' the time series of daily streamflow values for a station. 
+#' For the flagging criteria, see documentation for \code{\link{flagGRDCoutliers}}.
+#' \itemize{
+#'   \item The y-axis is square-root transformed.
+#'   \item Individual points show daily discharge values (in {m^3}/s).
+#'   \item blue lines link daily values (which may result in unusual patterns due to missing years).
+#'   \item red points are zero-flow flow values.
+#'   \item green points are non-zero flow daily values statistically flagged as potential outliers .
+#'   \item black points are zero-flow values flagged as potential outliers.
+#' }
+#'
+#' @return nothing (empty data.table)
+#'
+#' @export
 plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
                            inp_resdir, maxgap, showmissing = FALSE) {
   if (inherits(in_GRDCgaugestats, 'data.table')) {
@@ -3152,6 +3298,40 @@ plot_GRDCflags <- function(in_GRDCgaugestats, yearthresh,
 }
 
 #------ plot_GSIM -------------
+#' Plot all GSIM time series with data quality flags
+#'
+#' Creates pngs of streamflow time series plots of monthly discharge ({m^3}/s) 
+#' for all GSIM gauges with at least 10 years of data, excluding years with more 
+#' than 20 days of missing data. 
+#'
+#' @param in_GSIMgaugestats data.table (or list of data.tables) with time series 
+#' and intermittency statistics for all GSIM gauging stations. 
+#' @param yearthresh  (integer) minimum year from which to plot discharge record.
+#' @param inp_resdir (character) path to the results directory in which to create folder and write output plots
+#' @param maxgap (integer) threshold number of missing daily records to consider a calendar year unfit for analysis.
+#' @param showmissing (logical) whether to show records in years with number of missing daily records beyond \code{maxgap}.
+#'
+#' @details the output graphs are written into two separate newly created directories in \code{inp_resdir} called
+#' GSIMir_rawplots_\code{yearthresh}_\code{YYYYMMDD} and GSIMper_rawplots_\code{yearthresh}_\code{YYYYMMDD}
+#' (e.g., GSIMir_rawplots_1800_20200512 and GSIMper_rawplots_1800_20200512). The first contains plots for non-perennial
+#' gauging stations and the second contains plots for perennial gauging stations. \cr
+#' \cr
+#' 
+#' Each plot is generated by \code{\link{plotGSIMtimeseries}}.
+#' Daily streamflow records from GSIM stations are unavailable. Therefore,
+#' the graph shows the following:
+#' \itemize{
+#'   \item The y-axis is square-root transformed.
+#'   \item Blue points: mean monthly discharge
+#'   \item Light blue background shading: mean ± 2SD monthly discharge
+#'   \item Black points: minimum and maximum monthly discharge
+#'   \item Red points show minimum monthly discharge values equal to 0
+#'   \item Purple points show months for which all daily discharge values are equal to 0.
+#' }
+#'
+#' @return nothing (empty data.table)
+#'
+#' @export
 plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
                       inp_resdir, maxgap, showmissing) {
   
@@ -3202,6 +3382,24 @@ plot_GSIM <- function(in_GSIMgaugestats, yearthresh,
 
 
 #------ get_USdata ---------------------------------
+#' Compute intermittency statistics for US gauging stations
+#'
+#' Download original daily data from the USGS National Water Information System
+#' for U.S. stations and compute intermittency statistics. 
+#'
+#' @param in_ids (character vector) unique USGS identifiers for gauging stations (e.g., "05540130")
+#' @param maxyear (integer) maximum year to include in computation of intermittency statistics
+#' @param verbose whether to print the \code{in_ids}
+#'
+#' @details This function is implemented in \code{\link{analyzemerge_gaugeir}} to compare
+#' intermittency statistics obtained directly from USGS data compared to those obtained from
+#' GSIM. This was implemented because it appears that GSIM rounded discharge data to two decimals
+#' when converting cubic feet to cubic meters per second. Therefore, any discharge alue < 0.005 was considered zero.
+#'
+#' @return data.table with time series record size and intermittency statistics computed by 
+#' \code{\link{comp_irstats}}
+#'
+#' @export
 get_USdata <- function(in_ids, maxyear, verbose = F) {
   if (verbose) {
     print(paste0('Getting USGS data for', in_ids))
@@ -3265,8 +3463,36 @@ get_USdata <- function(in_ids, maxyear, verbose = F) {
 }
 
 #------ analyze_gaugeir ----------------------------
-#Check winter and coastal gauges in particular
-#Check availability of data
+#' Quality assurance/quality checking of streamflow time series
+#'
+#' Record of quality-checking procedure which aimed to ensure the validity of 
+#' zero-flow readings and the flow intermittence class assigned to each gauge 
+#' (i.e., perennial or non-perennial).
+#' 
+#'
+#' @param in_GRDCgaugestats list of data.tables of intermittency statistics, output from 
+#' \code{\link{comp_GRDCdurfreq}} applied to all GRDC gauging stations.
+#' @param in_GSIMgaugestats list of data.tables of intermittency statistics, output from 
+#' \code{\link{comp_GSIMdurfreq}} applied to all GSIM gauging stations.
+#' @param yearthresh (integer) minimum year from which to analyze discharge record.
+#' @param in_gaugep \link[sf]{sf} object of gauging stations.
+#' @param inp_resdir (character) path to the results directory in which to create folder and write output plots
+#' @param plotseries (logical) whether to create plots of streamflow time series for gauging stations 
+#' that are non-perennial only in winter or within 3 km from the coast.
+#'
+#' @details For details on the QA/QC procedure, see Supplementary Information at 
+#' \link{https://www.nature.com/articles/s41586-021-03565-5}. The reason for 
+#' station exclusion is also presented in an interactive online map at  
+#' \link{https://messamat.github.io/globalIRmap/} in the Data and methods/Reference streamflow gauging stations tab.
+#'
+#' @return list of two data.tables. 
+#' \itemize{
+#'   \item A data.table listed as 'data' which contains the collated outputs from \code{\link{comp_GRDCdurfreq}}
+#'   and\code{\link{comp_GSIMdurfreq}} for the stations that were not excluded through this QA/QC process.
+#'   \item A data.table listed as flags, listing all stations excluded from further analysis and the reason their exclusion.
+#' }
+#'
+#' @export
 analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthresh,
                                  in_gaugep, inp_resdir, plotseries = FALSE) {
   ### Analyze GSIM data ########################################################
@@ -4240,19 +4466,28 @@ analyzemerge_gaugeir <- function(in_GRDCgaugestats, in_GSIMgaugestats, yearthres
 #------ format_gaugestats --------------------------------------------------------
 #' Format gauge statistics
 #'
-#' Format gauge attributes
+#' Final selection of gauging stations and formatting of gauge statistics + 
+#' hydro-environmental attributes.
 #'
-#' @param path file path to a GRDC-formatted streamflow time series table
-#' @param maxgap maximum number of days with missing data beyond which a year is
-#' not used in the computation of statistics
-#' @param monthsel selected months to compute the statistics over
+#' @param in_gaugestats data.table of summary time series statistics and intermittency statistics for 
+#' all gauging stations (GRDC +  GSIM) not excluded in QA/QC process.
+#' @param in_gaugep table of hydro-environmental attributes for all gauging stations.
+#' @param yearthresh (integer) minimum year from which to analyze/consider discharge record.
+#' 
+#' @details An additional set of gauges are excluded in this step:
+#' - All gauges with less than 10 years of data are excluded (considering only years with no more than 20 days of missing data)
+#' - All gauges with a Degree of Regulation >= 50% are excluded (Lehner et al. 2011)
+#' 
+#' @return data.table of gauging stations included in all subsequent analysis, with
+#' summary time series statistics and hydro-environmental attributes.
 #'
-#' @return One row data.table with the following columns: \cr
-#' \describe{
-#' \item{GRDC_NO} - (char) unique identifier for the gauge
-#' \item{firstYear} - (num) first year on full record
-#' }
-#'
+#' @source Lehner, B., Liermann, C.R., Revenga, C., Vörösmarty, C., Fekete, B., 
+#' Crouzet, P., Döll, P., Endejan, M., Frenken, K., Magome, J., Nilsson, C., 
+#' Robertson, J.C., Rödel, R., Sindorf, N. and Wisser, D. (2011), 
+#' High-resolution mapping of the world's reservoirs and dams for sustainable 
+#' river-flow management. Frontiers in Ecology and the Environment, 9: 494-502. 
+#' \link{https://doi.org/10.1890/100125}
+#' 
 #' @export
 
 format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
@@ -4265,9 +4500,7 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
     merge(as.data.table(in_gaugep)[, -c('GRDC_NO', 'gsim_no'), with=F],
           by='GAUGE_NO', all.x=T, all.y=F) %>%
     .[, c('X', 'Y') := as.data.table(sf::st_coordinates(geometry))] %>%
-    .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM] %>%
-    .[, DApercdiffabs := abs(DApercdiff)]
-  
+    .[, DApercdiff := (area_correct-UPLAND_SKM)/UPLAND_SKM]
   #Check for multiple stations on same HydroSHEDS segment
   dupliseg <- gaugestats_join[duplicated(HYRIV_ID) |
                                 duplicated(HYRIV_ID, fromLast = T),] %>%
@@ -4296,6 +4529,20 @@ format_gaugestats <- function(in_gaugestats, in_gaugep, yearthresh) {
 }
 
 #------ selectformat_predvars -----------------
+#' Select + format predictor variables
+#'
+#' Select candidate predictor variables to use in subsequent modelling and create
+#' a table of formatted names.
+#'
+#' @param inp_riveratlas_meta path to metadata table for river atlas variables
+#' @param in_gaugestats data.table of formatted gauging station summary statistics and hydro-environmental attributes.
+#' 
+#' 
+#' @return data.table of selected predictor variable codes, names, category, 
+#' attribute, sources, references, etc. Most sources are from RiverATLAS 
+#' technical documentation available at https://www.hydrosheds.org/page/hydroatlas.
+#' 
+#' @export
 selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
   #---- List predictor variables ----
   monthlydischarge_preds <- paste0('DIS_',
@@ -4693,6 +4940,34 @@ selectformat_predvars <- function(inp_riveratlas_meta, in_gaugestats) {
 }
 
 #------ create_tasks  -----------------
+#' Create tasks
+#'
+#' Create machine learning \link[mlr3]{Task} list for random forest models.
+#'
+#' @param in_gaugestats data.table of formatted gauging station summary statistics and hydro-environmental attributes. Output from \link{format_gaugestats}.
+#' @param in_predvars data.table of candidate predictor variable codes and names. Output from \link{selectformat_predvars}.
+#' @param id_suffix (character) suffix to add after task names
+#' @param include_discharge (logical) whether to include predictor variables of long-term discharge modeled from WaterGAP v2.2. 
+#' 
+#' @details Tasks are objects that contain the (usually tabular) data and 
+#' additional meta-data to define a machine learning problem. The meta-data is,
+#'  for example, the name of the target variable for supervised machine learning 
+#'  problems, or the type of the dataset (e.g. a spatial or survival). 
+#'  This information is used for specific operations that can be performed on a task. 
+#' For more info on tasks, see \link{https://mlr3book.mlr-org.com/tasks.html}.
+#' 
+#' @return list of three \link[mlr3]{Task}:
+#' \itemize{
+#'   \item(a spatiotemporal classification task) |link[mlr3spatiotempcv]{TaskClassifST}; 
+#'   for classification random forest with spatiotemporal CV (standard probability and probability CIF)
+#'   \item(a standard regression tasks) |link[mlr3]{TaskRegr}; 
+#'   for regression random forest (MAXSTAT)
+#'   \item(a regression task where the minority class has already been oversampled) 
+#'   |link[mlr3]{TaskRegr}; for regression random forest (MAXSTAT). 
+#'   Implemented because class oversampling pipelines are not available for regression tasks.
+#' } 
+#' 
+#' @export
 create_tasks <- function(in_gaugestats, in_predvars,
                          id_suffix=NULL, include_discharge = TRUE) {
   #Create subset of gauge data for analysis (in this case, remove records with missing soil data)
@@ -4700,7 +4975,7 @@ create_tasks <- function(in_gaugestats, in_predvars,
                           with=F] %>%
     na.omit
   
-  #Remove WaterGAP variables if include_discharge == TRUE
+  #Remove WaterGAP variables if include_discharge == FALSE
   if (!include_discharge) {
     watergapcols <- c('dis_m3_pyr',
                       'dis_m3_pmn',
@@ -4735,8 +5010,32 @@ create_tasks <- function(in_gaugestats, in_predvars,
 }
 
 #------ create_baselearners -----------------
+#' Create learners
+#'
+#' Create machine learning \link[mlr3]{Learner} list for random forest model.
+#'
+#' @param in_task \link[mlr3]{Task} of type |link[mlr3spatiotempcv]{TaskClassif}, 
+#' |link[mlr3spatiotempcv]{TaskClassifST}, or |link[mlr3]{TaskRegr}.
+#' 
+#' @details Learners are methods to train and predict a model for a Task and provide 
+#' meta-information about the learners, such as the hyperparameters you can set.
+#' For more info on mlr3 Learners, see \link{https://mlr3book.mlr-org.com/learners.html}.
+#' 
+#' 
+#' @return This function will return different types of learners depending on the type of task input. \cr
+#' If a |link[mlr3spatiotempcv]{TaskClassif} or |link[mlr3spatiotempcv]{TaskClassifST} is provided, 
+#' then a list is returned with six learners, a classif.ranger (standard probability random forest learner) and 
+#' classif.cforest (probability conditional inference forest learner), each in three formats for class
+#' imbalance correction: 1. without any class imbalance correction (e.g., lrn_ranger), 
+#' 2. with random oversampling of minority class (e.g., 'lrn_ranger_overp), and 3. with class weighting (e.g., 'lrn_ranger_weight'). \cr
+#' 
+#' If a |link[mlr3]{TaskRegr} is provided, then a single learner is returned of type 'regr.ranger'
+#' with maximally selected rank statistics (maxstat) as splitting rule. \cr
+#' 
+#' For all learners, 800 trees are grown.
+#' 
+#' @export
 create_baselearners <- function(in_task) {
-  #---------- Create learners --------------------------------------------------
   lrns <- list()
   
   if (is.list(in_task)) {
@@ -4811,6 +5110,29 @@ create_baselearners <- function(in_task) {
 }
 
 #------ set_tuning -----------------
+#' Set tuning strategy
+#'
+#' Create a \link[mlr3tuning]{AutoTuner} to set the random forest hyperparameter
+#' tuning strategy.
+#'
+#' @param in_learner \link[mlr3]{Learner} whose hyperparameters to tune.
+#' @param in_measure performance measure to use for hyperparameter tuning. 
+#' The hyperparameter configuration that optimizes this measure will be selected and used for final model training.
+#' @param nfeatures total number of predictor variables in the model.
+#' @param insamp_nfolds number of cross-validation folders used for tuning
+#' @param insamp_neva number of times the cross-validation must be conducted (e.g. if 2, then twice-repeated CV)
+#' @param insamp_nbatch number of hyperparameter configurations to evaluate at the same time. This will dictate how many
+#' processing cores will be used in hyperparameter tuning. The greater this number, the faster the tuning, but also the 
+#' more computing intensive. This shouldn't be set higher than the number of cores on the computer used.
+#' 
+#' @details For more information on hyperparameter tuning and a table of the range of 
+#' hyperparameters and tuning strategies used, see sections IVa and IVb in the Supplementary
+#' Information of Messager et al. 2021 at \link{https://www.nature.com/articles/s41586-021-03565-5}.
+#' 
+#' 
+#' @return a \link[mlr3tuning]{AutoTuner}.
+#' 
+#' @export
 set_tuning <- function(in_learner, in_measure, nfeatures,
                        insamp_nfolds, insamp_neval, insamp_nbatch) {
   
@@ -4897,6 +5219,22 @@ set_tuning <- function(in_learner, in_measure, nfeatures,
 }
 
 #------ set_cvresampling ---------------
+#' Set cross-validation resampling
+#'
+#' Create a \link[mlr3]{Resampling} for model cross-validation.
+#'
+#' @param rsmp_id type of resampling, 'cv', 'repeated_cv', or 'repeated-spcv-coords'
+#' @param in_task \link[mlr3]{Task} to resample
+#' @param outsamp_nrep number of cross-validation repetitions
+#' @param outsamp_nfolds number of cross-validation folds.
+#' 
+#' @details For more information on the cross-validation strategy used in this study, see 
+#' section IV in the Supplementary Information of Messager et al. 2021 at \link{https://www.nature.com/articles/s41586-021-03565-5}.
+#' For general information on resampling in mlr3, see \link{https://mlr3book.mlr-org.com/resampling.html}.
+#' 
+#' @return a \link[mlr3]{mlr_resamplings_repeated_cv} or \link[mlr3spatiotempcv]{ResamplingRepeatedSpCVCoords}.
+#' 
+#' @export
 set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
   #repeated_cv or repeated-spcv-coords
   outer_resampling = rsmp(rsmp_id,
@@ -4909,7 +5247,27 @@ set_cvresampling <- function(rsmp_id, in_task, outsamp_nrep, outsamp_nfolds) {
 
 
 #------ dynamic_resample ------------------
-#Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
+#' Dynamic resampling
+#'
+#' Runs a train-predict-test routine a.k.a. a resampling (possibly in parallel): 
+#' Repeatedly apply learner on a training set of task to train a model, 
+#' then use the trained model to predict observations 
+#' of a test set. Training and test sets are defined by the resampling.
+#'
+#' @param in_task \link[mlr3]{Task} to resample
+#' @param in_learner \link[mlr3]{Learner} to use in resampling (e.g., conditionel inference forest with minority class oversampling). 
+#' Can be a simple learner or an \link[mlr3tuning]{Autotuner} already including hyperparameter tuning strategy.
+#' @param in_resampling \link[mlr3]{Resampling} cross-validation strategy
+#' @param type (character) Type of learner 'classif' or 'regr'. Other values are not accepted.
+#' @param store_models  whether to keep the fitted model after the test set has been predicted. Set to TRUE if you want to further analyse the models or want to extract information like variable importance.
+#' 
+#' @details The dynamic aspect of this model is that it runs 'reset_tuning' on the fly
+#' to make sure that the hyperparameter search space matches the task (e.g., if the number of candidate 
+#' predictor variables has been reduced, it adjusts mtry)
+#' 
+#' @return \link[mlr3]{ResampleResult}
+#' 
+#' @export
 dynamic_resample <- function(in_task, in_learner, in_resampling, type,
                              store_models = FALSE) {
   if (is.list(in_learner)) {
@@ -4941,6 +5299,29 @@ dynamic_resample <- function(in_task, in_learner, in_resampling, type,
 }
 
 #------ dynamic_resamplebm ------------------
+#' Dynamic resampling using learners from benchmarking results
+#'
+#' Run a train-predict-test routine using a learner from a \link[mlr3]{BenchmarkResult}: 
+#' Repeatedly apply learner on a training set of task to train a model, 
+#' then use the trained model to predict observations 
+#' of a test set. Training and test sets are defined by the resampling.
+#'
+#' @param in_task \link[mlr3]{Task} to resample
+#' @param in_bm \link[mlr3]{BenchmarkResult} from which to extract learner or name of 
+#' serialized file (.qs) on disk (accessed through \link[qs]{qread})
+#' @param in__lrnid id of learner to extract from \link[mlr3]{BenchmarkResult} (e.g., "oversample.classif.ranger")
+#' @param in_resampling \link[mlr3]{Resampling} cross-validation strategy
+#' @param type (character) Type of learner 'classif' or 'regr'. Other values are not accepted.
+#' @param inp_resdir (character) path to where qs file is located (excluding the name of the qs file)
+#' @param store_models  whether to keep the fitted model after the test set has been predicted. Set to TRUE if you want to further analyse the models or want to extract information like variable importance.
+#' 
+#' @details The dynamic aspect of this model is that it runs 'reset_tuning' on the fly
+#' to make sure that the hyperparameter search space matches the task (e.g., if the number of candidate 
+#' predictor variables has been reduced, it adjusts mtry)
+#' 
+#' @return \link[mlr3]{ResampleResult}
+#' 
+#' @export
 #Run resample on in_task, selected learner (in_lrnid) from in_bm, in_resampling
 dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
                                inp_resdir = NULL, store_models = FALSE) {
@@ -4962,6 +5343,21 @@ dynamic_resamplebm <- function(in_task, in_bm, in_lrnid, in_resampling, type,
 }
 
 #------ combined_bm: resample results into benchmark results -------------
+#' Combine benchmarking results
+#'
+#' Combine a list of \link[mlr3]{ResampleResult} into a single \link[mlr3]{BenchmarkResult}
+#'  object and save the object in serialized form on disk.
+#
+#' @param in_resampleresults one or a list of \link[mlr3]{ResampleResult} objects to convert to \link[mlr3]{BenchmarkResult}
+#' @param write_qs whether to write out serialized (qs) file
+#' @param inp_resdir path to directory where to write out qs file
+#' 
+#' @details qs file is writen to \code{inp_resdir/combine_bmYYMMDDHHSS.qs}
+#' 
+#' 
+#' @return file name of qs file
+#' 
+#' @export
 combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
   #When tried as_benchmark_result.ResampleResult, got "Error in setcolorder(data, slots) :
   # x has some duplicated column name(s): uhash. Please remove or rename the
@@ -4990,7 +5386,8 @@ combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
                 'is not of the same task type as the first ResampleResult you provided, skipping...')
       }
     }
-  } else {
+  } 
+  else {
     warning('You provided only one resample result to combine_bm,
             simply returning output from as_benchmark_result...')
     bmrbase = as_benchmark_result(in_resampleresults[[1]])
@@ -5007,6 +5404,22 @@ combine_bm <- function(in_resampleresults, write_qs = NULL, inp_resdir = NULL) {
 }
 
 #------ select_features ------------------
+#' Select features
+#'
+#' Select a subset of model predictor variables (aka features) based on variable importance p-value.
+#
+#' @param in_bm \link[mlr3]{BenchmarkResult} containing the \link[mlr3]{ResampleResult} 
+#' for the learner of interest, based on which to select predictor variables. Can also be name of 
+#' serialized file (.qs) on disk (accessed through \link[qs]{qread}) containing BenchmarkResult object.
+#' @param in_lrnid id of learner to extract from \link[mlr3]{BenchmarkResult} (e.g., "oversample.classif.ranger")
+#' @param in_task \link[mlr3]{Task} containing predictor variables to subset
+#' @param pcutoff variable p-value cut-off under which to select variable, see \link{extract_impperf_nestedrf} and
+#' \link[ranger]{importance_pvalues} for more information on p-value calculation.
+#' @param inp_resdir (character) path to where qs file is located (excluding the name of the qs file)
+#' 
+#' @return list containing the original \code{in_task} and the updated task only included selected predictor variables.
+#' 
+#' @export
 select_features <- function(in_bm, in_lrnid, in_task, pcutoff, inp_resdir = NULL) {
   
   #If path, read qs
@@ -5035,6 +5448,21 @@ select_features <- function(in_bm, in_lrnid, in_task, pcutoff, inp_resdir = NULL
 }
 
 #------ selecttrain_rf -----------------
+#' Select and train final random forest
+#'
+#' Select final random forest learner and train it, optionally adjusting inner sampling strategy
+#' for hyperparameter tuning (i.e., cross-validation strategy).
+#
+#' @param in_rf \link[mlr3]{ResampleResult} of learner to use or \link[mlr3]{BenchmarkResult} from which to extract learner.
+#' @param in_lrnid id of learner to extract from \link[mlr3]{BenchmarkResult} (e.g., "oversample.classif.ranger")
+#' @param in_task \link[mlr3]{Task} containing predictor variables to subset.
+#' @param insamp_nfolds (optional) number of cross-validation folds to adjust in inner (hyperparameter tuning) cross-validation
+#' @param insamp_nevals (optional) number of cross-validation repetitions in inner (hyperparameter tuning) cross-validation
+#' 
+#' @return list containing the outer resampling (i.e. performance cross-validation) results named ('rf_outer'), 
+#' the trained learner ('rf_inner') and the task on which it was trained ('task').
+#' 
+#' @export
 selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
                            insamp_nfolds =  NULL, insamp_nevals = NULL) {
   
@@ -5091,6 +5519,21 @@ selecttrain_rf <- function(in_rf, in_learnerid=NULL, in_task = NULL,
 }
 
 #------ change_taskbackend -----------------------------------
+#' Change task back end
+#'
+#' Change target variable for task. This is implemented in this model to adjust
+#' the criterion used to classify rivers and streams as non-perennial. Changing 
+#' the mean annual number of zero-flow day threshold (in the case of this study from 1 to 30 days).
+#
+#' @param in_task \link[mlr3]{Task} whose target variable to update.
+#' @param in_gaugestats data.table of task back-end content (i.e., data to update task with), 
+#' ontaining the column 'mDur_o1800' and all hydro-environmental predictor variables.
+#' @param newmdurthresh (numeric) criterion in terms of mean annual number of zero-flow days over which to classify a river or stream as non-perennial (e.g., 30)
+#' 
+#' @return \link[mlr3]{Task} with updated target variable.
+#' 
+#' @export
+
 change_tasktarget <- function(in_task, in_gaugestats, newmdurthresh) {
   in_gaugestats_new <- copy(in_gaugestats)
   in_gaugestats_new[, intermittent_o1800 := factor(
@@ -5106,6 +5549,23 @@ change_tasktarget <- function(in_task, in_gaugestats, newmdurthresh) {
 }
 
 #------ change_oversamp ----------------------
+#' Change oversampling ratio
+#'
+#' Change the class oversampling ratio of an existing random forest \mlr3[mlr3]{Learner} object.
+#
+#' @param in_oversamprf \link[mlr3]{Learner} whose oversample.ratio parameter to update.
+#' @param in_task \link[mlr3]{Task} based on which to determine minority class oversampling ratio.
+#' 
+#' @details In this study, this function was created to adjust the oversampling ratio after updating
+#' the criterion for classifying rivers and streams as non-perennial (see \link{change_taskbackend}).
+#' The ratio of perennial to non-perennial gauges increases a lot when only considering watercourses
+#' that cease to flow at least 30 days per year as non-perennial. This function enables one to keep
+#' all settings and hyperparameters intact for a given Learner while updating that ratio.
+#' 
+#' @return input \link[mlr3]{Learner} (\code{in_oversamprf}) with updated oversampling ratio.
+#' 
+#' @export
+
 change_oversamp <- function(in_oversamprf, in_task) {
   oversamprf <- in_oversamprf$clone()
   oversamprf$param_set$values$oversample.ratio <- get_oversamp_ratio(in_task)$ratio
@@ -5115,6 +5575,22 @@ change_oversamp <- function(in_oversamprf, in_task) {
 
 ##### --------------------- Predictions ---------------------
 #------ rformat_network ------------------
+#' Format river network
+#'
+#' Format river network, joining data, selecting variables, computing derived variables, etc.
+#
+#' @param in_predvars data.table of predictor variable codes, names and attributes. See \link{selectformat_predvars}.
+#' @param in_monthlydischarge optional data.table of long-term mean monthly 
+#' discharge values (from WaterGAP v2.2) for global river reaches.
+#' @param inp_riveratlasmeta path to RiverATLAS attributes metadata table.
+#' @param inp_riveratlas path to RiverATLAS (v1.0) attribute table (for the entire global river network).
+#' @param inp_riveratlas2 path to new attributes calculated for global river network following RiverATLAS methodology
+#' 
+#' 
+#' @return data.table of identifiers and hydro-environmental attribute for all reaches in the
+#' RiverATLAS global river
+#' 
+#' @export
 rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
                             inp_riveratlasmeta, inp_riveratlas, inp_riveratlas2) {
   cols_toread <-  unique(
@@ -5153,6 +5629,30 @@ rformat_network <- function(in_predvars, in_monthlydischarge=NULL,
 }
 
 #------ make_gaugepreds -------------
+#' Make gauge predictions
+#'
+#' Make predictions for all gauging stations used in model training based on final trained model.
+#' Join outputs of prediction and cross-validations to original gauging stations statistics table.
+#
+#' @param in_rftuned trained random forest model, output from \link{ selecttrain_rf}
+#' @param in_gaugestats data.table of formatted gauging station summary statistics and hydro-environmental attributes. Output from \link{format_gaugestats}.
+#' @param in_res_spcv \link[mlr3]{ResampleResult} from spatial cross-validation, output from \link{dynamic_resamplebm}.
+#' @param in_predvars data.table of predictor variable codes, names and attributes. See \link{selectformat_predvars}.
+#' @param interthresh (numeric) between 0 and 1 (inclusive), probability threshold 
+#' above which to classify gauging stations as non-perennial (e.g., 0.50).
+#' @param simple (logical) if TRUE, return only final model predictions, if FALSE return cross-validation predictions
+#' 
+#' @return \code{in_gaugestats} data.table with one new column (IRpredprob_full, if simple == T)
+#' or five new columns (if simple == F). \cr
+#' \itemize{
+#'   \item IRpredprob_full: predicted probability that station is non-perennial based on final model training. 
+#'   \item IRpredprob_CVsp: predicted probability that station is non-perennial based on spatial cross-validation
+#'    (i.e., prediction when fold whose station is a member was excluded from training)
+#'   \item IRpredprob_CVnosp: predicted probability that station is non-perennial based on spatial cross-validation
+#'   \item inter_class_u10_featsel_spfold orinter_class_o1_featsel_spfold: cross-validation fold membership (id)
+#'\}
+#' 
+#' @export
 make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
                             in_predvars, interthresh, simple = FALSE) {
   
@@ -5203,6 +5703,29 @@ make_gaugepreds <- function(in_rftuned, in_gaugestats, in_res_spcv = NULL,
 }
 
 #------ bind_gaugepreds -----------------
+#' Bind gauge predictions
+#'
+#' Compile predictions from multiple models. This function was used in the case 
+#' when multiple models were developed for different (possibly overlapping) subsets
+#' of gauging stations. 
+#
+#' @param in_gpredsdt either a single data.table of predictions for gauges (output from \link{make_gaugepreds}) 
+#' or a list of data.tables of model predictions to bind.
+#' @param interthresh either a single value or a data.table of values of the
+#'  probability threshold to assign predicted flow intermittence classes to 
+#'  gauging stations (based on the predicted probability of flow intermittence).
+#'  
+#' @details when several predictions are provided for the same gauging station (as was the
+#' case for this study for gauges with a long-term mean annual flow between 1 and 10 m3/s), the
+#' average predicted probability of flow intermittence was computed.
+#' 
+#' @return data.table compiling all predictions with new columns of the predicted 
+#' categorical flow intermittence class ("IRpredcat_') and flow intermittence 
+#' prediction residuals (IPR; named preduncert_).
+#' The column suffixes reflect whether the predictions are based on the
+#'  final model training or on cross-validation results (see \link{make_gaugepreds}).
+#' 
+#' @export
 bind_gaugepreds <- function(in_gpredsdt, interthresh) {
   #Get binary classification threshold
   if (inherits(interthresh, 'data.table')) {
@@ -5261,6 +5784,20 @@ bind_gaugepreds <- function(in_gpredsdt, interthresh) {
 
 
 #------ write_gaugepreds -----------------
+#' Write gauge predictions
+#'
+#' Join model predictions for gauging stations to point feature class of gauging stations,
+#' then write the result of the merging operation to disk as a GeoPackage.
+#
+#' @param in_gaugep \link[sf]{sf} points and hydro-environmental attributes for all gauging stations.
+#' @param in_gpredsdt final formatted model predictions for all gauging stations. Output from \link{bind_gaugepreds}.
+#' @param outp_gaugep full path to which the geopackage will be written, including the file name and extension.
+#'  
+#' @details for more details on GeoPackage (extension .gpkg), see \link{https://www.geopackage.org/}.
+#' 
+#' @return path to output geopackage i.e. \code{outp_gaugep}
+#' 
+#' @export
 write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
   cols_toditch<- colnames(in_gpredsdt)[
     !(colnames(in_gpredsdt) %in% c('GAUGE_NO', 'geometry'))]
@@ -5280,6 +5817,31 @@ write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
 }
 
 #------ write_netpreds -------------------
+#' Write river network predictions
+#'
+#' Make model predictions for global river network and write out csv table.
+#
+#' @param in_network data.table of formatted global river network with all predictor
+#'  hydro-environmental variables. Output from \link{rformat_network}.
+#' @param in_rftuned trained random forest model. Output from \link{ selecttrain_rf}.
+#' @param in_predvars data.table of predictor variable codes, names and attributes. 
+#' Output from \link{selectformat_predvars}.
+#' @param predcol (character) name of the column to which the predicted probability 
+#' of flow intermittence for each reach be written.
+#' @param discharge_interval (vector of two numeric values) discharge criterion 
+#' to subset global river network. Range of long-term mean annual discharge values 
+#' for which to produce model predictions.
+#' @param interthresh (numeric) between 0 and 1 (inclusive), probability threshold 
+#' above which to classify river and stream reaches as non-perennial (e.g., 0.50).
+#' @param outp_riveratlaspred (character) ull path to which the output csv file will be written,
+#'  including the file name and extension.
+#'  
+#' @details the date is added to the output file name in the format 
+#' \code{outp_riveratlaspred_YYYYMMDD}.
+#' 
+#' @return path to output csv file.
+#' 
+#' @export
 write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
                            discharge_interval = c(-Inf, Inf),
                            interthresh = 0.5, outp_riveratlaspred) {
@@ -5358,6 +5920,24 @@ write_netpreds <- function(in_network, in_rftuned, in_predvars, predcol,
 ##### -------------------- Diagnostics functions -------------------------------
 
 #------ netpredformat ------
+#' Format network predictions
+#'
+#' Read model predictions for network and add river reach and basin identifiers, 
+#' geographic information, and hydrological attributes.
+#
+#' @param outp_riveratlaspred full path to model predictions for river network. 
+#' @param in_rivernetwork  data.table of formatted global river network with all 
+#' predictor hydro-environmental variables. Output from \link{rformat_network}.
+#'  
+#' @details the date is added to the output file name in the format \code{outp_riveratlaspred_YYYYMMDD}.
+#' 
+#' @return data.table with model predictions and other river network attributes, including
+#' river reach length (LENGTH_KM), long-term mean annual discharge (dis_m3_pyr), 
+#' the percentage of the river reach length that intersects with a lake (INLAKEPERC),
+#' the surface area of the river reach's full upstream drainage area (UPLAND_SKM), and
+#' the climate zone where the river reach is located (clz_cl_cmj).
+#' 
+#' @export
 netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
   fread(file_in(outp_riveratlaspred))%>%
     .[in_rivernetwork[, c('HYRIV_ID', 'HYBAS_L12', 'PFAF_ID05',
@@ -5366,6 +5946,37 @@ netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
                       with=F], on='HYRIV_ID']
 }
 #------ extrapolate_networklength --------
+#' Extrapolate river network length
+#'
+#' Train models and use them to extrapolate the global length of rivers.
+#
+#' @param inp_riveratlas full path to RiverATLAS (v1.0) attribute table.
+#' @param min_cutoff (numeric) minimum discharge to include in model training.
+#' @param dispred (numeric vector) discharge values for which to produce model predictions.
+#' @param interactive (logical) whether to print results and make plots for user
+#'  to interactively evaluate results and troubleshoot.
+#' @param grouping_var variable with which to subset the dataset into groups. A separate
+#' model is trained on each group.
+#'  
+#' @details The prevalence of IRES  was independently extrapolated for a total 
+#' of 465 spatial sub-units representing all occurring intersections of 
+#' 62 river basin regions (BasinATLAS level 2 subdivisions) and 18 climate zones
+#'  (Global Environmental Stratification). For each basin–climate sub-unit, we 
+#'  first extrapolated the empirical cumulative distribution of total stream length 
+#'  (of all reaches with MAF ≥ 0.1 m3 s−1) down to 0.01 m3 s−1 MAF using a generalized 
+#'  additive model (GAM)92. We excluded reaches larger than the 95th percentile of 
+#'  MAF (that is, the largest rivers) within the sub-unit from model fitting to avoid common
+#'  discontinuities at the high end of the empirical distribution
+#'  that can affect the low end of the power-law-like trendline
+#' 
+#' @return list containing a data.table and two plots.
+#' The data.table contains an estimate stream length for each discharge size class
+#' and climate-basin sub-unit. cumL_pred is the cumulative length of all rivers 
+#' and streams with MAF > dispred. cumL_cutoffref is the cumulative river length
+#' at MAF == min_cutoff. cumL_predextra = cumL_pred - cumL_cutoffref.
+#' 
+#' 
+#' @export
 extrapolate_networklength <- function(inp_riveratlas,
                                       min_cutoff = 0.1,
                                       dispred = seq(0.01, 0.09, 0.01),
@@ -5757,6 +6368,38 @@ extrapolate_networklength <- function(inp_riveratlas,
 }
 
 #------ extrapolate_IRES -----------
+#######################################################################################################
+#######################################################################################################FINISH documenting
+#' Extrapolate prevalence of flow intermittence
+#'
+#' Train models and use them to extrapolate the global prevalence of intermittent
+#' rivers and ephemeral streams
+#'
+#' @param in_rivpred
+#' @in_extranet 
+#' @param min_cutoff (numeric) minimum discharge to include in model training.
+#' @param interactive (logical) whether to print results and make plots for user
+#'  to interactively evaluate results and troubleshoot.
+#' @param valuevar
+#' @param grouping_var variable with which to subset the dataset into groups. A separate
+#' model is trained on each group.
+#'  
+#' @details The prevalence of IRES  was independently extrapolated for a total 
+#' of 465 spatial sub-units representing all occurring intersections of 
+#' 62 river basin regions (BasinATLAS level 2 subdivisions) and 18 climate zones
+#'  (Global Environmental Stratification). For each basin–climate sub-unit, we 
+#'  first extrapolated the empirical cumulative distribution of total stream length 
+#'  (of all reaches with MAF ≥ 0.1 m3 s−1) down to 0.01 m3 s−1 MAF using a generalized 
+#'  additive model (GAM)92. We excluded reaches larger than the 95th percentile of 
+#'  MAF (that is, the largest rivers) within the sub-unit from model fitting to avoid common
+#'  discontinuities at the high end of the empirical distribution
+#'  that can affect the low end of the power-law-like trendline
+#' 
+#' @return list containing a data.table and two plots.
+#' The data.table contains an estimate 
+#' 
+#' 
+#' @export
 extrapolate_IRES <- function(in_rivpred,
                              in_extranet,
                              min_cutoff = 0.1,
