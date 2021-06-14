@@ -1,7 +1,7 @@
 name: "globalIRmap"
 output_dir: ../docs
 navbar:
-  title: Global mapping of intermittent rivers and ephemeral streams
+  title: Global prevalence of intermittent rivers and ephemeral streams
   left:
   - text: Home
     href: index.html
@@ -9,19 +9,21 @@ navbar:
     href: about.html
   - text: License
     href: license.html
-  - text: Data and methods
+  - text: Data
     menu:
-    - text: "Analysis workflow"
-      href: methods_workflow.html
+    - text: "Global river network"
+      href: methods_riveratlas.html
     - text: "Reference streamflow gauging stations"
       href: methods_refdisdat.html
-  - text: Results
+  - text: Workflow
     menu:
-    - text: "Model diagnostics"
-      href: results_diagnostics.html
+    - text: "Getting started"
+      href: methods_gettingstarted.html
+    - text: "Analysis workflow"
+      href: methods_workflow.html
 output:
   workflowr::wflow_html:
     toc: yes
     toc_float: yes
-    theme: cosmo
-    highlight: textmate
+    theme: flatly
+    highlight: espresso

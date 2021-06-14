@@ -576,7 +576,7 @@ plan_getoutputs_2 <- drake_plan(
                                min_cutoff = 0.1,
                                valuevar = 'predbasic800cat',
                                interactive = F),
-
+  
   globaltables = target(
     tabulate_globalsummary(outp_riveratlaspred = rfpreds_network,
                            inp_riveratlas = path_riveratlas,
