@@ -1,0 +1,41 @@
+---
+title: "Global underpinning hydrography and hydro-environmental predictor variables"
+author: "Mathis Messager"
+date: "6/14/2021"
+output:
+  workflowr::wflow_html:
+    toc: false
+    theme: flatly
+    highlight: espresso
+editor_options:
+  chunk_output_type: console
+---
+
+# Global underpinning hydrography
+We predicted the distribution of IRES for river reaches in the [global RiverATLAS database](https://www.hydrosheds.org/page/hydroatlas). RiverATLAS is a widely used representation of the global river network built on the hydrographic database [HydroSHEDS](https://www.hydrosheds.org/page/overview). Rivers are delineated on the basis of drainage direction and flow accumulation maps derived from elevation data at a pixel resolution of 3 arcseconds (~90 m at the equator) and subsequently upscaled to 15 arcseconds (~500 m at the equator). In this study, we only included river reaches with a modelled MAF ≥ 0.1 m3 s−1 and excluded: i) smaller streams (owing to increasing uncertainties in their geospatial location and flow estimates derived from global datasets and models); and ii) sections of river reaches within lakes
+(identified based on [HydroLAKES](https://www.hydrosheds.org/page/hydrolakes) polygons). 
+
+# Hydro-environmental predictor variables
+The primary source of predictor variables was the [global RiverATLAS database, version 1.0](https://www.hydrosheds.org/page/hydroatlas), which is a subset of the broader HydroATLAS product. RiverATLAS provides hydro-environmental information for all rivers of the world, both within their contributing local reach catchment and across the entire upstream drainage area of every reach. This information was derived by aggregating and reformatting original data from well established global digital maps, and by accumulating them along the drainage network from headwaters to ocean outlets.
+
+We complemented the RiverATLAS v1.0 data with three additional sets of variables. The first set of variables describes the inter-annual open surface water dynamics as determined by remote sensing imagery from 1999 to 2019 (Pickens et al. 2019). In the original dataset, each 30-m-resolution pixel has been covered by water sometime during this time period was assigned one of seven ‘interannual dynamic classes’ (for example, permanent water, stable seasonal, high-frequency changes) on the basis of a time series analysis of the annual percentage of open water in the pixel. We computed the percent coverage of each of these interannual dynamic classes relative to the total area of surface water within the contributing local catchment and across the entire upstream drainage area of every river reach. 
+
+Second, we replaced the soil and climate characteristics in RiverATLAS v1.0 with updated datasets. Specifically, we computed the average texture of the top 100 cm of soil based on SoilGrids250m v2. We also updated the climate variables with WorldClim v2 (adding all bioclimatic variables to the existing set of
+variables) as well as the second version of the Global Aridity Index and
+Global Reference Evapotranspiration (Global-PET) datasets. Finally, we updated the Climate Moisture Index (CMI), computed from the annual precipitation and potential evapotranspiration datasets provided by the WorldClim v2 and Global-PET v2 databases, respectively.
+
+We derived a third set of variables by combining multiple variables already included in the model through algebraic operations. These metrics included the runoff coefficient (that is, the ratio of MAF and mean annual precipitation), specific discharge (that is, MAF per unit drainage area), and various temporal (for example, minimum annual/ maximum annual discharge) and spatial (for example, mean elevation in local reach catchment/mean elevation in upstream drainage area) ratios.
+
+# Pre-formatting of spatial data
+[This GitHub repository](https://github.com/messamat/globalIRmap_py) contains Python code used for pre-processing of data.
+The output of this pre-processing is available and compiled as the attributes in the global river network and streamflow gauging stations datasets (available in the [figshare data repository](https://doi.org/10.6084/m9.figshare.14633022.v1)).
+
+Here, we briefly explain how this code was used, but additional data (~100GB) not currently available publicly are needed to fully reproduce the analysis. Please contact mathis.messager@mail.mcgill.ca and/or bernhard.lehner@mcgill.ca for additional information should you want to re-produce the results from this study. In addition please note that processing these data takes weeks of continuous computing on a normal workstation.
+
+
+
+
+
+
+
+

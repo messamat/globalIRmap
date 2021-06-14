@@ -1,0 +1,90 @@
+---
+title: "Getting started"
+site: workflowr::wflow_site
+output:
+  workflowr::wflow_html:
+    toc: false
+    theme: flatly
+    highlight: espresso
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install the R package
+
+[![Build Status]()]()
+
+This repository is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. 
+Note that this package has been written explicitly for this project and may not be suitable for general use. 
+
+This project is setup with a [drake workflow](https://github.com/ropensci/drake), ensuring reproducibility.
+Intermediate targets/objects will be stored in a hidden `.drake` directory.
+
+The R library of this project is managed by [renv](https://rstudio.github.io/renv/articles/renv.html).
+This makes sure that the exact same package versions are used when recreating the project.
+When calling `renv::restore()`, all required packages will be installed with their specific version.
+
+Please note that this project was built with R version 4.0.3 on a Windows 10 operating system.
+The renv packages from this project **are not compatible with R versions prior to version 3.6.0.**
+
+**To copy (i.e., clone) this repository to your local machine (for Windows only, please contact author for guidance on other platforms).**  
+In Git Bash, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap :
+```{r, engine = 'bash', eval = FALSE}
+Mathis@DESKTOP MINGW64 /c/temp
+$ cd /c/
+Mathis@DESKTOP MINGW64 /c
+$ mkdir test_globalIRmap
+Mathis@DESKTOP MINGW64 /c
+$ cd /c/test_globalIRmap
+Mathis@DESKTOP MINGW64 /c/test_globalIRmap
+$ git clone https://github.com/messamat/globalIRmap.git
+Cloning into 'globalIRmap'...
+remote: Enumerating objects: 116, done.
+remote: Counting objects: 100% (116/116), done.
+remote: Compressing objects: 100% (89/89), done.
+remote: Total 7363 (delta 48), reused 75 (delta 19), pack-reused 7247
+Receiving objects: 100% (7363/7363), 1.91 GiB | 3.78 MiB/s, done.
+Resolving deltas: 100% (925/925), done.
+```
+
+In R Studio for Windows, the following procedure can be used:  
+
+* Click on “File” in the menu ribbon  
+* Select “New project…”  
+* Choose the “Version control” option in the New Project Wizard window.
+* Then, select “Git” in the next window.
+* In the next window, fill the fields as follows:  
+  * Repository URL: https://github.com/messamat/globalIRmap  
+  * Project directory name: [will autofill as “globalIRmap”]  
+  * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap]  
+* Tick “Open in new session” and then click “Create project”.  
+
+**Then open this project in R and run:**  
+```{r README-4, eval = FALSE}
+renv::restore() # restores all R packages with their specific version
+r_make() # recreates the analysis
+```
+
+# Structure of the analysis
+
+In the `drake` philosophy, every R object is a "target" with dependencies.
+This repository contains more targets than actually needed to replicate the associated publication.
+**Future task: create a simplified workflow to strictly reproduce main results**
+
+If you want to replicate the publication, you need to build the following targets:
+  -
+  -
+  -
+  -
+  
+#### Other practical notes
+
+# Notes and resources 
+
+* The [issues tracker](https://github.com/messamat/globalIRmap/issues) is the place to report problems or ask questions  
+
+* See the repository [history](https://github.com/messamat/globalIRmap/commits/master) for a fine-grained view of progress and changes.

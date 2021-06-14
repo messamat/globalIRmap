@@ -3,46 +3,12 @@ title: "License"
 output:
   workflowr::wflow_html:
     toc: false
+    theme: flatly
+    highlight: espresso
 editor_options:
   chunk_output_type: console
 ---
 
-**Until publication of the accompanying manuscript, the code and data herein are licensed under a  Copyright (C) Mathis Loïc Messager - All Rights Reserved. Unauthorized copying of this file, via any medium is strictly prohibited Proprietary and confidential**
+The website and code herein are licensed under a [GNU General Public License v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html).
 
-Following publication:  
-The code herein are licensed under a (GNU General Public License v3.0)[https://www.gnu.org/licenses/gpl-3.0.en.html] and the data herein are licensed under a (Creative Commons Attribution 4.0 International License)[http://creativecommons.org/licenses/by/4.0]. By downloading and using the code and data, the user agrees to the terms and conditions of these licenses. 
-Notwithstanding this free license, we ask users to refrain from redistributing the data in whole in its original format on other websites without the explicit written permission from the authors. The results are publicly available for download at
-http://www.hydrosheds.org. The copyright © is held by the authors, 2020, all rights reserved.
-
-#Disclaimer of warranty
-The database and any related materials contained therein are provided “as is,”
-without warranty of any kind, either express or implied, including, but not limited to, the implied
-warranties of merchantability, fitness for a particular purpose, noninterference, system
-integration, or noninfringement. The entire risk of use of the data shall be with the user. The user
-expressly acknowledges that the data may contain some nonconformities, defects, or errors. The
-authors do not warrant that the data will meet the user's needs or expectations, that the use of the
-data will be uninterrupted, or that all nonconformities, defects, or errors can or will be corrected.
-The authors are not inviting reliance on these data, and the user should always verify actual data.
-
-4.3 Limitation of liability
-In no event shall the authors be liable for costs of procurement of substitute goods or services,
-lost profits, lost sales or business expenditures, investments, or commitments in connection with
-any business, loss of any goodwill, or for any direct, indirect, special, incidental, exemplary, or
-consequential damages arising out of the use of the database and any related
-materials, however caused, on any theory of liability, and whether or not the authors have been
-advised of the possibility of such damage. These limitations shall apply notwithstanding any
-failure of essential purpose of any exclusive remedy.
-
-Acknowledgement and citation
-We kindly ask users to cite our work in any published material produced using the data. If
-possible, online links to the hosting website (http://www.hydrosheds.org) should be provided.
-If the data represent a crucial component to the research of a user, or if an important
-research result or conclusion depends on it, we kindly request that the user offers co-authorship
-to (a representative of) the authors. If in doubt, please contact the
-corresponding authors at mathis.messager@mail.mcgill.ca or bernhard.lehner@mcgill.ca.
-Citations and acknowledgements of the data should be made as follows:
-
-
-
-
-
+The data herein and in the associated [figshare repository](https://doi.org/10.6084/m9.figshare.14633022.v1) are licensed under a [Creative Commons Attribution 4.0 International License](http://creativecommons.org/licenses/by/4.0). By downloading and using the code and data, the user agrees to the terms and conditions of these licenses. 

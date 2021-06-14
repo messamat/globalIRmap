@@ -10,5 +10,10 @@ editor_options:
 
 # **Welcome to the research compendium for the article "Global prevalence of non-perennial rivers and streams"!**
 
-# **!! Please note that this website is still under development. For reviewing purposes, please refer to the provided PDF, which contains the scientific content that will be provided on this website !!**
+Messager, M. L., Lehner, B., Cockburn, C., Lamouroux, N., Pella, H., Snelder, T., 
+Tockner, K., Trautmann, T., Watt, C. & Datry, T. (2021). 
+Global prevalence of non-perennial rivers and streams. Nature. 
+https://doi.org/10.1038/s41586-021-03565-5 \cr
 
+
+![](assets/Messageretal_Fig1.jpg)

@@ -6,14 +6,14 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r load stuff, echo=FALSE, message=FALSE, warning=FALSE}
-library(rprojroot)
-rootdir <- find_root(has_dir('analysis')) #Set root working directory
-setwd(rootdir)
-source('R/IRmapping_packages.R')
-source('R/IRmapping_plan.R')
-```
-
-```{r graph, echo=FALSE, message=FALSE, warning=FALSE}
-drake::vis_drake_graph(plan, targets_only = T)
-```
+# ```{r load stuff, echo=FALSE, message=FALSE, warning=FALSE}
+# library(rprojroot)
+# rootdir <- find_root(has_dir('analysis')) #Set root working directory
+# setwd(rootdir)
+# source('R/IRmapping_packages.R')
+# source('R/IRmapping_plan.R')
+# ```
+# 
+# ```{r graph, echo=FALSE, message=FALSE, warning=FALSE}
+# drake::vis_drake_graph(plan, targets_only = T)
+# ```

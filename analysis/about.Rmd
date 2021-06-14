@@ -11,8 +11,7 @@ editor_options:
 ---
   
 # **Global prevalence of non-perennial rivers and streams**
-### Manuscript under review
-### !!This research compendium is still under development!!
+### 
  
 # Authors
 **Mathis Loïc Messager** (mathis.messager@mail.mcgill.ca) [![](https://orcid.org/sites/default/files/images/orcid_16x16.png)](https://orcid.org/0000-0002-3051-8068)    
@@ -32,91 +31,51 @@ editor_options:
 
 
 # Contents
+This repository contains the research compendium for the article: 
+Messager, M. L., Lehner, B., Cockburn, C., Lamouroux, N., Pella, H., Snelder, T., 
+Tockner, K., Trautmann, T., Watt, C. & Datry, T. (2021). 
+Global prevalence of non-perennial rivers and streams. Nature. 
+https://doi.org/10.1038/s41586-021-03565-5 \cr
 
-This repository contains the research compendium for: [citation]
-- [Paper - link to be added]()
-- [Appendices - link to be added]()
+# Abstract
+In this study, we developed a statistical Random Forest model to produce the first reach-scale estimate of the global distribution of non-perennial rivers and streams. For this purpose, we linked quality-checked observed streamflow data from 5,615 gauging stations (on 4,428 perennial and 1,187 non-perennial reaches) with 113 candidate environmental predictors available globally. Predictors included variables describing climate, physiography, land cover, soil, geology, and groundwater as well as estimates of long-term naturalised (i.e., without anthropogenic water use in the form of abstractions or impoundments) mean monthly and mean annual flow (MAF), derived from a global hydrological model (WaterGAP 2.2; Müller Schmied et al. 2014). Following model training and validation, we predicted the probability of flow intermittence for all river reaches in the RiverATLAS database (Linke et al. 2019), a digital representation of the global river network at high spatial resolution.
 
-# How to use
+# Accessing study data
+The [data repository](https://doi.org/10.6084/m9.figshare.14633022.v1) 
+for this study includes two datasets:  
 
-## Read the code, access the data
+* A geometric network of the global river system where each river segment is associated with:
+  * 113 hydro-environmental predictors used in model development and predictions, and 
+  * the probability and class of flow intermittence predicted by the model.
+* The point locations of the 5,516 gauging stations used in model training/testing, where each station is associated with a line segment representing a reach in the river network, and a set of metadata.
 
-See the [`code`](https://github.com/messamat/globalIRmap) directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript.
-The raw data is stored on [Repository link to be added]() and [HydroSHEDS](https://hydrosheds.org/) and will be downloaded when starting the analysis. 
+# How to use this compendium
+The main purpose of this compendium is to provide guidance for reproducing the analysis in the manuscript.
 
-## Install the R package
+The [License tab](https://messamat.github.io/globalIRmap/license.html) details the terms of use of the code associated with this study.\cr
 
-[![Build Status]()]()
+The [Data tab](https://messamat.github.io/globalIRmap/data.html) focuses on our treatment of the two main sources of data for this project:  
 
-This repository is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. 
-Note that this package has been written explicitly for this project and may not be suitable for general use. 
+* a digital representation of the global river network (RiverATLAS)
+* streamflow gauging station records at 5615 locations globally
 
-This project is setup with a [drake workflow](https://github.com/ropensci/drake), ensuring reproducibility.
-Intermediate targets/objects will be stored in a hidden `.drake` directory.
+The [Workflow tab](https://messamat.github.io/globalIRmap/workflow.html) explains the requirements and analytical steps involved in the analysis for this study.\cr
 
-The R library of this project is managed by [renv](https://rstudio.github.io/renv/articles/renv.html).
-This makes sure that the exact same package versions are used when recreating the project.
-When calling `renv::restore()`, all required packages will be installed with their specific version.
+All of the source code that generated the datasets, statistical results and figures contained in the manuscript is on two GitHub repositories: [one for Python code](https://github.com/messamat/globalIRmap_py) used in spatial analysis, and [one for R code](https://github.com/messamat/globalIRmap) used for statistical analysis and figure productions.
 
-Please note that this project was built with R version 4.0.3 on a Windows 10 operating system.
-The renv packages from this project **are not compatible with R versions prior to version 3.6.0.**
+# Acknowledgements
+* Funding for this study was provided in part by the Natural Sciences and Engineering Research Council of
+Canada (B.L., C.C., C.W., M.L.M., NSERC Discovery grants RGPIN/341992-2013 and
+RGPIN/04541-2019); McGill University (M.L.M., Tomlinson Fellowship), Montreal, Quebec,
+Canada; H2O’Lyon Doctoral School (M.L.M., Doctoral Fellowship, ANR-17-EURE-0018), Lyon,
+France; T.D., N.L., H.P. and T.T. were supported by the DRYvER project (http://www.dryver.eu/),
+which has received funding from the European Union’s Horizon 2020 research and innovation
+programme under grant agreement no. 869226.
+* We thank T. Elrick and the Geographic Information Centre at McGill
+University for providing us with high-performance computing resources.
+* We thank the Global Runoff Data Centre (GRDC) for providing us with global streamflow gauging data. 
+* The structure of this compendium is based on the work of [Patrick Schratz](https://github.com/pat-s), [Carl Boettiger](http://www.carlboettiger.info/), [Ben Marwick](https://github.com/benmarwick), to whom we are grateful, and the [workflowr](https://github.com/jdblischak/workflowr) package.
 
-**To copy (i.e., clone) this repository to your local machine (for Windows only, please contact author for guidance on other platforms).**  
-In Git Bash, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap :
-```{r, engine = 'bash', eval = FALSE}
-Mathis@DESKTOP MINGW64 /c/temp
-$ cd /c/
-Mathis@DESKTOP MINGW64 /c
-$ mkdir test_globalIRmap
-Mathis@DESKTOP MINGW64 /c
-$ cd /c/test_globalIRmap
-Mathis@DESKTOP MINGW64 /c/test_globalIRmap
-$ git clone https://github.com/messamat/globalIRmap.git
-Cloning into 'globalIRmap'...
-remote: Enumerating objects: 116, done.
-remote: Counting objects: 100% (116/116), done.
-remote: Compressing objects: 100% (89/89), done.
-remote: Total 7363 (delta 48), reused 75 (delta 19), pack-reused 7247
-Receiving objects: 100% (7363/7363), 1.91 GiB | 3.78 MiB/s, done.
-Resolving deltas: 100% (925/925), done.
-```
-
-In R Studio for Windows, the following procedure can be used:  
-
-* Click on “File” in the menu ribbon  
-* Select “New project…”  
-* Choose the “Version control” option in the New Project Wizard window.
-* Then, select “Git” in the next window.
-* In the next window, fill the fields as follows:  
-  * Repository URL: https://github.com/messamat/globalIRmap  
-  * Project directory name: [will autofill as “globalIRmap”]  
-  * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap]  
-* Tick “Open in new session” and then click “Create project”.  
-
-**Then open this project in R and run:**  
-```{r README-4, eval = FALSE}
-renv::restore() # restores all R packages with their specific version
-r_make() # recreates the analysis
-```
-
-# Structure of the analysis
-
-In the `drake` philosophy, every R object is a "target" with dependencies.
-This repository contains more targets than actually needed to replicate the associated publication.
-**Future task: create a simplified workflow to strictly reproduce main results**
-
-If you want to replicate the publication, you need to build the following targets:
-  -
-  -
-  -
-  -
-  
-#### Other practical notes
-
-# Notes and resources 
-
-* The [issues tracker](https://github.com/messamat/globalIRmap/issues) is the place to report problems or ask questions  
-
-* See the repository [history](https://github.com/messamat/globalIRmap/commits/master) for a fine-grained view of progress and changes.
-
-* The structure of this compendium is based on the work of [Patrick Schratz](https://github.com/pat-s), [Carl Boettiger](http://www.carlboettiger.info/), [Ben Marwick](https://github.com/benmarwick), and the [workflowr](https://github.com/jdblischak/workflowr) package.
+# Comments and issues
+To report any problem or ask questions on this website or the code, please use the Github [issues tracker](https://github.com/messamat/globalIRmap/issues).  
+For other inquiries on the article or the data, please email mathis.messager@mail.mcgill.ca
