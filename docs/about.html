@@ -30,108 +30,7 @@ div.section {
 }
 </style>
 
-<style type="text/css">
-  code{white-space: pre-wrap;}
-  span.smallcaps{font-variant: small-caps;}
-  span.underline{text-decoration: underline;}
-  div.column{display: inline-block; vertical-align: top; width: 50%;}
-  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-  ul.task-list{list-style: none;}
-    </style>
 
-
-<style type="text/css">code{white-space: pre;}</style>
-<style type="text/css" data-origin="pandoc">
-code.sourceCode > span { display: inline-block; line-height: 1.25; }
-code.sourceCode > span { color: inherit; text-decoration: inherit; }
-code.sourceCode > span:empty { height: 1.2em; }
-.sourceCode { overflow: visible; }
-code.sourceCode { white-space: pre; position: relative; }
-div.sourceCode { margin: 1em 0; }
-pre.sourceCode { margin: 0; }
-@media screen {
-div.sourceCode { overflow: auto; }
-}
-@media print {
-code.sourceCode { white-space: pre-wrap; }
-code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-}
-pre.numberSource code
-  { counter-reset: source-line 0; }
-pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
-pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-    background-color: #2a211c;
-    color: #bdae9d;
-  }
-pre.numberSource { margin-left: 3em; border-left: 1px solid #bdae9d;  padding-left: 4px; }
-div.sourceCode
-  { color: #bdae9d; background-color: #2a211c; }
-@media screen {
-code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-}
-code span.al { color: #ffff00; } /* Alert */
-code span.an { color: #0066ff; font-weight: bold; font-style: italic; } /* Annotation */
-code span.at { } /* Attribute */
-code span.bn { color: #44aa43; } /* BaseN */
-code span.bu { } /* BuiltIn */
-code span.cf { color: #43a8ed; font-weight: bold; } /* ControlFlow */
-code span.ch { color: #049b0a; } /* Char */
-code span.cn { } /* Constant */
-code span.co { color: #0066ff; font-weight: bold; font-style: italic; } /* Comment */
-code span.do { color: #0066ff; font-style: italic; } /* Documentation */
-code span.dt { text-decoration: underline; } /* DataType */
-code span.dv { color: #44aa43; } /* DecVal */
-code span.er { color: #ffff00; font-weight: bold; } /* Error */
-code span.ex { } /* Extension */
-code span.fl { color: #44aa43; } /* Float */
-code span.fu { color: #ff9358; font-weight: bold; } /* Function */
-code span.im { } /* Import */
-code span.in { color: #0066ff; font-weight: bold; font-style: italic; } /* Information */
-code span.kw { color: #43a8ed; font-weight: bold; } /* Keyword */
-code span.op { } /* Operator */
-code span.pp { font-weight: bold; } /* Preprocessor */
-code span.sc { color: #049b0a; } /* SpecialChar */
-code span.ss { color: #049b0a; } /* SpecialString */
-code span.st { color: #049b0a; } /* String */
-code span.va { } /* Variable */
-code span.vs { color: #049b0a; } /* VerbatimString */
-code span.wa { color: #ffff00; font-weight: bold; } /* Warning */
-
-</style>
-<script>
-// apply pandoc div.sourceCode style to pre.sourceCode instead
-(function() {
-  var sheets = document.styleSheets;
-  for (var i = 0; i < sheets.length; i++) {
-    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
-    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
-    for (var j = 0; j < rules.length; j++) {
-      var rule = rules[j];
-      // check if there is a div.sourceCode rule
-      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
-      var style = rule.style.cssText;
-      // check if color or background-color is set
-      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
-      // replace div.sourceCode by a pre.sourceCode rule
-      sheets[i].deleteRule(j);
-      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
-    }
-  }
-})();
-</script>
-<style type="text/css">
-  pre:not([class]) {
-    background-color: white;
-  }
-</style>
 
 
 <style type="text/css">
@@ -160,7 +59,6 @@ h6 {
   text-align: left;
 }
 </style>
-
 
 
 
@@ -361,7 +259,7 @@ $(document).ready(function () {
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
       </button>
-      <a class="navbar-brand" href="index.html">Global mapping of intermittent rivers and ephemeral streams</a>
+      <a class="navbar-brand" href="index.html">Global prevalence of intermittent rivers and ephemeral streams</a>
     </div>
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
@@ -376,13 +274,13 @@ $(document).ready(function () {
 </li>
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
-    Data and methods
+    Data
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="methods_workflow.html">Analysis workflow</a>
+      <a href="methods_riveratlas.html">Global river network</a>
     </li>
     <li>
       <a href="methods_refdisdat.html">Reference streamflow gauging stations</a>
@@ -391,13 +289,16 @@ $(document).ready(function () {
 </li>
 <li class="dropdown">
   <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false">
-    Results
+    Workflow
      
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu">
     <li>
-      <a href="results_diagnostics.html">Model diagnostics</a>
+      <a href="methods_gettingstarted.html">Getting started</a>
+    </li>
+    <li>
+      <a href="methods_workflow.html">Analysis workflow</a>
     </li>
   </ul>
 </li>
@@ -438,10 +339,10 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-02-23
+<strong>Last updated:</strong> 2021-06-14
 </p>
 <p>
-<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 2 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
 </p>
 <p>
 <strong>Knit directory:</strong> <code>globalIRmap/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
@@ -469,76 +370,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongEnvironmentstrongempty"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Environment:</strong> empty </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5e433c3ef84dfa28b022b3741c570f7372b31e1ctargetblank5e433c3a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/5e433c3ef84dfa28b022b3741c570f7372b31e1c" target="_blank">5e433c3</a> </a>
 </p>
 </div>
-<div id="strongEnvironmentstrongempty" class="panel-collapse collapse">
-<div class="panel-body">
-<p>Great job! The global environment was empty. Objects defined in the global environment can affect the analysis in your R Markdown file in unknown ways. For reproduciblity it’s best to always run the code in an empty environment.</p>
-</div>
-</div>
-</div>
-<div class="panel panel-default">
-<div class="panel-heading">
-<p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSeedstrongcodesetseed20200414code"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Seed:</strong> <code>set.seed(20200414)</code> </a>
-</p>
-</div>
-<div id="strongSeedstrongcodesetseed20200414code" class="panel-collapse collapse">
-<div class="panel-body">
-<p>The command <code>set.seed(20200414)</code> was run prior to running the code in the R Markdown file. Setting a seed ensures that any results that rely on randomness, e.g. subsampling or permutations, are reproducible.</p>
-</div>
-</div>
-</div>
-<div class="panel panel-default">
-<div class="panel-heading">
-<p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongSessioninformationstrongrecorded"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Session information:</strong> recorded </a>
-</p>
-</div>
-<div id="strongSessioninformationstrongrecorded" class="panel-collapse collapse">
-<div class="panel-body">
-<p>Great job! Recording the operating system, R version, and package versions is critical for reproducibility.</p>
-</div>
-</div>
-</div>
-<div class="panel panel-default">
-<div class="panel-heading">
-<p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongCachestrongnone"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Cache:</strong> none </a>
-</p>
-</div>
-<div id="strongCachestrongnone" class="panel-collapse collapse">
-<div class="panel-body">
-<p>Nice! There were no cached chunks for this analysis, so you can be confident that you successfully produced the results during this run.</p>
-</div>
-</div>
-</div>
-<div class="panel panel-default">
-<div class="panel-heading">
-<p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongFilepathsstrongrelative"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>File paths:</strong> relative </a>
-</p>
-</div>
-<div id="strongFilepathsstrongrelative" class="panel-collapse collapse">
-<div class="panel-body">
-<p>Great job! Using relative paths to the files within your workflowr project makes it easier to run your code on other machines.</p>
-</div>
-</div>
-</div>
-<div class="panel panel-default">
-<div class="panel-heading">
-<p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreeeb0975211be4fc6b7efd1f45c45a4567927101detargetblankeb09752a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/eb0975211be4fc6b7efd1f45c45a4567927101de" target="_blank">eb09752</a> </a>
-</p>
-</div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreeeb0975211be4fc6b7efd1f45c45a4567927101detargetblankeb09752a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5e433c3ef84dfa28b022b3741c570f7372b31e1ctargetblank5e433c3a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/eb0975211be4fc6b7efd1f45c45a4567927101de" target="_blank">eb09752</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/5e433c3ef84dfa28b022b3741c570f7372b31e1c" target="_blank">5e433c3</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -558,6 +399,7 @@ Untracked files:
     Untracked:  .gitignore
     Untracked:  Compare_models_20201026.Rmd
     Untracked:  Rplots.pdf
+    Untracked:  assets/
     Untracked:  figtabres.docx
     Untracked:  figtabres_20201220_1.docx
     Untracked:  figtabres_20210216.docx
@@ -569,6 +411,11 @@ Untracked files:
     Untracked:  test.html
 
 Unstaged changes:
+    Modified:   .Rprofile
+    Modified:   R/IRmapping_plan.R
+    Modified:   analysis/_site.yml
+    Deleted:    analysis/results_diagnostics.Rmd
+    Modified:   figtabres.Rmd
     Modified:   interactive.R
     Modified:   workflowr_commands.R
 
@@ -609,6 +456,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/5e433c3ef84dfa28b022b3741c570f7372b31e1c/analysis/about.Rmd" target="_blank">5e433c3</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-14
+</td>
+<td>
+Publish new pages
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/af5fe44fe20e3459c710fa4ea32b33a80730f66f/docs/about.html" target="_blank">af5fe44</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-02-23
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -839,11 +720,8 @@ Start workflowr project.
 </div>
 <div id="global-prevalence-of-non-perennial-rivers-and-streams" class="section level1">
 <h1><strong>Global prevalence of non-perennial rivers and streams</strong></h1>
-<div id="manuscript-under-review" class="section level3">
-<h3>Manuscript under review</h3>
-</div>
-<div id="this-research-compendium-is-still-under-development" class="section level3">
-<h3>!!This research compendium is still under development!!</h3>
+<div id="section" class="section level3">
+<h3></h3>
 </div>
 </div>
 <div id="authors" class="section level1">
@@ -861,115 +739,49 @@ Start workflowr project.
 </div>
 <div id="contents" class="section level1">
 <h1>Contents</h1>
-<p>This repository contains the research compendium for: [citation] - <a href="">Paper - link to be added</a> - <a href="">Appendices - link to be added</a></p>
+<p>This repository contains the research compendium for the article: Messager, M. L., Lehner, B., Cockburn, C., Lamouroux, N., Pella, H., Snelder, T., Tockner, K., Trautmann, T., Watt, C. &amp; Datry, T. (2021). Global prevalence of non-perennial rivers and streams. Nature. <a href="https://doi.org/10.1038/s41586-021-03565-5" class="uri">https://doi.org/10.1038/s41586-021-03565-5</a> </p>
 </div>
-<div id="how-to-use" class="section level1">
-<h1>How to use</h1>
-<div id="read-the-code-access-the-data" class="section level2">
-<h2>Read the code, access the data</h2>
-<p>See the <a href="https://github.com/messamat/globalIRmap"><code>code</code></a> directory on GitHub for the source code that generated the figures and statistical results contained in the manuscript. The raw data is stored on <a href="">Repository link to be added</a> and <a href="https://hydrosheds.org/">HydroSHEDS</a> and will be downloaded when starting the analysis.</p>
+<div id="abstract" class="section level1">
+<h1>Abstract</h1>
+<p>In this study, we developed a statistical Random Forest model to produce the first reach-scale estimate of the global distribution of non-perennial rivers and streams. For this purpose, we linked quality-checked observed streamflow data from 5,615 gauging stations (on 4,428 perennial and 1,187 non-perennial reaches) with 113 candidate environmental predictors available globally. Predictors included variables describing climate, physiography, land cover, soil, geology, and groundwater as well as estimates of long-term naturalised (i.e., without anthropogenic water use in the form of abstractions or impoundments) mean monthly and mean annual flow (MAF), derived from a global hydrological model (WaterGAP 2.2; Müller Schmied et al. 2014). Following model training and validation, we predicted the probability of flow intermittence for all river reaches in the RiverATLAS database (Linke et al. 2019), a digital representation of the global river network at high spatial resolution.</p>
 </div>
-<div id="install-the-r-package" class="section level2">
-<h2>Install the R package</h2>
-<p><a href=""><img src="" alt="Build Status" /></a></p>
-<p>This repository is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. Note that this package has been written explicitly for this project and may not be suitable for general use.</p>
-<p>This project is setup with a <a href="https://github.com/ropensci/drake">drake workflow</a>, ensuring reproducibility. Intermediate targets/objects will be stored in a hidden <code>.drake</code> directory.</p>
-<p>The R library of this project is managed by <a href="https://rstudio.github.io/renv/articles/renv.html">renv</a>. This makes sure that the exact same package versions are used when recreating the project. When calling <code>renv::restore()</code>, all required packages will be installed with their specific version.</p>
-<p>Please note that this project was built with R version 4.0.3 on a Windows 10 operating system. The renv packages from this project <strong>are not compatible with R versions prior to version 3.6.0.</strong></p>
-<p><strong>To copy (i.e., clone) this repository to your local machine (for Windows only, please contact author for guidance on other platforms).</strong><br />
-In Git Bash, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap :</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c/temp</span>
-<span id="cb1-2"><a href="#cb1-2"></a>$ <span class="bu">cd</span> /c/</span>
-<span id="cb1-3"><a href="#cb1-3"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
-<span id="cb1-4"><a href="#cb1-4"></a>$ <span class="fu">mkdir</span> test_globalIRmap</span>
-<span id="cb1-5"><a href="#cb1-5"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
-<span id="cb1-6"><a href="#cb1-6"></a>$ <span class="bu">cd</span> /c/test_globalIRmap</span>
-<span id="cb1-7"><a href="#cb1-7"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c/test_globalIRmap</span>
-<span id="cb1-8"><a href="#cb1-8"></a>$ <span class="fu">git</span> clone https://github.com/messamat/globalIRmap.git</span>
-<span id="cb1-9"><a href="#cb1-9"></a><span class="ex">Cloning</span> into <span class="st">&#39;globalIRmap&#39;</span>...</span>
-<span id="cb1-10"><a href="#cb1-10"></a><span class="ex">remote</span>: Enumerating objects: 116, done.</span>
-<span id="cb1-11"><a href="#cb1-11"></a><span class="ex">remote</span>: Counting objects: 100% (116/116), <span class="kw">done</span><span class="ex">.</span></span>
-<span id="cb1-12"><a href="#cb1-12"></a><span class="ex">remote</span>: Compressing objects: 100% (89/89), <span class="kw">done</span><span class="ex">.</span></span>
-<span id="cb1-13"><a href="#cb1-13"></a><span class="ex">remote</span>: Total 7363 (delta 48), <span class="ex">reused</span> 75 (delta 19), <span class="ex">pack-reused</span> 7247</span>
-<span id="cb1-14"><a href="#cb1-14"></a><span class="ex">Receiving</span> objects: 100% (7363/7363), <span class="ex">1.91</span> GiB <span class="kw">|</span> <span class="ex">3.78</span> MiB/s, done.</span>
-<span id="cb1-15"><a href="#cb1-15"></a><span class="ex">Resolving</span> deltas: 100% (925/925), <span class="kw">done</span><span class="ex">.</span></span></code></pre></div>
-<p>In R Studio for Windows, the following procedure can be used:</p>
+<div id="accessing-study-data" class="section level1">
+<h1>Accessing study data</h1>
+<p>The <a href="https://doi.org/10.6084/m9.figshare.14633022.v1">data repository</a> for this study includes two datasets:</p>
 <ul>
-<li>Click on “File” in the menu ribbon<br />
-</li>
-<li>Select “New project…”<br />
-</li>
-<li>Choose the “Version control” option in the New Project Wizard window.</li>
-<li>Then, select “Git” in the next window.</li>
-<li>In the next window, fill the fields as follows:
+<li>A geometric network of the global river system where each river segment is associated with:
 <ul>
-<li>Repository URL: <a href="https://github.com/messamat/globalIRmap" class="uri">https://github.com/messamat/globalIRmap</a><br />
-</li>
-<li>Project directory name: [will autofill as “globalIRmap”]<br />
-</li>
-<li>Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap]<br />
-</li>
+<li>113 hydro-environmental predictors used in model development and predictions, and</li>
+<li>the probability and class of flow intermittence predicted by the model.</li>
 </ul></li>
-<li>Tick “Open in new session” and then click “Create project”.</li>
+<li>The point locations of the 5,516 gauging stations used in model training/testing, where each station is associated with a line segment representing a reach in the river network, and a set of metadata.</li>
 </ul>
-<p><strong>Then open this project in R and run:</strong></p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a>renv<span class="op">::</span><span class="kw">restore</span>() <span class="co"># restores all R packages with their specific version</span></span>
-<span id="cb2-2"><a href="#cb2-2"></a><span class="kw">r_make</span>() <span class="co"># recreates the analysis</span></span></code></pre></div>
 </div>
-</div>
-<div id="structure-of-the-analysis" class="section level1">
-<h1>Structure of the analysis</h1>
-<p>In the <code>drake</code> philosophy, every R object is a “target” with dependencies. This repository contains more targets than actually needed to replicate the associated publication. <strong>Future task: create a simplified workflow to strictly reproduce main results</strong></p>
-<p>If you want to replicate the publication, you need to build the following targets: - - - -</p>
-<div id="other-practical-notes" class="section level4">
-<h4>Other practical notes</h4>
-</div>
-</div>
-<div id="notes-and-resources" class="section level1">
-<h1>Notes and resources</h1>
+<div id="how-to-use-this-compendium" class="section level1">
+<h1>How to use this compendium</h1>
+<p>The main purpose of this compendium is to provide guidance for reproducing the analysis in the manuscript.</p>
+<p>The <a href="https://messamat.github.io/globalIRmap/license.html">License tab</a> details the terms of use of the code associated with this study.</p>
+<p>The <a href="https://messamat.github.io/globalIRmap/data.html">Data tab</a> focuses on our treatment of the two main sources of data for this project:</p>
 <ul>
-<li><p>The <a href="https://github.com/messamat/globalIRmap/issues">issues tracker</a> is the place to report problems or ask questions</p></li>
-<li><p>See the repository <a href="https://github.com/messamat/globalIRmap/commits/master">history</a> for a fine-grained view of progress and changes.</p></li>
-<li><p>The structure of this compendium is based on the work of <a href="https://github.com/pat-s">Patrick Schratz</a>, <a href="http://www.carlboettiger.info/">Carl Boettiger</a>, <a href="https://github.com/benmarwick">Ben Marwick</a>, and the <a href="https://github.com/jdblischak/workflowr">workflowr</a> package.</p></li>
+<li>a digital representation of the global river network (RiverATLAS)</li>
+<li>streamflow gauging station records at 5615 locations globally</li>
 </ul>
-<br>
-<p>
-<button type="button" class="btn btn-default btn-workflowr btn-workflowr-sessioninfo" data-toggle="collapse" data-target="#workflowr-sessioninfo" style="display: block;">
-<span class="glyphicon glyphicon-wrench" aria-hidden="true"></span> Session information
-</button>
-</p>
-<div id="workflowr-sessioninfo" class="collapse">
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a><span class="kw">sessionInfo</span>()</span></code></pre></div>
-<pre><code>R version 4.0.2 (2020-06-22)
-Platform: x86_64-w64-mingw32/x64 (64-bit)
-Running under: Windows 10 x64 (build 18363)
-
-Matrix products: default
-
-locale:
-[1] LC_COLLATE=English_United States.1252 
-[2] LC_CTYPE=English_United States.1252   
-[3] LC_MONETARY=English_United States.1252
-[4] LC_NUMERIC=C                          
-[5] LC_TIME=English_United States.1252    
-
-attached base packages:
-[1] stats     graphics  grDevices datasets  utils     methods   base     
-
-other attached packages:
-[1] workflowr_1.6.2
-
-loaded via a namespace (and not attached):
- [1] Rcpp_1.0.4.6     rstudioapi_0.11  whisker_0.4      knitr_1.29      
- [5] magrittr_1.5     R6_2.4.1         rlang_0.4.10     stringr_1.4.0   
- [9] tools_4.0.2      xfun_0.17        git2r_0.27.1     htmltools_0.5.0 
-[13] ellipsis_0.3.0   rprojroot_1.3-2  yaml_2.2.1       digest_0.6.25   
-[17] tibble_3.0.1     lifecycle_0.2.0  crayon_1.3.4     later_1.0.0     
-[21] vctrs_0.3.4      promises_1.1.0   fs_1.5.0         glue_1.4.0      
-[25] evaluate_0.14    rmarkdown_2.6    stringi_1.4.6    compiler_4.0.2  
-[29] pillar_1.4.4     backports_1.1.10 httpuv_1.5.4     renv_0.9.3      
-[33] pkgconfig_2.0.3 </code></pre>
+<p>The <a href="https://messamat.github.io/globalIRmap/workflow.html">Workflow tab</a> explains the requirements and analytical steps involved in the analysis for this study.</p>
+<p>All of the source code that generated the datasets, statistical results and figures contained in the manuscript is on two GitHub repositories: <a href="https://github.com/messamat/globalIRmap_py">one for Python code</a> used in spatial analysis, and <a href="https://github.com/messamat/globalIRmap">one for R code</a> used for statistical analysis and figure productions.</p>
 </div>
+<div id="acknowledgements" class="section level1">
+<h1>Acknowledgements</h1>
+<ul>
+<li>Funding for this study was provided in part by the Natural Sciences and Engineering Research Council of Canada (B.L., C.C., C.W., M.L.M., NSERC Discovery grants RGPIN/341992-2013 and RGPIN/04541-2019); McGill University (M.L.M., Tomlinson Fellowship), Montreal, Quebec, Canada; H2O’Lyon Doctoral School (M.L.M., Doctoral Fellowship, ANR-17-EURE-0018), Lyon, France; T.D., N.L., H.P. and T.T. were supported by the DRYvER project (<a href="http://www.dryver.eu/" class="uri">http://www.dryver.eu/</a>), which has received funding from the European Union’s Horizon 2020 research and innovation programme under grant agreement no. 869226.</li>
+<li>We thank T. Elrick and the Geographic Information Centre at McGill University for providing us with high-performance computing resources.</li>
+<li>We thank the Global Runoff Data Centre (GRDC) for providing us with global streamflow gauging data.</li>
+<li>The structure of this compendium is based on the work of <a href="https://github.com/pat-s">Patrick Schratz</a>, <a href="http://www.carlboettiger.info/">Carl Boettiger</a>, <a href="https://github.com/benmarwick">Ben Marwick</a>, to whom we are grateful, and the <a href="https://github.com/jdblischak/workflowr">workflowr</a> package.</li>
+</ul>
+</div>
+<div id="comments-and-issues" class="section level1">
+<h1>Comments and issues</h1>
+<p>To report any problem or ask questions on this website or the code, please use the Github <a href="https://github.com/messamat/globalIRmap/issues">issues tracker</a>.<br />
+For other inquiries on the article or the data, please email <a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a></p>
 </div>
 
 
@@ -993,7 +805,7 @@ footer is added to webpages before the MathJax javascript. -->
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
