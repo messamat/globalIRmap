@@ -16,4 +16,8 @@ Global prevalence of non-perennial rivers and streams. Nature.
 https://doi.org/10.1038/s41586-021-03565-5 \cr
 
 
-![](assets/Messageretal_Fig1.jpg)
+```{r, echo=FALSE}
+# Define variable containing url
+url <- "https://github.com/messamat/globalIRmap/raw/master/assets/Messageretal_Fig1.jpg"
+```
+![](`r url`)
