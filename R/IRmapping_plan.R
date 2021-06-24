@@ -37,8 +37,7 @@ plan_preprocess <- drake_plan(
   outpath_riveratlaspred = file.path(rootdir, 'results\\RiverATLAS_predbasic800.csv'),
   outpath_gaugep = file_out(!!file.path(rootdir, 'results\\GRDCstations_predbasic800.gpkg')),
   outpath_bas03error = file_out(!!file.path(rootdir, 'results\\BasinATLAS_v10_lev03_errors.gpkg')),
-  path_bufrasdir = file.path(path_resdir, 'bufrasdir')
-  ,
+  path_bufrasdir = file.path(path_resdir, 'bufrasdir'),
 
   #outpath_krigingtif = file_out("E:\\Mathis\\results\\prederror_krigingtest.tif"),
 
@@ -376,29 +375,6 @@ plan_runmodels <- drake_plan(
                                      spatial_rsp=TRUE
   ),
 
-
-  ############ REPLACE WITH RF TUNED ##############
-  # misclass_format = target(
-  #   formatmisclass_bm(in_bm = in_bm, in_bmid = in_bmid),
-  #   transform = map(
-  #     in_bm = list(
-  #       rfbm_classif,
-  #       c(rfresampled_regr_res, rfresampled_regover_res),
-  #       c(rfeval_featall, rfeval_featsel)),
-  #     in_bmid = list('classif1', 'regr1', 'classif2'),
-  #     .names = c('misclass_classif1', 'misclass_regr1', 'misclass_classif2'))
-  #   # ,
-  #   # trigger = trigger(mode = "condition", condition =FALSE)
-  # ),
-  # misclass_plot = target(
-  #   ggmisclass_bm(list(misclass_classif1,
-  #                      misclass_regr1,
-  #                      misclass_classif2))
-  #   # ,
-  #   # trigger = trigger(mode = "condition", condition =FALSE)
-  # )
-  # ,
-
   gpredsdt = target(
     make_gaugepreds(in_rftuned = rftuned,
                     in_res_spcv = res_featsel_spcv,
@@ -539,6 +515,14 @@ plan_getoutputs_1 <- drake_plan(
                              yearthresh = 1800)
   ,
 
+  
+  rivpred = target(
+    netpredformat(in_rivernetwork = rivernetwork,
+                  outp_riveratlaspred = rfpreds_network)
+    # ,
+    # trigger = trigger(mode = "condition", condition =FALSE)
+  ),
+  
   basinBACC = target(
     map_basinBACC(in_gaugepred = gpredsdt,
                   inp_basin = path_bas03,
@@ -564,13 +548,6 @@ plan_getoutputs_1 <- drake_plan(
 
 
 plan_getoutputs_2 <- drake_plan(
-  rivpred = target(
-    netpredformat(in_rivernetwork = rivernetwork,
-                  outp_riveratlaspred = rfpreds_network)
-    # ,
-    # trigger = trigger(mode = "condition", condition =FALSE)
-  ),
-
   IRESextra = extrapolate_IRES(in_rivpred = rivpred,
                                in_extranet = netlength_extra,
                                min_cutoff = 0.1,
@@ -691,44 +668,43 @@ plan_runsimplemodels_branches_30d <- lapply(
 ) %>%
   do.call(bind_plans, .)
 
-
-#SHould makea function to modify single arg values
-
-plan_getoutputs_30d <- branch_plan(
-  plan = plan_getoutputs_2,
-  branch_suffix = '_mdur30',
-  external_arguments_to_modify = c('gpredsdt',
-                                   'rfpreds_gauges',
-                                   'rfpreds_network'),
-  verbose = FALSE) %>%
-  as.data.table %>%
-  .[substr(target, 1, 12) == 'globaltables',
-    command :=
-      lapply(command, function(call) {
-        rlang::call_modify(.call=call,
-                           valuevar = "predbasic800_mdur30")
-      })] %>%
-  .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
-    command := lapply(command, function(call) {
-      rlang::call_modify(.call=call,
-                         valuevar = "predbasic800_mdur30cat")
-    })] %>%
-  as_tibble
-
-plan_compareresults_30d <- branch_plan(
-  plan = plan_compareresults,
-  branch_suffix = '_mdur30',
-  external_arguments_to_modify = 'rivpred',
-  verbose = FALSE
-) %>%
-  as.data.table %>%
-  .[,
-    command :=
-      lapply(command, function(call) {
-        rlang::call_modify(.call=call,
-                           predcol = "predbasic800_mdur30cat")
-      })] %>%
-  as_tibble
+############################## DID NOT WORK WITH PACKAGE BUILDING - UNCOMMENT TO USE ######################
+# plan_getoutputs_30d <- branch_plan(
+#   plan = plan_getoutputs_2,
+#   branch_suffix = '_mdur30',
+#   external_arguments_to_modify = c('gpredsdt',
+#                                    'rfpreds_gauges',
+#                                    'rfpreds_network'),
+#   verbose = FALSE) %>%
+#   as.data.table(.) %>%
+#   .[substr(target, 1, 12) == 'globaltables',
+#     command :=
+#       lapply(command, function(call) {
+#         rlang::call_modify(.call=call,
+#                            valuevar = "predbasic800_mdur30")
+#       })] %>%
+#   .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
+#     command := lapply(command, function(call) {
+#       rlang::call_modify(.call=call,
+#                          valuevar = "predbasic800_mdur30cat")
+#     })] %>%
+#   as_tibble
+# 
+# plan_compareresults_30d <- branch_plan(
+#   plan = plan_compareresults,
+#   branch_suffix = '_mdur30',
+#   external_arguments_to_modify = 'rivpred',
+#   verbose = FALSE
+# ) %>%
+#   as.data.table(.) %>%
+#   .[,
+#     command :=
+#       lapply(command, function(call) {
+#         rlang::call_modify(.call=call,
+#                            predcol = "predbasic800_mdur30cat")
+#       })] %>%
+#   as_tibble
+##################################################################################
 
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,
@@ -738,8 +714,7 @@ plan <- bind_plans(plan_preprocess,
                    plan_getpreds_30d,
                    plan_getoutputs_1,
                    plan_getoutputs_2,
-                   plan_getoutputs_30d,
+                   #plan_getoutputs_30d,
                    plan_compareresults,
-                   plan_compareresults_30d
+                   #plan_compareresults_30d
 )
-

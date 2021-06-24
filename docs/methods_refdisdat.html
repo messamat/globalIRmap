@@ -19,6 +19,15 @@
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
 <link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
 <script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
@@ -31,12 +40,16 @@ div.section {
 }
 </style>
 
-<style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
-  pre:not([class]) {
-    background-color: white;
-  }
-</style>
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
+
+<style type="text/css">code{white-space: pre;}</style>
 <script type="text/javascript">
 if (window.hljs) {
   hljs.configure({languages: []});
@@ -49,32 +62,7 @@ if (window.hljs) {
 
 
 
-<style type="text/css">
-h1 {
-  font-size: 34px;
-}
-h1.title {
-  font-size: 38px;
-}
-h2 {
-  font-size: 30px;
-}
-h3 {
-  font-size: 24px;
-}
-h4 {
-  font-size: 18px;
-}
-h5 {
-  font-size: 16px;
-}
-h6 {
-  font-size: 12px;
-}
-.table th:not([align]) {
-  text-align: left;
-}
-</style>
+
 
 
 
@@ -84,10 +72,6 @@ h6 {
   max-width: 940px;
   margin-left: auto;
   margin-right: auto;
-}
-code {
-  color: inherit;
-  background-color: rgba(0, 0, 0, 0.04);
 }
 img {
   max-width:100%;
@@ -104,40 +88,13 @@ button.code-folding-btn:focus {
 summary {
   display: list-item;
 }
+pre code {
+  padding: 0;
+}
 </style>
 
 
 <style type="text/css">
-/* padding for bootstrap navbar */
-body {
-  padding-top: 51px;
-  padding-bottom: 40px;
-}
-/* offset scroll position for anchor links (for fixed navbar)  */
-.section h1 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h2 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h3 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h4 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h5 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h6 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
 .dropdown-submenu {
   position: relative;
 }
@@ -165,7 +122,7 @@ body {
   margin-right: -10px;
 }
 .dropdown-submenu:hover>a:after {
-  border-left-color: #ffffff;
+  border-left-color: #adb5bd;
 }
 .dropdown-submenu.pull-left {
   float: none;
@@ -177,7 +134,7 @@ body {
 }
 </style>
 
-<script>
+<script type="text/javascript">
 // manage active state of menu based on current page
 $(document).ready(function () {
   // active menu anchor
@@ -188,10 +145,23 @@ $(document).ready(function () {
   var menuAnchor = $('a[href="' + href + '"]');
 
   // mark it active
-  menuAnchor.parent().addClass('active');
+  menuAnchor.tab('show');
 
   // if it's got a parent navbar menu mark it active as well
   menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
 });
 </script>
 
@@ -203,7 +173,6 @@ $(document).ready(function () {
   max-height: 500px;
   min-height: 44px;
   overflow-y: auto;
-  background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
@@ -326,7 +295,7 @@ $(document).ready(function () {
   </div><!--/.container -->
 </div><!--/.navbar -->
 
-<div class="fluid-row" id="header">
+<div id="header">
 
 
 
@@ -337,7 +306,7 @@ $(document).ready(function () {
 
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
-<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
 </button>
 </p>
 <div id="workflowr-report" class="collapse">
@@ -346,7 +315,7 @@ $(document).ready(function () {
 <a data-toggle="tab" href="#summary">Summary</a>
 </li>
 <li>
-<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> </a>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
 </li>
 <li>
 <a data-toggle="tab" href="#versions">Past versions</a>
@@ -355,10 +324,10 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-06-14
+<strong>Last updated:</strong> 2021-06-24
 </p>
 <p>
-<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
 </p>
 <p>
 <strong>Knit directory:</strong> <code>globalIRmap/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
@@ -374,12 +343,12 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
 </p>
 </div>
-<div id="strongRMarkdownfilestronguptodate" class="panel-collapse collapse">
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
 <div class="panel-body">
-<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+<p>The R Markdown file has unstaged changes. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
 </div>
 </div>
 </div>
@@ -446,16 +415,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5e433c3ef84dfa28b022b3741c570f7372b31e1ctargetblank5e433c3a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/5e433c3ef84dfa28b022b3741c570f7372b31e1c" target="_blank">5e433c3</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreecb6d0b940698f1b18713ea15ae9e7b6dda2d2192targetblankcb6d0b9a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/cb6d0b940698f1b18713ea15ae9e7b6dda2d2192" target="_blank">cb6d0b9</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5e433c3ef84dfa28b022b3741c570f7372b31e1ctargetblank5e433c3a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptreecb6d0b940698f1b18713ea15ae9e7b6dda2d2192targetblankcb6d0b9a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/5e433c3ef84dfa28b022b3741c570f7372b31e1c" target="_blank">5e433c3</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/cb6d0b940698f1b18713ea15ae9e7b6dda2d2192" target="_blank">cb6d0b9</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -473,27 +442,97 @@ Untracked files:
     Untracked:  .Rbuildignore
     Untracked:  .drake/
     Untracked:  .gitignore
-    Untracked:  Compare_models_20201026.Rmd
-    Untracked:  Rplots.pdf
-    Untracked:  assets/
+    Untracked:  archived/
     Untracked:  figtabres.docx
-    Untracked:  figtabres_20201220_1.docx
-    Untracked:  figtabres_20210216.docx
     Untracked:  log/
+    Untracked:  man/analyze_benchmark.Rd
+    Untracked:  man/bin_misclass.Rd
+    Untracked:  man/bind_gaugepreds.Rd
+    Untracked:  man/change_oversamp.Rd
+    Untracked:  man/change_tasktarget.Rd
+    Untracked:  man/combine_bm.Rd
+    Untracked:  man/comp_GRDCqstats.Rd
+    Untracked:  man/comp_GSIMdurfreq.Rd
+    Untracked:  man/comp_irstats.Rd
+    Untracked:  man/compare_au.Rd
+    Untracked:  man/compare_fr.Rd
+    Untracked:  man/compare_us.Rd
+    Untracked:  man/compute_IRpop.Rd
+    Untracked:  man/compute_confustats.Rd
+    Untracked:  man/create_baselearners.Rd
+    Untracked:  man/create_tasks.Rd
+    Untracked:  man/dynamic_resample.Rd
+    Untracked:  man/dynamic_resamplebm.Rd
+    Untracked:  man/eval_watergap.Rd
+    Untracked:  man/extend_globalsummary_clz.Rd
+    Untracked:  man/extrapolate_IRES.Rd
+    Untracked:  man/extrapolate_networklength.Rd
+    Untracked:  man/formatscales.Rd
+    Untracked:  man/get_USdata.Rd
+    Untracked:  man/get_basemapswintri.Rd
+    Untracked:  man/ggenvhist.Rd
+    Untracked:  man/gggaugeIPR.Rd
+    Untracked:  man/gggauges.Rd
+    Untracked:  man/ggmisclass_single.Rd
+    Untracked:  man/ggpartialdep.Rd
+    Untracked:  man/ggrivers.Rd
+    Untracked:  man/ggvimp.Rd
+    Untracked:  man/layout_ggenvhist.Rd
+    Untracked:  man/make_gaugepreds.Rd
+    Untracked:  man/map_basinBACC.Rd
+    Untracked:  man/netpredformat.Rd
+    Untracked:  man/plot_GRDCflags.Rd
+    Untracked:  man/plot_GSIM.Rd
+    Untracked:  man/qc_pnw.Rd
+    Untracked:  man/rformat_network.Rd
+    Untracked:  man/rsmp_pre.Rd
+    Untracked:  man/select_features.Rd
+    Untracked:  man/selecttrain_rf.Rd
+    Untracked:  man/set_cvresampling.Rd
+    Untracked:  man/set_tuning.Rd
+    Untracked:  man/tabulate_benchmarks.Rd
+    Untracked:  man/tabulate_globalsummary.Rd
+    Untracked:  man/test_joincount.Rd
+    Untracked:  man/test_thresholdsensitivity.Rd
+    Untracked:  man/write_gaugepreds.Rd
+    Untracked:  man/write_netpreds.Rd
     Untracked:  schema.ini
-    Untracked:  tabs_quick.Rmd
-    Untracked:  tabs_quick.docx
-    Untracked:  tabs_quick.html
-    Untracked:  test.html
 
 Unstaged changes:
-    Modified:   .Rprofile
+    Deleted:    IntermittentAnalysis_MasterScript_reproduced.R
+    Modified:   NAMESPACE
+    Modified:   R/IRmapping_functions.R
+    Modified:   R/IRmapping_packages.R
     Modified:   R/IRmapping_plan.R
-    Modified:   analysis/_site.yml
-    Deleted:    analysis/results_diagnostics.Rmd
+    Modified:   R/IRmapping_plan_trimmed.R
+    Modified:   analysis/methods_refdisdat.Rmd
+    Modified:   analysis/methods_riveratlas.Rmd
+    Deleted:    compare_classif_vimps.R
+    Deleted:    data/README.md
     Modified:   figtabres.Rmd
-    Modified:   interactive.R
-    Modified:   workflowr_commands.R
+    Modified:   man/analyzemerge_gaugeir.Rd
+    Modified:   man/comp_GRDCdurfreq.Rd
+    Modified:   man/convert_clastoregrtask.Rd
+    Modified:   man/def_filestructure.Rd
+    Modified:   man/format_gaugestats.Rd
+    Modified:   man/get_oversamp_ratio.Rd
+    Modified:   man/plotGSIMtimeseries.Rd
+    Modified:   man/qc_onde.Rd
+    Modified:   man/read_GRDCgauged_paths.Rd
+    Modified:   man/read_GSIMgauged_paths.Rd
+    Modified:   man/read_gaugep.Rd
+    Modified:   man/readformatGSIMmon.Rd
+    Modified:   man/readformatGSIMsea.Rd
+    Modified:   man/selectformat_predvars.Rd
+    Modified:   man/weighted_sd.Rd
+    Deleted:    mandrake_workflow.R
+    Deleted:    output/README.md
+    Modified:   renv/activate.R
+    Deleted:    tuning_timeanalysis.R
+    Deleted:    workflowr_commands.R
+
+Staged changes:
+    Modified:   NAMESPACE
 
 </code></pre>
 <p>
@@ -532,6 +571,23 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/6e12f7100ca434d6ab76b8070007981050d71a70/docs/methods_refdisdat.html" target="_blank">6e12f71</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-14
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -862,8 +918,15 @@ Start building up workflowr website, start incorporating mandrake (but wait as v
 </div>
 </div>
 </div>
+<p>In this section, we describe the reference streamflow data used in training our model of flow intermittence, including the source of these data (and how to obtain them), pre-processing steps for linking them to the global river network (RiverATLAS) and ensuring the quality and balance of these records. Finally, at the end of this section, you can find an interactive map of the streamflow gauging stations that were used in our analysis as well as those that were excluded from the analysis.</p>
+<p>To access computing scripts associated with this part of our project, see the following repositories:<br />
+- <a href="https://github.com/messamat/globalIRmap_py">globalIRmap_py</a>: Python code to download GSIM and spatially format the datasets of gauging stations (among other tasks).<br />
+- <a href="https://github.com/messamat/globalIRmap">globalIRmap</a>: R code for QA/QCing and formatting gauging stations discharge records (among other tasks).<br />
+The specific scripts involved in the processing of gauging stations are mentioned more specifically throughout this section.</p>
 <div id="source-datasets" class="section level1">
 <h1>Source datasets</h1>
+<div id="summary" class="section level2">
+<h2>Summary</h2>
 <p>Two streamflow gauging station datasets were used as the source of training and cross-validation data for models — the World Meteorological Organization Global Runoff Data Centre (GRDC) database (n ≈ 10,000) and a complementary subset of the Global Streamflow Indices and Metadata archive (GSIM, n ≈ 31,000), a compilation of twelve free-to-access national and international streamflow gauging station databases.<br />
 Whereas the GRDC offers daily river discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.</p>
 <p>A GSIM station was included only if:</p>
@@ -883,6 +946,10 @@ Whereas the GRDC offers daily river discharge values for most stations, GSIM onl
 <li>was located in a river basin which did not already contain a selected GRDC station (based on HydroBASINS Pfafstetter level 5 sub-basins, average area globally = 2.9 x 10^4 km2).</li>
 </ul></li>
 </ol>
+</div>
+<div id="obtaining-source-data" class="section level2">
+<h2>Obtaining source data</h2>
+</div>
 </div>
 <div id="processing-and-selecting-gauging-stations-data" class="section level1">
 <h1>Processing and selecting gauging stations data</h1>
@@ -984,19 +1051,21 @@ locale:
 [5] LC_TIME=English_United States.1252    
 
 attached base packages:
-[1] stats     graphics  grDevices utils     datasets  methods   base     
+[1] stats     graphics  grDevices datasets  utils     methods   base     
 
 other attached packages:
 [1] workflowr_1.6.2
 
 loaded via a namespace (and not attached):
- [1] Rcpp_1.0.4.6    rprojroot_1.3-2 digest_0.6.27   later_1.0.0    
- [5] R6_2.5.0        backports_1.2.1 git2r_0.27.1    magrittr_1.5   
- [9] evaluate_0.14   highr_0.8       stringi_1.4.6   rlang_0.4.5    
-[13] fs_1.4.1        promises_1.1.0  whisker_0.4     rmarkdown_2.3  
-[17] tools_4.0.2     stringr_1.4.0   glue_1.4.0      httpuv_1.5.2   
-[21] xfun_0.13       yaml_2.2.1      compiler_4.0.2  htmltools_0.4.0
-[25] knitr_1.28     </code></pre>
+ [1] Rcpp_1.0.4.6     rstudioapi_0.13  whisker_0.4      knitr_1.29      
+ [5] magrittr_1.5     R6_2.4.1         rlang_0.4.10     fansi_0.4.1     
+ [9] highr_0.9        stringr_1.4.0    tools_4.0.2      xfun_0.24       
+[13] utf8_1.1.4       git2r_0.27.1     htmltools_0.5.0  ellipsis_0.3.2  
+[17] rprojroot_1.3-2  yaml_2.2.1       digest_0.6.25    tibble_3.1.1    
+[21] lifecycle_0.2.0  crayon_1.3.4     later_1.2.0      vctrs_0.3.8     
+[25] promises_1.2.0.1 fs_1.5.0         glue_1.4.0       evaluate_0.14   
+[29] rmarkdown_2.7    stringi_1.4.6    compiler_4.0.2   pillar_1.6.1    
+[33] backports_1.1.10 httpuv_1.5.4     renv_0.9.3       pkgconfig_2.0.3 </code></pre>
 </div>
 </div>
 </div>
@@ -1022,7 +1091,7 @@ footer is added to webpages before the MathJax javascript. -->
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
@@ -1040,7 +1109,7 @@ $(document).ready(function () {
 
 $(document).ready(function () {
   $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
+    $(this).parent().toggleClass('nav-tabs-open');
   });
 });
 </script>

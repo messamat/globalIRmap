@@ -257,6 +257,18 @@ gpredsdt[, mlr3measures::bacc(factor(as.character(intermittent_o1800),
 loadd(vimp_plot_u10)
 loadd(vimp_plot_o1)
 
+fwrite(vimp_plot_u10$data[, .(varnames, imp_wmean, imp_wsd, Keyscale, Keystat, 
+                              Category, Attribute, Source, Citation, varname)],
+       paste0(file.path(resdir, 'figures//vimpdata_u10_'), 
+           format(Sys.Date(), '%Y%m%d'), '.csv')
+)
+
+fwrite(vimp_plot_o1$data[, .(varnames, imp_wmean, imp_wsd, Keyscale, Keystat, 
+                              Category, Attribute, Source, Citation, varname)],
+       paste0(file.path(resdir, 'figures//vimpdata_o1_'), 
+           format(Sys.Date(), '%Y%m%d'), '.csv')
+)
+
 p_u10 <- vimp_plot_u10 +
   theme(plot.margin = unit(c(10,260,0,0), "pt")) +
   labs(x=bquote('A. Gauges with mean annual discharge < 10'~m^3~s^-1)) + 
@@ -363,16 +375,13 @@ gc()
 ```{r CV-basplots, echo=FALSE}
 loadd(basinBACC)
 
-png(paste0(file.path(resdir, 'figures//basacc_'), 
+png(paste0(file.path(resdir, 'figures//basaccbias_'), 
            format(Sys.Date(), '%Y%m%d'), '.png'), 
-    width=3, height=3, units='in', res=1000)
-basinBACC$plot_acc
-dev.off()
-
-png(paste0(file.path(resdir, 'figures//basbias_'), 
-           format(Sys.Date(), '%Y%m%d'), '.png'), 
-    width=3, height=3, units='in', res=1000)
-basinBACC$plot_bias
+    width=6, height=3.5, units='in', res=1000)
+basinBACC$plot_acc + 
+  basinBACC$plot_bias + theme(legend.position = 'none') +
+  plot_annotation(tag_levels = 'a') & 
+  theme(plot.tag = element_text(size = 12))
 dev.off()
 
 png(paste0(file.path(resdir, 'figures//jcdeviate_'), 
@@ -529,6 +538,11 @@ gc()
 #Environmental variables used in model training  + variable selection results
 ```{r variabl-figure, echo=FALSE}
 loadd(predvars)
+
+#Write predvars to csv
+fwrite(predvars, file.path(resdir, paste0('predictor_variables.csv')))
+
+#Make table
 flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
                       'Temporal/Statistical aggreg.', 'Source', 'Citation'),
                    with=F])
@@ -614,4 +628,32 @@ flextable(globaltable_clzextend_mdur30)
 
 remove(gaugestats_format)
 gc()
+```
+
+#Statistics for press
+```{r}
+loadd(IRESextra)
+
+#% IRES for MAF >= 0.1 m3/s in NZ
+IRESextra$preds[substr(PFAF_IDclz, 1, 2) == '57', list(cumLpred = sum(cumL_pred),
+                                                       cumLref = sum(cumL_cutoffref),
+                                                       cumIRES_conservative = weighted.mean(percinter_all_conservative, cumL_pred),
+                                                       cumIRES_GAM = weighted.mean(percinter_all_GAM, cumL_pred, na.rm=T)
+)]
+
+#% IRES for MAF >= 0.1 m3/s in Amazon basin
+IRESextra$preds[substr(PFAF_IDclz, 1, 2) == '62', list(cumLpred = sum(cumL_pred),
+                                                       cumLref = sum(cumL_cutoffref),
+                                                       cumIRES_conservative = weighted.mean(percinter_all_conservative, cumL_pred),
+                                                       cumIRES_GAM = weighted.mean(percinter_all_GAM, cumL_pred, na.rm=T)
+)]
+
+#% IRES for MAF >= 0.1 m3/s in Europe
+IRESextra$preds[(substr(PFAF_IDclz, 1, 2) %in% as.character(seq(21,25)))
+                & !(substr(PFAF_IDclz, 4, 5) %in% c('1','2','14')), 
+                list(cumLpred = sum(cumL_pred),
+                     cumLref = sum(cumL_cutoffref),
+                     cumIRES_conservative = weighted.mean(percinter_all_conservative, cumL_pred),
+                     cumIRES_GAM = weighted.mean(percinter_all_GAM, cumL_pred, na.rm=T)
+                )]
 ```

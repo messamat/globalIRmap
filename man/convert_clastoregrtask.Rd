@@ -25,10 +25,13 @@ Convert a binary \link[mlr3]{TaskClassif} or
 to a \link[mlr3]{TaskRegr}, optionally oversampling the minority class first.
 }
 \examples{
-```{r}
+\dontrun{
 in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
 task = mlr3::TaskClassif$new(id = "task_classif", backend = in_dt, target ='intermittent')
 convert_clastoregrtask(task, id="task_regr")
-```
+}
 
+}
+\seealso{
+\code{\link{create_tasks}}
 }

@@ -2,32 +2,21 @@
 % Please edit documentation in R/IRmapping_functions.R
 \name{selectformat_predvars}
 \alias{selectformat_predvars}
-\title{dor_pc_pva', #anthropogenic - degree of regulation
-ire_pc_use', #anthropogenic - irrigated area extent
-ire_pc_cse', #anthropogenic - irrigated area extent
-ppd_pk_cav', #anthropogenic - pop density
-ppd_pk_uav', #anthropogenic - pop density
-urb_pc_cse', #anthropogenic - urban cover
-urb_pc_use', #anthropogenic - urban cover
-hft_ix_c93', #anthropogenic - human footprint
-hft_ix_u93', #anthropogenic - human footprint
-hft_ix_c09', #anthropogenic - human footprint
-hft_ix_u09', #anthropogenic - human footprint
-hdi_ix_cav', #anthropogenic - dev index}
+\title{Select + format predictor variables}
 \usage{
 selectformat_predvars(inp_riveratlas_meta, in_gaugestats)
 }
+\arguments{
+\item{inp_riveratlas_meta}{path to metadata table for river atlas variables}
+
+\item{in_gaugestats}{data.table of formatted gauging station summary statistics and hydro-environmental attributes.}
+}
+\value{
+data.table of selected predictor variable codes, names, category,
+attribute, sources, references, etc. Most sources are from RiverATLAS
+technical documentation available at https://www.hydrosheds.org/page/hydroatlas.
+}
 \description{
-dor_pc_pva', #anthropogenic - degree of regulation
-ire_pc_use', #anthropogenic - irrigated area extent
-ire_pc_cse', #anthropogenic - irrigated area extent
-ppd_pk_cav', #anthropogenic - pop density
-ppd_pk_uav', #anthropogenic - pop density
-urb_pc_cse', #anthropogenic - urban cover
-urb_pc_use', #anthropogenic - urban cover
-hft_ix_c93', #anthropogenic - human footprint
-hft_ix_u93', #anthropogenic - human footprint
-hft_ix_c09', #anthropogenic - human footprint
-hft_ix_u09', #anthropogenic - human footprint
-hdi_ix_cav', #anthropogenic - dev index
+Select candidate predictor variables to use in subsequent modelling and create
+a table of formatted names.
 }

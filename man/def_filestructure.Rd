@@ -2,7 +2,7 @@
 % Please edit documentation in R/IRmapping_functions.R
 \name{def_filestructure}
 \alias{def_filestructure}
-\title{Define file structure}
+\title{Define file structure (deprecated)}
 \usage{
 def_filestructure()
 }

@@ -2,38 +2,7 @@
 % Please edit documentation in R/IRmapping_functions.R
 \name{analyzemerge_gaugeir}
 \alias{analyzemerge_gaugeir}
-\title{IN_0000190', #checked- looked regulated
-US_0006156', #checked -  regulated, barrier made it perennial?
-AR_0000014', #maybe regulated --- checked
-BR_0000664', #change of regime, maybe regulated --- but was intermittent before
-CA_0003473', downstream of natural lake, all good
-CA_0003526', #downstream of lakes, maybe low lake levels
-ES_0000525', #maybe regulated --- check
-ES_0000676', #looks regulated --- but probably intermittent before
-IE_0000014', #downstream of lake -- must be drop in lake levels
-IN_0000309', #intermittent before building of reservoir in 1988
-NO_0000018', #checked -- downstream of natural lake. probably water level decrease
-US_0001855', #maybe rounded values --- check
-US_0001861', #maybe rounded values --- check
-US_0001868', #maybe rounded avlues --- check
-US_0003591', #maybe rounded values --- check
-US_0005303', #looks fine on usgs website and imagery. just small
-US_0005596', #looks fine, small
-US_0005597', #looks fine, small
-US_0005859', #maybe rounded values --- check
-US_0005879', #maybe rounded values --- check
-US_0006156', #currently regulated but used to be intermittent so keep
-US_0006301', #maybe rounded values --- check
-US_0006327', #maybe rounded values --- check
-US_0006387', #maybe rounded values --- check
-US_0006206', #all good, confirmed dry with imagery
-US_0006574', #maybe regulated? ---checked all good
-US_0006975', #maybe rounded values --- check
-US_0006984', #maybe rounded values --- check
-US_0006985', #maybe rounded values --- check
-US_0006986', #maybe rounded values --- check
-RU_0000391', 'RU_0000393', 'RU_00000395', 'RU_0000436',
-RU_0000470', 'US_0008687')}
+\title{Quality assurance/quality checking of streamflow time series}
 \usage{
 analyzemerge_gaugeir(
   in_GRDCgaugestats,
@@ -44,37 +13,38 @@ analyzemerge_gaugeir(
   plotseries = FALSE
 )
 }
+\arguments{
+\item{in_GRDCgaugestats}{list of data.tables of intermittency statistics, output from
+\code{\link{comp_GRDCdurfreq}} applied to all GRDC gauging stations.}
+
+\item{in_GSIMgaugestats}{list of data.tables of intermittency statistics, output from
+\code{\link{comp_GSIMdurfreq}} applied to all GSIM gauging stations.}
+
+\item{yearthresh}{(integer) minimum year from which to analyze discharge record.}
+
+\item{in_gaugep}{\link[sf]{sf} object of gauging stations.}
+
+\item{inp_resdir}{(character) path to the results directory in which to create folder and write output plots}
+
+\item{plotseries}{(logical) whether to create plots of streamflow time series for gauging stations
+that are non-perennial only in winter or within 3 km from the coast.}
+}
+\value{
+list of two data.tables.
+\itemize{
+\item A data.table listed as 'data' which contains the collated outputs from \code{\link{comp_GRDCdurfreq}}
+and\code{\link{comp_GSIMdurfreq}} for the stations that were not excluded through this QA/QC process.
+\item A data.table listed as flags, listing all stations excluded from further analysis and the reason their exclusion.
+}
+}
 \description{
-IN_0000190', #checked- looked regulated
-US_0006156', #checked -  regulated, barrier made it perennial?
-AR_0000014', #maybe regulated --- checked
-BR_0000664', #change of regime, maybe regulated --- but was intermittent before
-CA_0003473', downstream of natural lake, all good
-CA_0003526', #downstream of lakes, maybe low lake levels
-ES_0000525', #maybe regulated --- check
-ES_0000676', #looks regulated --- but probably intermittent before
-IE_0000014', #downstream of lake -- must be drop in lake levels
-IN_0000309', #intermittent before building of reservoir in 1988
-NO_0000018', #checked -- downstream of natural lake. probably water level decrease
-US_0001855', #maybe rounded values --- check
-US_0001861', #maybe rounded values --- check
-US_0001868', #maybe rounded avlues --- check
-US_0003591', #maybe rounded values --- check
-US_0005303', #looks fine on usgs website and imagery. just small
-US_0005596', #looks fine, small
-US_0005597', #looks fine, small
-US_0005859', #maybe rounded values --- check
-US_0005879', #maybe rounded values --- check
-US_0006156', #currently regulated but used to be intermittent so keep
-US_0006301', #maybe rounded values --- check
-US_0006327', #maybe rounded values --- check
-US_0006387', #maybe rounded values --- check
-US_0006206', #all good, confirmed dry with imagery
-US_0006574', #maybe regulated? ---checked all good
-US_0006975', #maybe rounded values --- check
-US_0006984', #maybe rounded values --- check
-US_0006985', #maybe rounded values --- check
-US_0006986', #maybe rounded values --- check
-RU_0000391', 'RU_0000393', 'RU_00000395', 'RU_0000436',
-RU_0000470', 'US_0008687')
+Record of quality-checking procedure which aimed to ensure the validity of
+zero-flow readings and the flow intermittence class assigned to each gauge
+(i.e., perennial or non-perennial).
+}
+\details{
+For details on the QA/QC procedure, see Supplementary Information at
+\link{https://www.nature.com/articles/s41586-021-03565-5}. The reason for
+station exclusion is also presented in an interactive online map at
+\link{https://messamat.github.io/globalIRmap/} in the Data and methods/Reference streamflow gauging stations tab.
 }

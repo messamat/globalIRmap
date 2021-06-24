@@ -16,31 +16,53 @@ comp_GRDCdurfreq(
 )
 }
 \arguments{
-\item{path}{file path to a GRDC-formatted streamflow time series table}
+\item{path}{(character) file path to a GRDC-formatted streamflow time series table}
 
-\item{maxgap}{maximum number of days with missing data beyond which a year is
+\item{in_gaugep}{(table; data.frame or data.table) of gauges' hydro-environmental attributes (including mean monthly temperature data)}
+
+\item{maxgap}{(integer) maximum number of days with missing data beyond which a year is
 not used in the computation of statistics}
 
-\item{mdurthresh}{threshold of mean annual number of zero-flow days beyond
+\item{mdurthresh}{(numeric) threshold of mean annual number of zero-flow days beyond
 which to classify gauge as intermittent.}
 
-\item{monthsel}{selected months to compute the statistics over}
+\item{windowsize}{(integer) window size to check for zero-flow days.}
+
+\item{fullwindow}{(logical) whether years for which the window is truncated
+(e.g., beginning and end of time series) are taken in account in moving window analysis.}
+
+\item{monthsel}{(integer vector) selected months to compute the statistics over}
+
+\item{verbose}{whether to print input path}
 }
 \value{
-One row data.table with the following columns: \cr
+One row data.table with 110 columns: \cr
 \describe{
+\itemize{
 \item{GRDC_NO} - (char) unique identifier for the gauge
 \item{firstYear} - (num) first year on full record
 \item{lastYear} - (num) last year on full record
-\item{totalYears} - (int) total number of years on full record
+\item{totalYears} - (int) total number of years on full record \cr
+For three subsets of the time series post-1800, post-1961, and post-1971 (e.g., suffix "mDur_o1800"):
+\itemize{
 \item{firstYear_kept} - (num) first year on record with < maxgap missing days
 \item{lastYear_kept} - (num) first year on record with < maxgap missing days
 \item{totalYears_kept} - (int) total number of years with < maxgap missing days
 \item{totaldays} - (num) total number of days with discharge data
+\item{integerperc} - (num) proportion of daily values which are in integer format.
+Only including years with <= maxgap missing days.
 \item{sumDur} - (int) total number of days with discharge = 0
 \item{mDur} - (num) mean number of days/year with discharge = 0
 \item{mFreq} - (num) mean number of periods with discharge = 0
-(with at least one day of flow between periods)
+\item{intermittent} - (factor): binary flow intermittence class. 1: non-perennial (if mDur >= 1, i.e.,
+if gauging station recorded zero-flow for at least one day per year on average); 0: perennial.
+\verb{\\item\{movinginter\} - (logical): whether there is at least one zero-flow day  in every \code{windowsize}-year (e.g., 20-year) moving window across the record. (with at least one day of flow between periods) }\item{monthly statistics} - (numeric) long-term mean frequency of zero-flow events
+and number of zero-flow days for each month (column name example: 'Jan_mdur_o1800')
+\item{winteronlyir} - Indicates whether gauge is only non-perennial during winter months.
+if intermittent == 1 AND the average annual number of zero-flow days during warm months < 1.
+Warm months are those with mean monthly catchment air temperature >= 10 (WorldClim v2; Fick and Hijmans 2017).
+0: either perennial, or non-perennial outside of winter months.
+Only including years with <= maxgap missing daily discharge values.
 }
 }
 \description{

@@ -12,24 +12,20 @@ read_gaugep(
 )
 }
 \arguments{
+\item{inp_GRDCgaugep}{path to point data for GRDC gauging stations.}
+
+\item{inp_GSIMgaugep}{path to point data for GSIM gauging stations.}
+
+\item{inp_riveratlas2}{path to attribute table of RiverATLAS v1.0.9}
+
 \item{in_monthlydischarge}{data frame of naturalized monthly discharge for
 every river reach in HydroSHEDS}
-
-\item{in_filestructure}{named list containing path to point data for gauging
-stations, named \code{in_gaugep}}
-
-\item{dist}{maximum distance from the river network beyond which gauging
-stations are excluded.}
 }
 \value{
 object of class \link[sf]{sf}
 }
 \description{
-Import streamgauging station spatial data and attributes, only keeping those
-whose point representation is within a given distance from the river network.
-}
-\details{
-The distance from the river network must have been determined
-beforehand and be an attribute of the gauge stations point data called
-\code{station_river_distance}
+Import streamgauging station spatial data and attributes for GRDC and GSIM.
+Add new and updated environmental predictors from RiverATLAS v1.0.9 and, optionally,
+estimates of monthly discharge from WaterGAP v2.2.
 }

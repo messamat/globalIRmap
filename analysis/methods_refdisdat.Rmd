@@ -9,8 +9,15 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+In this section, we describe the reference streamflow data used in training our model of flow intermittence, including the source of these data (and how to obtain them), pre-processing steps for linking them to the global river network (RiverATLAS) and ensuring the quality and balance of these records. Finally, at the end of this section, you can find an interactive map of the streamflow gauging stations that were used in our analysis as well as those that were excluded from the analysis.
+
+To access computing scripts associated with this part of our project, see the following repositories:  
+- [globalIRmap_py](https://github.com/messamat/globalIRmap_py): Python code to download GSIM and spatially format the datasets of gauging stations (among other tasks).  
+- [globalIRmap](https://github.com/messamat/globalIRmap): R code for QA/QCing and formatting gauging stations discharge records (among other tasks).  
+The specific scripts involved in the processing of gauging stations are mentioned more specifically throughout this section. 
 
 # Source datasets  
+## Summary
 Two streamflow gauging station datasets were used as the source of training and cross-validation data for models — the World Meteorological Organization Global Runoff Data Centre (GRDC) database (n ≈ 10,000) and a complementary subset of the Global Streamflow Indices and Metadata archive (GSIM, n ≈ 31,000), a compilation of twelve free-to-access national and international streamflow gauging station databases.  
 Whereas the GRDC offers daily river discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.
 
@@ -23,6 +30,8 @@ A GSIM station was included only if:
     - had a drainage area < 100 km2 or,  
     -	was located on an IRES or,  
     - was located in a river basin which did not already contain a selected GRDC station (based on HydroBASINS Pfafstetter level 5 sub-basins, average area globally = 2.9 x 10^4 km2). 
+    
+## Obtaining source data
 
 # Processing and selecting gauging stations data
 ## Assignment of river network location

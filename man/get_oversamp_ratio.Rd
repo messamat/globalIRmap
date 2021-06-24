@@ -23,10 +23,10 @@ in the majority and the minority classes of a binary
 \link[mlr3]{TaskClassif }.
 }
 \examples{
-```{r}
+\dontrun{
 in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
 task = mlr3::TaskClassif$new(id = "in_dt", backend = in_dt, target ='intermittent')
 get_oversamp_ratio(task)
-```
+}
 
 }

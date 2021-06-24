@@ -3,24 +3,37 @@
 \name{format_gaugestats}
 \alias{format_gaugestats}
 \title{Format gauge statistics}
+\source{
+Lehner, B., Liermann, C.R., Revenga, C., Vörösmarty, C., Fekete, B.,
+Crouzet, P., Döll, P., Endejan, M., Frenken, K., Magome, J., Nilsson, C.,
+Robertson, J.C., Rödel, R., Sindorf, N. and Wisser, D. (2011),
+High-resolution mapping of the world's reservoirs and dams for sustainable
+river-flow management. Frontiers in Ecology and the Environment, 9: 494-502.
+\link{https://doi.org/10.1890/100125}
+}
 \usage{
 format_gaugestats(in_gaugestats, in_gaugep, yearthresh)
 }
 \arguments{
-\item{path}{file path to a GRDC-formatted streamflow time series table}
+\item{in_gaugestats}{data.table of summary time series statistics and intermittency statistics for
+all gauging stations (GRDC +  GSIM) not excluded in QA/QC process.}
 
-\item{maxgap}{maximum number of days with missing data beyond which a year is
-not used in the computation of statistics}
+\item{in_gaugep}{table of hydro-environmental attributes for all gauging stations.}
 
-\item{monthsel}{selected months to compute the statistics over}
+\item{yearthresh}{(integer) minimum year from which to analyze/consider discharge record.}
 }
 \value{
-One row data.table with the following columns: \cr
-\describe{
-\item{GRDC_NO} - (char) unique identifier for the gauge
-\item{firstYear} - (num) first year on full record
-}
+data.table of gauging stations included in all subsequent analysis, with
+summary time series statistics and hydro-environmental attributes.
 }
 \description{
-Format gauge attributes
+Final selection of gauging stations and formatting of gauge statistics +
+hydro-environmental attributes.
+}
+\details{
+An additional set of gauges are excluded in this step:
+\itemize{
+\item All gauges with less than 10 years of data are excluded (considering only years with no more than 20 days of missing data)
+\item All gauges with a Degree of Regulation >= 50\% are excluded (Lehner et al. 2011)
+}
 }

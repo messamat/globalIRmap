@@ -1,0 +1,123 @@
+---
+title: "tabs_quick"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+```{r import, echo=FALSE}
+#Possible palettes #1: #538797, #C2D9CD, #FF842A https://www.instagram.com/p/B9En6h2gbJ5/
+#Possible palette #2: #238189, #3FA8B3, #E8F3EE, #FF674D https://www.instagram.com/p/BxZZu82gBm3/
+#File structure
+rootdir <- rprojroot::find_root(rprojroot::has_dir("src"))
+srcdir <- file.path(rootdir, 'src', 'globalIRmap')
+datdir <- file.path(rootdir, 'data')
+resdir <- file.path(rootdir, 'results')
+
+#Source packages functions
+library(drake)
+library(flextable)
+library(grid)
+source(file.path(srcdir, 'R/IRmapping_packages.R'))
+source(file.path(srcdir, 'R/IRmapping_functions.R'))
+source(file.path(srcdir, 'R/IRmapping_plan.R'))
+
+loadd(gpredsdt)
+loadd(rivpred)
+loadd(tasks_u10)
+loadd(tasks_featsel_u10)
+loadd(tasks_featsel_o1)
+loadd(IRpop)
+```
+
+#Environmental variables used in model training  + variable selection results
+```{r variabl-figure, echo=FALSE}
+loadd(predvars)
+flextable(predvars[,c('Category', 'Attribute', 'Spatial representation',
+                      'Temporal/Statistical aggreg.', 'Source', 'Citation'),
+                   with=F])
+
+remove(predvars)
+gc()
+```
+
+#Tables of intermittence by categories for base model
+```{r inter-tables, echo=FALSE}
+loadd(gaugestats_format)
+get_tabletarget <- function(in_gaugeformat) {
+  lapply(names(in_gaugeformat), function(var) {
+    targetname <- paste0('globaltables_', var)
+    #print(targetname)
+    tryCatch(return(readd(eval(targetname), character_only = T)$`0.5` %>%
+                      setDT(tab) %>%
+                      setorder(-`Total stream length (10^3 km)`)),
+             error=function(e) NULL)
+  })
+}
+
+tables <- get_tabletarget(gaugestats_format) %>%
+  compact
+
+ft <- list()
+for (i in 1:length(tables)) {
+  numcols <- names(tables[[i]])[tables[[i]][,sapply(.SD, class)=='numeric']]
+  ft[[i]] <- flextable(tables[[i]][, (numcols) := lapply(.SD, function(x) as.integer(round(x))),
+                              .SDcols = numcols]) %>%
+    autofit
+}
+ft[[1]]
+ft[[2]]
+ft[[3]]
+ft[[4]]
+
+print('Extrapolation')
+loadd(globaltable_clzextend)
+flextable(globaltable_clzextend)
+
+remove(gaugestats_format)
+gc()
+```
+
+#Tables of intermittence by categories for mdur 30 model
+```{r inter-tables-mdur30, echo=FALSE}
+loadd(gaugestats_format)
+get_tabletarget_mdur30 <- function(in_gaugeformat) {
+  lapply(names(in_gaugeformat), function(var) {
+    targetname <- paste0('globaltables_', var, '_mdur30')
+    #print(targetname)
+    tryCatch(return(readd(eval(targetname), character_only = T)$`0.5` %>%
+                      setDT(tab) %>%
+                      setorder(-`Total stream length (10^3 km)`)),
+             error=function(e) NULL)
+  })
+}
+
+tables <- get_tabletarget_mdur30(gaugestats_format) %>%
+  compact
+
+ft_mdur30 <- list()
+for (i in 1:length(tables)) {
+  numcols <- names(tables[[i]])[tables[[i]][,sapply(.SD, class)=='numeric']]
+  ft_mdur30[[i]] <- flextable(tables[[i]][, (numcols) := lapply(.SD, function(x) as.integer(round(x))),
+                              .SDcols = numcols]) %>%
+    autofit
+}
+
+print(paste0('Table organized by: ', ft[[1]]$header$col_keys[1]))
+ft_mdur30[[1]]
+print(paste0('Table organized by: ', ft[[2]]$header$col_keys[1]))
+ft_mdur30[[2]]
+print(paste0('Table organized by: ', ft[[3]]$header$col_keys[1]))
+ft_mdur30[[3]]
+print(paste0('Table organized by: ', ft[[4]]$header$col_keys[1]))
+ft_mdur30[[4]]
+
+print('Extrapolation')
+loadd(globaltable_clzextend_mdur30)
+flextable(globaltable_clzextend_mdur30)
+
+remove(gaugestats_format)
+gc()
+```

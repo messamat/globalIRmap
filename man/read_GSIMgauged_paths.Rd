@@ -2,18 +2,42 @@
 % Please edit documentation in R/IRmapping_functions.R
 \name{read_GSIMgauged_paths}
 \alias{read_GSIMgauged_paths}
-\title{Read file paths to gauge flow data}
+\title{Read file paths to streamflow data from GSIM gauging stations}
+\source{
+Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+Streamflow Indices and Metadata Archive (GSIM) - Part 2: Quality control,
+time-series indices and homogeneity assessment. Earth System Science Data,
+10(2), 787-804. https://doi.org/10.5194/essd-10-787-2018
+}
 \usage{
 read_GSIMgauged_paths(inp_GSIMindicesdir, in_gaugep, timestep)
 }
 \arguments{
-\item{in_gaugep}{table containing column named \code{GRDC_NO} with the
+\item{inp_GSIMindicesdir}{path to directory containing directories for different
+GSIm indices.}
+
+\item{in_gaugep}{table containing column named \code{gsim_no} with the
 gauge IDs that will be used to generate file path.}
+
+\item{timestep}{which indices to get, 'monthly' or 'seasonal'}
 }
 \value{
-vector of paths to GRDC-formatted streamflow time series tables
+vector of paths to GSIM-formatted streamflow time series indices tables
 }
 \description{
 Based on selection of gauges, create a list of paths to streamflow data
 associated with gauges.
+}
+\details{
+For an explanation of GSIM data structure, see \href{https://essd.copernicus.org/articles/10/787/2018/}{Gudmundsson et al. (2018)} and
+the \href{https://doi.pangaea.de/10.1594/PANGAEA.887470}{GSIM repository}.
+
+\code{inp_GSIMindicesdir} may for example be "D://GSIM/GSIM_indices". Containing: \cr
+D://GSIM/GSIM_indices/ \cr
+----  HOMOGENEITY \cr
+----  TIMESERIES \cr
+--------  monthly \cr
+--------  seasonal \cr
+--------  yearly \cr
+----  README.txt
 }

@@ -22,12 +22,3 @@ A length-one numeric vector.
 \description{
 Computes a weighted standard deviation
 }
-\examples{
-```{r}
-wt <- c(5, 4, 3 ,2 , 1)
-x <- c(1, 2, 3, 4, 5)
-xm <- weighted.mean(x, wt)
-xsd <- weighted_sd(x, wt)
-```
-
-}

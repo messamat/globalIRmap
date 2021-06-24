@@ -3,6 +3,12 @@
 \name{plotGSIMtimeseries}
 \alias{plotGSIMtimeseries}
 \title{Plot a GSIM time series}
+\source{
+Gudmundsson, L., Do, H. X., Leonard, M., & Westra, S. (2018). The Global
+Streamflow Indices and Metadata Archive (GSIM) – Part 2: Quality control,
+time-series indices and homogeneity assessment. Earth System Science Data,
+10(2), 787–804. https://doi.org/10.5194/essd-10-787-2018
+}
 \usage{
 plotGSIMtimeseries(
   GSIMgaugestats_record,

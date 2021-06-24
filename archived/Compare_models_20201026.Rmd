@@ -1,0 +1,246 @@
+---
+title: "Compare_models_20201026"
+output:
+  word_document: default
+  html_document:
+    fig_width: 12
+    fig_height: 6
+---
+
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+options(width = 100)
+
+library(drake)
+library(flextable)
+source('R/IRmapping_packages.R')
+source('R/IRmapping_functions.R')
+source('R/IRmapping_plan.R')
+
+#vimp_plot
+loadd(vimp_plot_u1)
+loadd(vimp_plot_u10)
+loadd(vimp_plot_u10nodis)
+loadd(vimp_plot_o1)
+loadd(vimp_plot_o10)
+
+#tasks
+loadd(tasks_o10)
+loadd(tasks_featsel_u1)
+loadd(tasks_featsel_u10)
+loadd(tasks_featsel_u10nodis)
+loadd(tasks_featsel_o1)
+loadd(tasks_featsel_o10)
+
+#bin misclass
+loadd(bin_rftunedmisclass_u1)
+loadd(bin_rftunedmisclass_u10)
+loadd(bin_rftunedmisclass_u10nodis)
+loadd(bin_rftunedmisclass_o1)
+loadd(bin_rftunedmisclass_o10)
+
+#gpredsdt
+loadd(gpredsdt_u1)
+loadd(gpredsdt_u10)
+loadd(gpredsdt_u10nodis)
+loadd(gpredsdt_o1)
+loadd(gpredsdt_o10)
+```
+Model naming:
+-	“u1”: model trained on gauging stations with WaterGAP natural discharge (dis_m3_pyr) < 1 m3/s  
+-	“u10”: model trained on gauging stations  < 10 m3/s  
+-	“u10nodis”: model train on gauging stations < 10 m3/s but for which no WaterGAP variables were used as predictors (specific discharge or runoff coefficient were also excluded). This is just to whether any model improvement would be due to the re-inclusion of discharge variables, the splitting of the model, or both.  
+-	“o1”: model trained on gauging stations  ≥ 1 m3/s  
+-	“o10”: model trained on gauging stations ≥ 10 m3/s  
+
+## Variable importance
+### Model for gauging stations with natural discharge < 1 m^3/s  
+```{r, fig.width=12, fig.height=6, echo=FALSE}
+vimp_plot_u1
+```
+
+### Model for gauging stations with natural discharge < 10 m^3/s, excluding WaterGAP variables  
+```{r, fig.width=12, fig.height=6, echo=FALSE}
+vimp_plot_u10nodis
+```
+
+### Model for gauging stations with natural discharge < 10 m^3/s
+```{r, fig.width=12, fig.height=6, echo=FALSE}
+vimp_plot_u10
+```
+
+Quick analysis for small models:
+-	Global aridity index, soil water content, BIO5 (max temp. of warmest month), and BIO10 (mean temp. of warmest quarter), whether by catchment or watershed are the top predictor variables (always account for the top 6-7 predictors). Slope also comes out for all three models.   
+-	While both u1 and u10 included WaterGAP-related variables, only specific discharge (watershed annual average) comes out in the top 20 variables (17th) for u1. For u10,  WaterGAP variables came out strongly after the dominant climatic ones: specific discharge (uyr, #8), runoff (cyr, #9), runoff coefficient ( cyr, #10), dis_m3_pyr (#14), dis_m3_pmx (#17), specific discharge (wmn, #18).   
+-	For u10nodis, drainage area, elevation, and soil variables come out more strongly than for u10.   
+-	Other than that, differences existing in which bioclimatic variables come out (and their ranking) + the importance of PET (note that AET was included in the round as a potential variable).  
+
+
+### Model for gauging stations with natural discharge >= 1 m^3/s  
+```{r, fig.width=12, fig.height=6, echo=FALSE}
+vimp_plot_o1
+```
+
+### Model for gauging stations with natural discharge >= 10 m^3/s  
+```{r, fig.width=12, fig.height=6, echo=FALSE}
+vimp_plot_o10
+```
+
+## Selected variables
+```{r, echo = FALSE}
+ftoriginal <- data.table(ftnames=tasks_o10$classif$feature_names) 
+ftu1 <- data.table(ftnames=tasks_featsel_u1[[2]]$feature_names,
+                   u1=tasks_featsel_u1[[2]]$feature_names)
+ftu10 <- data.table(ftnames=tasks_featsel_u10[[2]]$feature_names,
+                    u10=tasks_featsel_u10[[2]]$feature_names)
+ftu10nodis <- data.table(ftnames=tasks_featsel_u10nodis[[2]]$feature_names,
+                         u10nodis=tasks_featsel_u10nodis[[2]]$feature_names)
+fto1 <- data.table(ftnames=tasks_featsel_o1[[2]]$feature_names,
+                   o1=tasks_featsel_o1[[2]]$feature_names)
+fto10 <- data.table(ftnames=tasks_featsel_o10[[2]]$feature_names,
+                    o10=tasks_featsel_o10[[2]]$feature_names)
+
+ftsel <- merge(ftoriginal, ftu1, all.x=T, all.y=T, suffixes = c('orig', 'u1')) %>%
+  merge(ftu10, all.x=T, all.y=T) %>%
+  merge(ftu10nodis, all.x=T, all.y=T) %>%
+  merge(fto1, all.x=T, all.y=T) %>%
+  merge(fto10, all.x=T, all.y=T)
+
+flextable(ftsel)
+```
+
+
+## Binned performance
+```{r flex, echo=FALSE}
+bin_rftunedmisclass_u1[, model := 'u1']
+bin_rftunedmisclass_u10nodis[, model := 'u10nodis']
+bin_rftunedmisclass_u10[, model := 'u10']
+bin_rftunedmisclass_o1[, model := 'o1']
+bin_rftunedmisclass_o10[, model := 'o10']
+
+bin_misclass_compare <- rbind(bin_rftunedmisclass_u1,
+                              bin_rftunedmisclass_u10nodis,
+                              bin_rftunedmisclass_u10,
+                              bin_rftunedmisclass_o1,
+                              bin_rftunedmisclass_o10) %>%
+  setorder(bin, model)
+
+flextable(bin_misclass_compare)
+```
+
+## Prediction histogram
+```{r, fig.width=10, fig.height=10, echo=FALSE}
+modellabel <- data.table(modelgroup=c(1, 2, 3, 4, 5),
+                         modelname=c('u1', 'u10nodis', 'u10', 'o1', 'o10')
+)
+
+gpreds_all <- rbind(gpredsdt_u1, gpredsdt_u10nodis, gpredsdt_u10, gpredsdt_o1, gpredsdt_o10,
+                    use.names = TRUE, idcol = "modelgroup") %>%
+  merge(modellabel, by='modelgroup') %>%
+  bin_dt(in_dt = ., binvar = 'dis_m3_pyr',
+         binfunc = 'manual', binarg=c(0.1, 1, 10, 100, 1000, 10000, 1000000),
+         bintrans=NULL, na.rm=FALSE)%>%
+  .[, bin_lmax := round(bin_lmax, 1)]
+
+ggplot(gpreds_all, 
+       aes(x=IRpredprob_CVnosp, fill=intermittent_o1800)) +
+  geom_histogram(alpha=0.75) +
+  scale_fill_manual(values=c('#1f78b4', '#ff7f00')) +
+  geom_vline(xintercept=0.50) +
+  facet_grid(bin_lmax~modelname, scales= "free_y") +
+  theme_bw()
+```
+
+## Different model mixes performance
+```{r, echo=FALSE}
+gpreds_probcvcast <- dcast(gpreds_all, 
+                           GAUGE_NO+intermittent_o1800+bin_lmax~modelname,
+                           value.var = 'IRpredprob_CVnosp') 
+gpreds_probcvcast[,`:=`(
+  u1_o1 = mean(c(u1, o1), na.rm=T),
+  u10_o1 = mean(c(u10, o1), na.rm=T),
+  u10nodis_o1 = mean(c(u10nodis, o1), na.rm=T),
+  u10_o10 = mean(c(u10, o10), na.rm=T),
+  u10nodis_o10 = mean(c(u10nodis, o10), na.rm=T)
+), by=GAUGE_NO]
+
+
+modstats_bin <- gpreds_probcvcast[
+  bin_lmax < 10000,
+  lapply(.SD, function(prob) {
+  sens <- round(100*length(which((intermittent_o1800=='1') &  (prob >= 0.5)))/
+                  length(which(intermittent_o1800=='1'))
+                )
+                
+  spe <- round(100*length(which((intermittent_o1800=='0') &  (prob < 0.5)))/
+                 length(which(intermittent_o1800=='0'))
+  )
+  
+  baccout <- round(100* 
+                     mlr3measures::bacc(intermittent_o1800,
+                                        as.factor(fifelse(prob > 0.5, '1', '0')))
+  )
+  ceout <-  round(100*
+                    mlr3measures::ce(intermittent_o1800,
+                                     as.factor(fifelse(prob > 0.5, '1', '0')))
+  )
+  
+  bbrierout <- round(mlr3measures::bbrier(intermittent_o1800,
+                                    prob, positive='1'),
+                     3)
+  
+  return(list(sensitivity=sens, 
+              specitity=spe, 
+              BACC=baccout,
+              CE=ceout, 
+              B.Brier = bbrierout))
+}),
+  .SDcols = c('u1_o1', 'u10_o1', 'u10nodis_o1', 'u10_o10', 'u10nodis_o10'),
+  by=bin_lmax
+] %>%
+  .[, measure := rep(c('sensitivity', 'specificity', 'BACC', 'CE', 'B.Brier'), 6)] %>%
+  melt(id.vars = c('bin_lmax', 'measure'), variable.name='model') %>%
+  dcast(model+bin_lmax~measure) %>%
+  setorder(bin_lmax, model)
+
+modstats <- gpreds_probcvcast[
+  , lapply(.SD, function(prob) {
+  sens <- round(100*length(which((intermittent_o1800=='1') &  (prob >= 0.5)))/
+                  length(which(intermittent_o1800=='1'))
+                )
+                
+  spe <- round(100*length(which((intermittent_o1800=='0') &  (prob < 0.5)))/
+                 length(which(intermittent_o1800=='0'))
+  )
+  
+  baccout <- round(100* 
+                     mlr3measures::bacc(intermittent_o1800,
+                                        as.factor(fifelse(prob > 0.5, '1', '0')))
+  )
+  ceout <-  round(100*
+                    mlr3measures::ce(intermittent_o1800,
+                                     as.factor(fifelse(prob > 0.5, '1', '0')))
+  )
+  
+  bbrierout <- round(mlr3measures::bbrier(intermittent_o1800,
+                                    prob, positive='1'),
+                     3)
+  
+  return(list(sensitivity=sens, 
+              specitity=spe, 
+              BACC=baccout,
+              CE=ceout, 
+              B.Brier = bbrierout))
+}),
+  .SDcols = c('u1_o1', 'u10_o1', 'u10nodis_o1', 'u10_o10', 'u10nodis_o10')
+] %>%
+  .[, measure := c('sensitivity', 'specificity', 'BACC', 'CE', 'B.Brier')] %>%
+  melt(id.vars = 'measure', variable.name='model') %>%
+  dcast(model~measure) 
+
+flextable(modstats_bin)
+
+flextable(modstats)
+```
+

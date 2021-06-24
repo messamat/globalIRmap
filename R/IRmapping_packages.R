@@ -26,16 +26,10 @@ suppressPackageStartupMessages(library(mlr3learners.partykit))
 #devtools::install_github("zmjones/edarf", subdir = "pkg")
 suppressPackageStartupMessages(library(edarf))
 
-#devtools::install_github("ropensci/drake")
-suppressPackageStartupMessages(library(bigstatsr))
-
 #remotes::install_github("zeehio/facetscales")
 suppressPackageStartupMessages(library(facetscales))
 
-#remotes::install_github("matthewstrasiotto/mandrake", INSTALL_opts = c("--no-multiarch"))
-suppressPackageStartupMessages(library(mandrake))
-
-
+suppressPackageStartupMessages(library(bigstatsr))
 suppressPackageStartupMessages(library(cowplot))
 suppressPackageStartupMessages(library(dataRetrieval))
 suppressPackageStartupMessages(library(data.table))
@@ -85,7 +79,7 @@ suppressPackageStartupMessages(library(tictoc))
 suppressPackageStartupMessages(library(profvis))
 suppressPackageStartupMessages(library(quantreg))
 suppressPackageStartupMessages(library(raster))
-suppressPackageStartupMessages(library(tidyhydat))
+#suppressPackageStartupMessages(library(tidyhydat)) #Only use for manual inspection of Canadian gauges
 suppressPackageStartupMessages(library(visNetwork))
 
 

@@ -1183,14 +1183,6 @@ get_outerrsmp <- function(in_rftuned, spatial_rsp=FALSE) {
 #'
 #' @return A length-one numeric vector.
 #'
-#' @examples
-#' ```{r}
-#' wt <- c(5, 4, 3 ,2 , 1)
-#' x <- c(1, 2, 3, 4, 5)
-#' xm <- weighted.mean(x, wt)
-#' xsd <- weighted_sd(x, wt)
-#' ```
-#'
 #' @export
 weighted_sd <- function(x, w=NULL, na.rm=FALSE) {
   if (na.rm) {
@@ -1376,7 +1368,7 @@ weighted_vimportance_nestedrf <- function(rfresamp,
   ####!!!!!!!!!!Adapt to allow for other measure than classif.bacc!!!!!!!!######
   out_vimportance <- vimportance_all[
     , list(imp_wmean = weighted.mean(importance, classif.bacc), #Compute weighted mean
-           imp_wsd =  weighted_sd(importance, classif.bacc)), #Compute weighted sd
+           imp_wsd =  weighted_sd(x=importance, w=classif.bacc)), #Compute weighted sd
     by=varnames]
   
   if (pvalue) {
@@ -1544,11 +1536,11 @@ fread_cols <- function(file_name, cols_tokeep) {
 #' }
 #'
 #' @examples
-#' ```{r}
+#' \dontrun{
 #' in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
 #' task = mlr3::TaskClassif$new(id = "in_dt", backend = in_dt, target ='intermittent')
 #' get_oversamp_ratio(task)
-#' ```
+#' }
 #'
 #' @export
 get_oversamp_ratio <- function(in_task) {
@@ -1596,11 +1588,11 @@ get_oversamp_ratio <- function(in_task) {
 #' @seealso \code{\link{create_tasks}}
 #'
 #' @examples
-#' ```{r}
+#' \dontrun{
 #' in_dt <- data.table(intermittent=c(rep(0, 300), rep(1, 300)))
 #' task = mlr3::TaskClassif$new(id = "task_classif", backend = in_dt, target ='intermittent')
 #' convert_clastoregrtask(task, id="task_regr")
-#' ```
+#' }
 #'
 #' @export
 convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
@@ -1638,6 +1630,7 @@ convert_clastoregrtask <- function(in_task, in_id, oversample=FALSE) {
 }
 
 #------ durfreq_parallel -----------------
+#########Not used in the end#######################
 #' Parallel wrapper for \code{\link{comp_durfreq}}
 #'
 #' Wrapper to run \code{\link{comp_durfreq}} (which computes the annual mean number of zero
@@ -2247,6 +2240,121 @@ format_modelcompdat <- function(bmres, typecomp=c('classif1', 'regr1', 'classif2
   return(bmres)
 }
 
+#------ compute_confustats ----------------
+#' Compute confusion statistics
+#'
+#' Compute standard set of statistics from a confusion matrix based on classification
+#' results (including misclassification rate, sensitivity, specificity, precision,
+#' number of perennial and non-perennial stations correctly and incorrectly classified,
+#' total number of stations, and the predicted prevalence of flow intermittence compared
+#' to the observed prevalence). 
+#' 
+#'
+#' @param in_gselpreds data.table with a row for each record and two columns, 'truth' and 'response'.
+#' @param ndigits number of decimals to include in misclassification, sensitivity, 
+#' specificity, and precision metrics.
+
+#'  
+#' @details Formatted statistics for Extended Data Table 2 in Messager et al. (2021).
+#' 
+#' @return vector of statistics
+#' 
+#' 
+#' @export
+compute_confustats <- function(in_gselpreds, ndigits=2) {
+  confu <- in_gselpreds[, .N, by=.(truth, response)]
+  
+  outvec <- data.table(
+    inter_confu =  paste0(confu[truth==1 & response==1, max(0L, N)], '|',
+                          confu[truth==1 & response==0, max(0L, N)]),
+    pere_confu = paste0(confu[truth==0 & response==1, max(0L, N)], '|',
+                        confu[truth==0 & response==0, max(0L, N)]),
+    misclas = round(confu[truth != response, sum(N)] / confu[, sum(N)], ndigits),
+    sens = round(
+      confu[truth == '1' & response == '1', max(0L, N)]/confu[truth=='1', sum(N)],
+      ndigits),
+    spec  = round(
+      confu[truth=='0' & response==0, max(0L, N)]/confu[truth=='0', sum(N)],
+      ndigits),
+    prec = round(
+      confu[truth == '1' & response == '1', max(0L, N)]/confu[response == '1', sum(N)],
+      ndigits),
+    N = sum(confu$N),
+    predtrue_inter = paste0(round(confu[response==1, 100*sum(N)/sum(confu$N)]),
+                            '|',
+                            round(confu[truth==1, 100*sum(N)/sum(confu$N)]))
+  )
+  return(outvec)
+}
+
+#------ ggmisclass_single -----------------
+#' Single ggplot of misclassification 
+#'
+#' Plot cross-validation sensitivity, specificity, and misclassification rate 
+#' based on probability threshold for classifying a reach as non-perennial. 
+#'
+#' @param in_predictions Either:
+#' 1. a \link[mlr3]{PredictionClassif} or
+#' 2. a data.table of predictions for a set of CV repetitions as formatted by
+#' \code{\link{analyze_benchmark}}.
+#' @param in_rftuned Output from \link{selecttrain_rf}; 
+#' list containing inner and outer resampling results + task.
+#' @param spatial_rsp (boolean) whether to use spatial or non-spatial 
+#' cross-validation results
+#'  
+#' @details in_rftuned is only needed if in_predictions is not provided.
+#' 
+#' @return list containing a ggplot and the threshold for which sensitivity == specificity (numeric)
+#' 
+#' 
+#' @export
+ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
+  #Get predicted probabilities of intermittency for each gauge
+  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
+  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
+  #Get misclassification error, sensitivity, and specificity for different classification thresholds
+  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
+  
+  #If provided resampling results rather than prediction table, extract 
+  if (!is.null(in_rftuned)) {
+    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
+    in_predictions <- rsmp_res$prediction()
+  }
+  
+  #Get confusion matrices for range of thresholds (i.e., probability of flow intermittence
+  #above which a watercourse is classified as non-perennial)
+  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
+    setDT
+  
+  #Get classification threshold at which sensitivity and specificity are the most similar
+  balanced_thresh <- threshold_confu_dt[which.min(abs(spec-sens)),]
+  print(paste('Sensitivity =', round(balanced_thresh$sens,2),
+              'and Specificity =', round(balanced_thresh$spec,2),
+              'at a classification threshold of', balanced_thresh$i))
+  
+  #Plot trends in confusion matrix metrics with increasing threshold
+  gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
+                 aes(x=i, y=value, color=variable, linetype=variable)) +
+    geom_line(size=1.2) +
+    geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
+    geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
+    annotate('text', x=(balanced_thresh$i), y=0.4,
+             label=balanced_thresh$i, angle=-90) +
+    annotate('text', x=0.9, y=(balanced_thresh$spec),
+             label=round(balanced_thresh$sens,2)) +
+    scale_x_continuous(expand=c(0,0), name='Threshold') +
+    scale_y_continuous(expand=c(0,0), name='Value') +
+    scale_color_brewer(palette='Dark2',  #colorblind friendly
+                       labels=c('Misclassification rate',
+                                'Sensitivity (true positives)',
+                                'Specificity (true negatives)')) +
+    theme_bw()
+  
+  #Plot it
+  return(list(plot = gout,
+              interthresh = balanced_thresh$i))
+}
+
 #------ sfformat_wintri ----------------------
 #' Format to sf and project to Winkel Tripel
 #'
@@ -2569,7 +2677,99 @@ ggcompare <- function(datmerge, binarg, insetx = 0.4, insety = 0.8) {
   return(plot_join)
 }
 
-
+#------ test_joincount -------------------
+#' Join count test
+#'
+#' Test auto-correlation in observed and predicted flow intermittence class among
+#' gauging stations using a "join count test" for each HydroBASINS level 3.
+#'
+#' @param in_gauges data.table of gauging stations data, including reference and 
+#' predicted flow intermittence, hydrobasin membership, and WGS84 coordinates. 
+#' Formatted internally in \link{map_basinBACC}.
+#'
+#' @return data.table with the p-value and standard deviate of the join count test
+#' for reference and predicted flow intermittence at gauging stations in each
+#' HydroBASINS level 3.
+#'
+#' @details For each river basin that included both IRES and perennial stations and contained at least 20
+#' gauging stations, we tested whether spatial predictions of intermittence differed further from a random
+#' spatial distribution than the observed patterns. We did so in the following steps:
+#' * We measured the degree of clustering separately for the observed and predicted 
+#' flow intermittence class of gauging stations — by computing the join-count statistics
+#'  (Cliff & Ord, 1981) based on four nearest neighbors (see Salima & de Bellefon, 2018 for an example implementation).
+#' * We assessed whether the predicted spatial distribution of intermittence differed more from what 
+#' would be expected by chance (i.e., a random distribution) than the observed distribution. This 
+#' assessment was based on the standard score between the estimated join-count statistics and the joincount 
+#' statistics that would be obtained based on a random spatial distribution of flow intermittence 
+#' classes among the stations, using 1000 permutations.
+#' 
+#' The join-count statistics and permutations were computed with the spatial-cross validation predictions,
+#' using the joincount.mc function from the spdep package (Bivand et al., 2009).
+#'
+#' @export
+test_joincount <- function(in_gauges) {
+  predsp_gaugep <- st_as_sf(in_gauges)
+  #Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
+  crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+  predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
+    as_Spatial()
+  
+  baslist = names(which(table(predsp_gaugep_df$PFAF_ID03) > 20))
+  jclist <- lapply(baslist, function(bas) {
+    print(bas)
+    subdat <- subset(predsp_gaugep_df, PFAF_ID03 == bas)
+    g.nb <- knn2nb(knearneigh(subdat,k=4))
+    
+    if ((length(unique(subdat$intermittent_o1800)) > 1) &
+        all(table(subdat$intermittent_o1800)>1)) {
+      jc_ref <- joincount.mc(subdat$intermittent_o1800,
+                             listw2U(nb2listw(g.nb)),
+                             alternative = "greater",
+                             nsim = 1000)
+      
+      stdeviate_ref <- with(jc_ref[[2]],
+                            (statistic-estimate[1])/sqrt(estimate[2]))
+      pref <- jc_ref[[2]]$p.value
+      
+    } else {
+      jc_ref <- NA
+      stdeviate_ref <- NA
+      pref <- NA
+    }
+    
+    if ((length(unique(subdat$IRpredcat_CVsp)) > 1) &
+        all(table(subdat$IRpredcat_CVsp)>1)) {
+      jc_pred <- joincount.mc(as.factor(subdat$IRpredcat_CVsp),
+                              listw2U(nb2listw(g.nb)),
+                              alternative = "greater",
+                              nsim = 1000)
+      
+      stdeviate_pred <- with(jc_pred[[2]],
+                             (statistic-estimate[1])/sqrt(estimate[2]))
+      ppred <- jc_pred[[2]]$p.value
+    } else {
+      jc_pred <- NA
+      stdeviate_pred <- NA
+      ppred <- NA
+    }
+    
+    outdat <- list(
+      PFAF_ID03 = bas,
+      #jc_ref = jc_ref,
+      #jc_pred = jc_pred,
+      p_value_ref = pref,
+      p_value_pred = ppred,
+      stdeviate_ref = stdeviate_ref,
+      stdeviate_pred = stdeviate_pred
+    )
+    
+    return(outdat)
+  }
+  ) %>%
+    rbindlist
+  
+  return(jclist)
+}
 ##### -------------------- Workflow functions ---------------------------------
 #------ def_filestructure -----------------
 #' Define file structure (deprecated)
@@ -2859,6 +3059,8 @@ read_GSIMgauged_paths <- function(inp_GSIMindicesdir, in_gaugep, timestep) {
 #'     0: either perennial, or non-perennial outside of winter months.
 #'     Only including years with <= maxgap missing daily discharge values.
 #' }
+#' }
+#' }
 #'
 #' @export
 comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
@@ -3039,6 +3241,8 @@ comp_GRDCdurfreq <- function(path, in_gaugep, maxgap, mdurthresh = 1,
 #'     Warm months are those with mean monthly catchment air temperature >= 10 (WorldClim v2; Fick and Hijmans 2017).
 #'     0: either perennial, or non-perennial outside of winter months.
 #'     Only including years with <= maxgap missing daily discharge values.
+#' }
+#' }
 #' }
 #'
 #' @export
@@ -5823,7 +6027,8 @@ write_gaugepreds <- function(in_gaugep, in_gpredsdt, outp_gaugep) {
 #
 #' @param in_network data.table of formatted global river network with all predictor
 #'  hydro-environmental variables. Output from \link{rformat_network}.
-#' @param in_rftuned trained random forest model. Output from \link{ selecttrain_rf}.
+#' @param in_rftuned trained random forest model. Output from \link{selecttrain_rf}; 
+#' list containing inner resampling results.
 #' @param in_predvars data.table of predictor variable codes, names and attributes. 
 #' Output from \link{selectformat_predvars}.
 #' @param predcol (character) name of the column to which the predicted probability 
@@ -5964,10 +6169,10 @@ netpredformat <- function(outp_riveratlaspred, in_rivernetwork) {
 #'  (Global Environmental Stratification). For each basin–climate sub-unit, we 
 #'  first extrapolated the empirical cumulative distribution of total stream length 
 #'  (of all reaches with MAF ≥ 0.1 m3 s−1) down to 0.01 m3 s−1 MAF using a generalized 
-#'  additive model (GAM)92. We excluded reaches larger than the 95th percentile of 
+#'  additive model (GAM). We excluded reaches larger than the 95th percentile of 
 #'  MAF (that is, the largest rivers) within the sub-unit from model fitting to avoid common
 #'  discontinuities at the high end of the empirical distribution
-#'  that can affect the low end of the power-law-like trendline
+#'  that can affect the low end of the power-law-like trendline.
 #' 
 #' @return list containing a data.table and two plots.
 #' The data.table contains an estimate stream length for each discharge size class
@@ -6368,32 +6573,31 @@ extrapolate_networklength <- function(inp_riveratlas,
 }
 
 #------ extrapolate_IRES -----------
-#######################################################################################################
-#######################################################################################################FINISH documenting
 #' Extrapolate prevalence of flow intermittence
 #'
 #' Train models and use them to extrapolate the global prevalence of intermittent
-#' rivers and ephemeral streams
+#' rivers and ephemeral streams (as a percentage of network length).
 #'
-#' @param in_rivpred
-#' @in_extranet 
+#' @param in_rivpred output from \link{netpredformat}.
+#' @param in_extranet output from \link{extrapolate_networklength}. 
 #' @param min_cutoff (numeric) minimum discharge to include in model training.
 #' @param interactive (logical) whether to print results and make plots for user
 #'  to interactively evaluate results and troubleshoot.
-#' @param valuevar
+#' @param valuevar (character) name of the column containing the beta-distributed 
+#' response variable to extrapolate (based on mean annual flow as the indepedent variable).
 #' @param grouping_var variable with which to subset the dataset into groups. A separate
 #' model is trained on each group.
 #'  
 #' @details The prevalence of IRES  was independently extrapolated for a total 
 #' of 465 spatial sub-units representing all occurring intersections of 
 #' 62 river basin regions (BasinATLAS level 2 subdivisions) and 18 climate zones
-#'  (Global Environmental Stratification). For each basin–climate sub-unit, we 
-#'  first extrapolated the empirical cumulative distribution of total stream length 
-#'  (of all reaches with MAF ≥ 0.1 m3 s−1) down to 0.01 m3 s−1 MAF using a generalized 
-#'  additive model (GAM)92. We excluded reaches larger than the 95th percentile of 
-#'  MAF (that is, the largest rivers) within the sub-unit from model fitting to avoid common
-#'  discontinuities at the high end of the empirical distribution
-#'  that can affect the low end of the power-law-like trendline
+#'  (Global Environmental Stratification). For each basin–climate sub-unit, after 
+#'  extrapolating the empirical cumulative distribution of total stream length 
+#'  (of all reaches with MAF ≥ 0.1 m3 s−1) down to 0.01 m3/s MAF, we extrapolated
+#'  the prevalence of flow intermittence (in percentage of stream length) down to 
+#'  0.01 m3/s MAF. wefitted a GAM for beta-distributed data—that is, 
+#'  with a (0, 1) range—to the prevalence of intermittence in each logarithmic 
+#'  MAF size bin of the sub-unit. 
 #' 
 #' @return list containing a data.table and two plots.
 #' The data.table contains an estimate 
@@ -6666,50 +6870,27 @@ extrapolate_IRES <- function(in_rivpred,
 }
 
 
-#------ ggmisclass_single -----------------
-ggmisclass_single <- function(in_predictions=NULL, in_rftuned=NULL, spatial_rsp=FALSE) {
-  #Get predicted probabilities of intermittency for each gauge
-  # in_gaugestats[!is.na(cly_pc_cav), intermittent_predprob :=
-  #                 as.data.table(in_predictions)[order(row_id), mean(prob.1), by=row_id]$V1]
-  #Get misclassification error, sensitivity, and specificity for different classification thresholds
-  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
-  if (!is.null(in_rftuned)) {
-    rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
-    in_predictions <- rsmp_res$prediction()
-  }
-  
-  threshold_confu_dt <- ldply(seq(0,1,0.01), threshold_misclass, in_predictions) %>%
-    setDT
-  
-  #Get classification threshold at which sensitivity and specificity are the most similar
-  balanced_thresh <- threshold_confu_dt[which.min(abs(spec-sens)),]
-  print(paste('Sensitivity =', round(balanced_thresh$sens,2),
-              'and Specificity =', round(balanced_thresh$spec,2),
-              'at a classification threshold of', balanced_thresh$i))
-  
-  gout <- ggplot(melt(threshold_confu_dt, id.vars='i'),
-                 aes(x=i, y=value, color=variable, linetype=variable)) +
-    geom_line(size=1.2) +
-    geom_vline(xintercept=balanced_thresh$i, alpha=1/2) +
-    geom_hline(yintercept=balanced_thresh$spec, alpha=1/2) +
-    annotate('text', x=(balanced_thresh$i), y=0.4,
-             label=balanced_thresh$i, angle=-90) +
-    annotate('text', x=0.9, y=(balanced_thresh$spec),
-             label=round(balanced_thresh$sens,2)) +
-    scale_x_continuous(expand=c(0,0), name='Threshold') +
-    scale_y_continuous(expand=c(0,0), name='Value') +
-    scale_color_brewer(palette='Dark2',  #colorblind friendly
-                       labels=c('Misclassification rate',
-                                'Sensitivity (true positives)',
-                                'Specificity (true negatives)')) +
-    theme_bw()
-  
-  #Plot it
-  return(list(plot = gout,
-              interthresh = balanced_thresh$i))
-}
-
 #------ analyze_benchmark -----------------
+#' Analyze benchmark
+#'
+#' Evaluate the performance of multiple machine learning models.
+#'
+#' @param in_bm \link[mlr3]{BenchmarkResult} or file name of one stored on disk.
+#' @param in_measure \link[mlr3]{MeasureClassif} or \link[mlr3]{MeasureRegr} to use in model comparison
+#' @param inp_resid (character) path to results directory where in_bm is stored
+#' 
+#' @details this function is useful to optimize the flow intermittence probability 
+#' threshold above which to classify reaches as non-perennial (based on a specific 
+#' performance measure of interest).
+#' 
+#' @return list containing:
+#' *a ggplot showing sensitivity, specificity, misclassification for different probability thresholds
+#' *a ggplot boxplot showing the difference in performance measure between models
+#' *a data.table with, for each model, the probability threshold value at which 
+#' the performance measure is maximized (and the corresponding performance measure value).
+#' 
+#' 
+#' @export
 analyze_benchmark <- function(in_bm, in_measure, inp_resdir=NULL) {
   
   #If path, read qs
@@ -6810,39 +6991,41 @@ analyze_benchmark <- function(in_bm, in_measure, inp_resdir=NULL) {
   ))
 }
 
-#------ compute_confustats ----------------
-compute_confustats <- function(in_gselpreds, ndigits=2) {
-  confu <- in_gselpreds[, .N, by=.(truth, response)]
-  
-  outvec <- data.table(
-    inter_confu =  paste0(confu[truth==1 & response==1, max(0L, N)], '|',
-                          confu[truth==1 & response==0, max(0L, N)]),
-    pere_confu = paste0(confu[truth==0 & response==1, max(0L, N)], '|',
-                        confu[truth==0 & response==0, max(0L, N)]),
-    misclas = round(confu[truth != response, sum(N)] / confu[, sum(N)], ndigits),
-    sens = round(
-      confu[truth == '1' & response == '1', max(0L, N)]/confu[truth=='1', sum(N)],
-      ndigits),
-    spec  = round(
-      confu[truth=='0' & response==0, max(0L, N)]/confu[truth=='0', sum(N)],
-      ndigits),
-    prec = round(
-      confu[truth == '1' & response == '1', max(0L, N)]/confu[response == '1', sum(N)],
-      ndigits),
-    N = sum(confu$N),
-    predtrue_inter = paste0(round(confu[response==1, 100*sum(N)/sum(confu$N)]),
-                            '|',
-                            round(confu[truth==1, 100*sum(N)/sum(confu$N)]))
-  )
-  return(outvec)
-}
-
 #------ bin_misclass --------------------------------
+#' Bin misclassification metrics
+#'
+#' Get misclassification error, sensitivity, specificity, precision, and other
+#' classification performance statistics for different subsets (i.e., bins) of 
+#' the dataset. 
+#'
+#' @param in_predictions a data.table of predictions for a set of CV repetitions.
+#' @param in_rftuned Output from \link{selecttrain_rf}; list containing inner and 
+#' outer resampling results + task.
+#' @param in_gaugestats data.table with additional columns to use in binning if 
+#' not included as predictor variables in model.
+#' @param binvar (character) column that will be used to define bins.
+#' @param binfunc (character) binning approach. One of 'manual', 'equal_length', 'equal_freq'. See \link{bin_dt}.
+#' @param binarg  (numeric) binning argument, depends on binning approach. See \link{bin_dt}.
+#' @param interthresh (numeric) flow intermittence probability threshold above which
+#'  to classify records as non-perennial
+#' @param spatial_rsp whether to use results from spatial (TRUE) or non-spatial (FALSE) 
+#' cross-validation (only used if \code{in_rftuned} is provided, not \code{in_predictions}). 
+#' @param rspcol column to use that contains predicted probabilities (only used if
+#'  \code{in_predictions} is provided, not \code{in_rftuned}).
+#' 
+#' @details This function was used for internal assessment of model performance.
+#' Right now, the options to change binvar and binfunc are not working 
+#' (need some adjustment); only manual binning based on long-term mean annual discharge ('dis_m3_pyr') is possible.
+#' Update instances of 'dis_m3_pyr' for changing. 
+#' 
+#' @return data.table with performance statistics by subset.
+#' 
+#' 
+#' @export
 bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
                           in_gaugestats=NULL, binvar, binfunc, binarg,
                           interthresh=0.5, spatial_rsp=NULL, rspcol=NULL) {
-  #Get misclassification error, sensitivity, and specificity for different classification thresholds
-  #i.e. binary predictive assignment of gauges to either perennial or intermittent class
+
   if (!is.null(in_resampleresult)) {
     if (inherits(in_resampleresult, 'list')) {
       in_resampleresult <- get_outerrsmp(in_resampleresult, spatial_rsp=spatial_rsp)
@@ -6905,6 +7088,25 @@ bin_misclass <-  function(in_predictions=NULL, in_resampleresult=NULL,
 }
 
 #------ ggvimp -----------------
+#' Plot of variable importance
+#'
+#' Produce a bar ggplot of variable importance for random forest model.
+#' 
+#' @param in_rftuned Output from \link{selecttrain_rf}; list containing inner and 
+#' outer resampling results + task.
+#' @param in_predvars data.table of predictor variable codes, names and attributes. 
+#' Output from \link{selectformat_predvars}.
+#' @param varnum number of variables whose variable importance to plot.
+#' @param spatial_rsp (boolean) whether to use variable importance values derived from
+#' spatial (TRUE) or non-spatial (FALSE) cross-validation.
+#' 
+#' @details this function is used to produce Figure 2 in the Main Text of Messager et al. 2021. 
+#' Additional formatting is needed to exactly match Fig. 2.
+#' 
+#' @return ggplot
+#' 
+#' 
+#' @export
 ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
   rsmp_res <- get_outerrsmp(in_rftuned, spatial_rsp=spatial_rsp)
   
@@ -6946,7 +7148,37 @@ ggvimp <- function(in_rftuned, in_predvars, varnum = 10, spatial_rsp=FALSE) {
   return(outp)
 }
 
-#------ ggpd_bivariate -----------------
+#------ ggpartialdep -----------------
+#' Plot of partial dependence
+#'
+#' Produce line or raster ggplots of univariate or bivariate partial dependence.
+#' i.e., estimates of the marginal relationship between predictor variables and 
+#' the model’s predictions (probability of intermittence) by holding the rest of 
+#' the predictors at their respective mean values. Bivariate plots show the co-linearity 
+#' in response between two predictors.
+#' 
+#' @param in_rftuned Output from \link{selecttrain_rf}; list containing inner and 
+#' outer resampling results + task.
+#' @param in_predvars data.table of predictor variable codes, names and attributes. 
+#' Output from \link{selectformat_predvars}.
+#' @param colnums number of variables to include, in decreasing order of variable importance.
+#' @param ngrid number of predictor variable values to check model's marginally predicted value for.
+#' @param nodupli whether to include variable types only once (i.e. if minimum discharge is in, not including mean discharge)
+#' @param nvariate (1 or 2) whether to analyze univariate (1) or bivariate (2) 
+#' partial dependence.
+#' @param parallel (boolean) whether to compute function in parrallel 
+#' (as it can be computationally intensive).
+#' @param spatial_rsp (boolean) whether to use outputs from spatial (TRUE) or 
+#' non-spatial (FALSE) cross-validation.
+#' 
+#' @details this function is used to produce Figure S5 in the Supplementary Information for Messager et al. 2021. 
+#' This function was initially developed for bivariate plots but only univariate plots 
+#' were produced for the final manuscript so there may be obsolete snippets left.
+#' 
+#' @return pages of gridded plots with each page containing 9 plots
+#' 
+#' 
+#' @export
 ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
                           nvariate = 2,
                           parallel=T, spatial_rsp=FALSE) {
@@ -7073,9 +7305,34 @@ ggpartialdep <- function (in_rftuned, in_predvars, colnums, ngrid, nodupli=T,
 }
 
 #------ gggaugeIPR -----------------
+#' Plots of Intermittence Prediction Residuals (IPR)
+#'
+#' Plots relating Intermittence Prediction Residuals (IPR) for gauging stations 
+#' to a variety of metadata for the gauging stations including the number of years
+#' on record, the average flow intermittence duration, the aridity in the catchment
+#' of the station, etc.
+#' 
+#' @param in_gpredsdt model predictions and environmental characteristics of gauging stations. 
+#' Here, output from \link{bind_gaugepreds}.
+#' @param in_predvars data.table of predictor variable codes, names and attributes. 
+#' Output from \link{selectformat_predvars}.
+#' @param spatial_rsp (boolean) whether to use outputs from spatial (TRUE) or 
+#' non-spatial (FALSE) cross-validation.
+#' @param interthresh (numeric) flow intermittence probability threshold above which
+#'  to classify records as non-perennial
+#' @param yearthresh  (integer) minimum year from which to analyze/consider discharge record.
+#' 
+#' @details this function is used to produce Extended Data Fig. 2b-e. Not all
+#' plots were used in the final figure though.
+#' 
+#' @return gtable of plots
+#' 
+#' 
+#' @export
 gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
                        interthresh = 0.5, yearthresh) {
   
+  #Capitlize first letter of string, convert to lower case all other letters.
   SenCapstr <- function(y) {
     paste0(toupper(substring(y, 1,1)),
            tolower(substring(y, 2, 100)))
@@ -7257,6 +7514,7 @@ gggaugeIPR <- function(in_gpredsdt, in_predvars, spatial_rsp = FALSE,
 }
 
 #------ krige_spgaugeIPR----
+#Ignore, not used in final analysis.
 krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
                              kcutoff=100000, inp_bufrasdir=NULL,
                              overwrite = FALSE) {
@@ -7401,6 +7659,7 @@ krige_spgaugeIPR <- function(in_gpredsdt, in_gaugep,
   return(kpl)
 }
 #------ mosaic_kriging -------------
+#Ignore, not used in final analysis.
 mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
   kpl <- in_kpathlist
   
@@ -7425,72 +7684,27 @@ mosaic_kriging <- function(in_kpathlist, outp_krigingtif, overwrite) {
 }
 
 
-#------ test_joincount -------------------
-test_joincount <- function(in_gauges) {
-  predsp_gaugep <- st_as_sf(in_gauges)
-  #Convert to SpatialPointDataFrame to use in gstats and project to Goode Homolosine
-  crs_aeqd <- "+proj=aeqd +lat_0=0 +lon_0=0 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-  predsp_gaugep_df <- st_transform(predsp_gaugep, crs=crs_aeqd)  %>%
-    as_Spatial()
-  
-  baslist = names(which(table(predsp_gaugep_df$PFAF_ID03) > 20))
-  jclist <- lapply(baslist, function(bas) {
-    print(bas)
-    subdat <- subset(predsp_gaugep_df, PFAF_ID03 == bas)
-    g.nb <- knn2nb(knearneigh(subdat,k=4))
-    
-    if ((length(unique(subdat$intermittent_o1800)) > 1) &
-        all(table(subdat$intermittent_o1800)>1)) {
-      jc_ref <- joincount.mc(subdat$intermittent_o1800,
-                             listw2U(nb2listw(g.nb)),
-                             alternative = "greater",
-                             nsim = 1000)
-      
-      stdeviate_ref <- with(jc_ref[[2]],
-                            (statistic-estimate[1])/sqrt(estimate[2]))
-      pref <- jc_ref[[2]]$p.value
-      
-    } else {
-      jc_ref <- NA
-      stdeviate_ref <- NA
-      pref <- NA
-    }
-    
-    if ((length(unique(subdat$IRpredcat_CVsp)) > 1) &
-        all(table(subdat$IRpredcat_CVsp)>1)) {
-      jc_pred <- joincount.mc(as.factor(subdat$IRpredcat_CVsp),
-                              listw2U(nb2listw(g.nb)),
-                              alternative = "greater",
-                              nsim = 1000)
-      
-      stdeviate_pred <- with(jc_pred[[2]],
-                             (statistic-estimate[1])/sqrt(estimate[2]))
-      ppred <- jc_pred[[2]]$p.value
-    } else {
-      jc_pred <- NA
-      stdeviate_pred <- NA
-      ppred <- NA
-    }
-    
-    outdat <- list(
-      PFAF_ID03 = bas,
-      #jc_ref = jc_ref,
-      #jc_pred = jc_pred,
-      p_value_ref = pref,
-      p_value_pred = ppred,
-      stdeviate_ref = stdeviate_ref,
-      stdeviate_pred = stdeviate_pred
-    )
-    
-    return(outdat)
-  }
-  ) %>%
-    rbindlist
-  
-  return(jclist)
-}
-
-#------ map_BACC ------
+#------ map_basinBACC ------
+#' Map prediction performance at the basin level
+#'
+#' Compute the number of gauging stations, bias, residual spatial autocorrelation
+#' and balanced classification accuracy for each HydroBASIN level 3.
+#'
+#' @param in_gaugepred data.table of predictions for gauging stations. Output from \link{bind_gaugepreds}.
+#' @param in_rivernetwork river network with model predictions and other attributes. Output from \link{netpredformat}.
+#' @param inp_basin (character) absolute path to feature class of HydroBASINS level 3 polygons
+#' @param outp_basinerror (character) absolute path of output basin polygons with computed statistics
+#' @param spatial_rsp (boolean) whether to use outputs from spatial (TRUE) or 
+#' non-spatial (FALSE) cross-validation.
+#'
+#' @details This function was used to produce the data underlying Figure 3 of the Main Text of Messager et al. 2021.
+#' see \link{test_joincount} for more details on the procedure for testing spatial autocorrelation.
+#' 
+#' @return list containing a data.table and two plots.
+#' The data.table contains an estimate 
+#' 
+#' 
+#' @export
 map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
                           in_rivernetwork,
                           inp_basin,
@@ -7520,6 +7734,8 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
   gnetjoin <- merge(in_gaugepred,
                     in_rivernetwork[,.(HYRIV_ID, PFAF_ID03)],
                     by='HYRIV_ID', all.x=T, all.y=F)
+  
+  
   
   #Join count test for each basin with more than 20 gauges
   jclist <- test_joincount(gnetjoin)
@@ -7627,7 +7843,14 @@ map_basinBACC <- function(in_gaugepred, #rfpreds_gauges,
 }
 
 ##### -------------------- Report functions -----------------------------------
-#------ get_basemaps ------------
+#------ get_basemapswintri ------------
+#' Get and project basemaps
+#'
+#' Get and project basemaps into Winkel Tripel for subsequent mapping of gauging stations.
+#' 
+#' @return list containing basemaps and graticule in Winkel Tripel projection
+#' 
+#' @export
 get_basemapswintri <- function() {
   crs_wintri = "+proj=wintri +datum=WGS84 +no_defs +over"
   
@@ -7635,10 +7858,10 @@ get_basemapswintri <- function() {
     scale = "medium", returnclass = "sf") %>%
     sfformat_wintri
   wland <- rnaturalearth::ne_download(
-    scale = 110, type = 'land', category = 'physical') %>%
+    scale = 110, type = 'land', category = 'physical', returnclass = "sf") %>%
     sfformat_wintri
   wlakes <- rnaturalearth::ne_download(
-    scale = 110, type = 'lakes', category = 'physical') %>%
+    scale = 110, type = 'lakes', category = 'physical', returnclass = "sf") %>%
     sfformat_wintri
   
   grat_wintri <-
@@ -7661,6 +7884,15 @@ get_basemapswintri <- function() {
 }
 
 #------ ggrivers -----------------------
+#' Plot river gauging stations basemaps
+#' 
+#' Utility function to format plot of basic basemap to show the distribution of river gauging stations.
+#' 
+#' @param in_basemaps list of basemaps \link[sf][sf] objects.
+#' 
+#' @details does not include rivers in basemaps. Too long to draw, too messy/
+#' 
+#' @return ggplot
 ggrivers <- function(in_basemaps) {
   p <- ggplot() +
     geom_sf(data = in_basemaps[['grat']],
@@ -7687,6 +7919,27 @@ ggrivers <- function(in_basemaps) {
 }
 
 #------ gggauges --------------------------
+#' Map river gauging stations
+#'
+#' Make two maps of streamflow gauging stations used in model training and testing.
+#' One map of perennial stations and the other one of non-perennial stations. 
+#'
+#' @param in_gaugepred data.table of predictions for gauging stations. Output from \link{bind_gaugepreds}.
+#' @param in_basemaps list of basemaps \link[sf][sf] objects.
+#' @param binarg (vector) inner bin breaks to plot histogram for gauging stations.
+#' @param binvar (character) column to plot histogram of gauging stations with
+#'
+#' @details 
+#' The maps include a histogram of streamflow record duration in each map.
+#' binarg c(30, 60, 100) is supplied to show four bins in the histogram (10-30, 30-60, 60-100, >100).
+#' 
+#' This function was used to produce the data underlying Figure 3 of the Main Text of Messager et al. 2021.
+#' see \link{test_joincount} for more details on the procedure for testing spatial autocorrelation.
+#' 
+#' @return ggplot (patchwork)
+#' 
+#' 
+#' @export
 gggauges <- function(in_gaugepred, in_basemaps,
                      binarg, binvar) {
   gaugepred <- in_gaugepred %>%
@@ -7793,7 +8046,22 @@ gggauges <- function(in_gaugepred, in_basemaps,
   return(outp)
 }
 
-#------ get_gaugestats ----------
+#------ comp_GRDCqstats ----------
+#' Compute GRDC discharge statistics.
+#'
+#' Compute number of years with discharge data,  qmean, mean minimum flow,
+#' mean minimum 3-day average flow, q10, q90 and q99 for a GRDC gauging station
+#'
+#' @param path (character) full path to the formatted daily streamflow record for a GRDC gauging station.
+#' @param maxgap (integer) threshold number of missing daily records to consider a calendar year unfit for analysis.
+#' @param minyear (integer) start year to include in computing statistics.
+#' @param maxyear (integer) last year to include in computing statistics.
+#' @param verbose (boolean) whether to print the input path upon executing the function.
+#' 
+#' @return single-row data.table 
+#' 
+#' 
+#' @export
 comp_GRDCqstats <- function(path, maxgap,
                             minyear = 1971 , maxyear = 2000, verbose = FALSE) {
   if (verbose) {
@@ -7832,6 +8100,31 @@ comp_GRDCqstats <- function(path, maxgap,
 
 
 #------ eval_watergap -------
+#' Compute modeled discharge statistics for GRDC gauging stations
+#'
+#' Compute performance statistics (regression R2 and sMAPE) for WaterGAP v2.2 discharge 
+#' predictions of long-term mean discharge and Q90 against observed discharge 
+#' at GRDC gauging stations with ≥20 years of streamflow data.
+#' 
+#' @param in_qstats data.table of discharge statistics for GRDC streamflow gauging stations. 
+#' Each row corresponds to a single station. Output from \link{comp_GRDCqstats}.
+#' @param in_selgauges data.table or data.frame of gauging stations to analyze. 
+#' @param binarg discharge bin limits to divide performance statistics asssessment by 
+#' (to create size classes based on long-term mean annual flow in m3/s).
+#' 
+#' 
+#' @details gauging stations to analyze \code{in_selgauges}  are further subsetted
+#' to keep only those with at least 20 years of daily discharge data.
+#' 
+#' This function performs a log-log regression across all gauges and non-log regressions
+#' for each size class to compute R2.   
+#'  
+#'  This function was used to produce Table S1 in the Supplementary Information of Messager et al. 2021
+#'  
+#' @return data.table of performance statistics by streamflow size class for 
+#' mean annual flow and Q90.
+#' 
+#' @export
 eval_watergap <- function(in_qstats, in_selgauges, binarg) {
   qsub <- in_qstats[!is.na(GRDC_NO) &
                       nyears >= 20 &
@@ -7909,6 +8202,20 @@ eval_watergap <- function(in_qstats, in_selgauges, binarg) {
 }
 
 #------ formatscales ------------
+#' Format plot scales
+#'
+#' Utility function to format plot scales for density distribution plots of environmental variables.
+#' 
+#' @param in_df data.frame with all records for environmental variables. 
+#' Used to determine the appropriate range of values for each variable. In this case, 
+#' a data.table of the river network hydro-environmental attributes.
+#' @param varstopplot vector of variable names that will be plots and for which 
+#' to return a list of scales
+#'  
+#' @return list of x and y scale objects + cartesian coordinates for ggplot
+#' 
+#' 
+#' @export
 formatscales <- function(in_df, varstoplot) {
   scales_x <- list(
     ari_ix_uav = scale_x_continuous(expand=c(0,0)),
@@ -7990,12 +8297,26 @@ formatscales <- function(in_df, varstoplot) {
 }
 
 #------ ggenvhist -------------
+#' Plot of environmental histogram
+#'
+#' Utility function to create an individual density plot of the distribution of a 
+#' given environmental variables across gauges and the whole global river network.
+#' 
+#' @param vartoplot (column) variable for which to produce a density plot.
+#' @param in_gaugedt data.table of gauging stations' environmental attributes.
+#' @param in_rivdt data.table of global river network's environmental attributes 
+#' @param in_predvars data.table of predictor variable codes, names and attributes. 
+#' Output from \link{selectformat_predvars}.
+#' @param scalesenvhist list of scale objects to format plot. From \link{formatscales}.
+#' 
+#' @return ggplot with two density distributions of the environmental variable,
+#' one for the gauging stations and one for the global river network. 
+#' 
+#' 
+#' @export
 ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
-                      scalesenvhist, intermittent=TRUE) {
+                      scalesenvhist) {
   print(vartoplot)
-  if (intermittent) {
-    vartoplot2 <- c(vartoplot, 'intermittent_o1800')
-  }
   
   varname <- in_predvars[varcode==vartoplot, Attribute]
   #paste0(Attribute, ' ',Keyscale,Keystat,' (',unit,')')]
@@ -8057,6 +8378,22 @@ ggenvhist <- function(vartoplot, in_gaugedt, in_rivdt, in_predvars,
 }
 
 #------ layout_ggenvhist --------------------------
+#' Layout plots of environmental histograms
+#'
+#' Run plotting functions across predictor variables and arrange plots
+#' 
+#' @param in_rivernetwork data.table of global river network's environmental attributes. Here, output from \link{rformat_network}.
+#' @param in_gaugepred selected gauging stations' environmental attributes. Here, output from \link{write_gaugepreds}.
+#' @param in_predvars data.table of predictor variable codes, names and attributes. 
+#' Output from \link{selectformat_predvars}.
+#' 
+#' @details function used to produce Extended Data Fig. 8  c-p in Messager et al. 2021.
+#' 
+#' @return ggplots with two density distributions of the environmental variable,
+#' one for the gauging stations and one for the global river network. 
+#' 
+#' 
+#' @export
 layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
   varstoplot_hist <- c(
     "bio1_dc_uav", "bio7_dc_uav", "bio12_mm_uav", "bio14_mm_uav", "clz_cl_cmj",
@@ -8100,6 +8437,25 @@ layout_ggenvhist <- function(in_rivernetwork, in_gaugepred, in_predvars) {
 }
 
 #------ tabulate_benchmarks ------------
+#' Tabulate benchmarks
+#'
+#' Function to compile hyperparameters and performance statistics for a 
+#' given random forest model into two summary tables.
+#
+#' @param in_bm \link[mlr3]{BenchmarkResult} or file name of one stored on disk.
+#' @param in_bmid (character)Type of model. one of 'classif1' (selection of classification algorithm), 
+#' 'regr1' (selection of regression model), 'classif2' (comparison between without and without variable selection). 
+#' @param inp_resdir (character) path to results directory where in_bm is stored.
+#' @param interthresh (numeric) flow intermittence probability threshold above which
+#'  to classify records as non-perennial.
+#'  
+#' @details Function used to produce Tables S2 and Tables S3.
+#' 
+#' @return list of two one-row table, one with hyperparameter values and
+#' the other with performance metrics.
+#' 
+#' 
+#' @export
 tabulate_benchmarks <- function(in_bm, in_bmid, inp_resdir=NULL, interthresh=NULL) {
   
   #If path, read qs
@@ -8165,6 +8521,22 @@ tabulate_benchmarks <- function(in_bm, in_bmid, inp_resdir=NULL, interthresh=NUL
 }
 
 #------ compute_IRpop -------
+#' Compute population living nearest to an intermittent river
+#'
+#' Compute total population and percentage of the world's population which live
+#' nearest to a river or stream reach predicted to be non-perennial.
+#
+#' @param in_rivpred data.table of model predictions for global river network. output from \link{netpredformat}.
+#' @param inp_linkpop absolute path to table identifying number of people living 
+#' nearest to each river reach in the global river network.
+#' @param valuevar name of the column in \code{in_rivpred} by which to compute 
+#' percentage of the population (i.e., column name that contains the predicted
+#' binary flow intermittence class for each river reach)
+#' 
+#' @return two-row data.table with the number and percentage of people living nearest
+#' to non-perennial vs. perennial river reaches.
+#' 
+#' @export
 compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
   linkpop = fread(inp_linkpop) %>%
     merge(in_rivpred, by.x = 'VALUE', by.y = 'HYRIV_ID', all.x=T, all.y=T)
@@ -8179,6 +8551,7 @@ compute_IRpop <- function(in_rivpred, inp_linkpop, valuevar) {
 }
 
 #------ formatmisclass_bm -------------
+#Not used in analysis in the end
 formatmisclass_bm <- function(in_bm, in_bmid, inp_resdir=NULL) {
   #If path, read qs
   if (inherits(in_bm, "character")) {
@@ -8193,6 +8566,7 @@ formatmisclass_bm <- function(in_bm, in_bmid, inp_resdir=NULL) {
 
 
 #------ ggmisclass_bm -------------
+#Not used in analysis in the end
 ggmisclass_bm <- function(in_threshdts) {
   
   #
@@ -8222,6 +8596,31 @@ ggmisclass_bm <- function(in_threshdts) {
 
 
 #------ test_thresholdsensitivity ---------
+#' Test threshold sensitivity
+#'
+#' Test sensitivity of model predictions to flow intermittence probability threshold
+#' used to classify global river reaches into non-perennial and perennial classes.
+#' 
+#' @param in_gpredsdt data.table of model predictions for gauging stations. Here, output from \link{bind_gaugepreds}.
+#' @param in_rivpred data.table of model predictions for global river network. Here, output from \link{netpredformat}.
+#' @param threshrange_gauges numerical vector of probability threshold values for
+#'  which to assess and plot model predictions and performance for gauging stations.
+#' @param threshrange_network numerical vector of probability threshold values for which to produce predictions
+#' of flow intermittence for the global network (set narrower than \code{thresrange_gauges} as each one takes
+#' much longer to compute).
+#' @param mincutoff minimum long-term mean annual flow (MAF) to include in assessment of gauges and network 
+#' (i.e., mincutoff == 0.1 means that only gauging stations and river reaches with a WaterGAP estimated MAF >= 0.1 
+#' are included in the sensitivity analysis)
+#' @param gaugescol name of the column in \code{in_gpredsdt} containing the predicted probability of flow intermittence.
+#' @param netcol name of the column in \code{in_rivpred} containing the predicted probability of flow intermittence.
+#' 
+#' @return list with three elements:
+#' * A ggplot of the probability threshold ranges for gauges >= 10m3/s and gauges 
+#' < 10 m3/s that maximize balanced accuracy, bias, raw accuracy, and |sensitivity-specificity|.
+#' * A ggplot of the predicted global prevalence of IRES as a function of probability thresholds for two gauge size classes (<10 and >=10 m3/s)
+#' * data.table containing the predicted global prevalence of IRES based on the range of probability threshold \code{threshrange_network}.
+#'
+#' @export
 test_thresholdsensitivity <- function(in_gpredsdt,
                                       in_rivpred,
                                       threshrange_gauges = seq(0.30, 0.70, 0.01),
@@ -8356,7 +8755,7 @@ test_thresholdsensitivity <- function(in_gpredsdt,
   
   netstats <- mapply(function(tu10, to10) {
     print(paste(tu10, to10))
-    in_rivpred[(dis_m3_pyr>=0.1) & (INLAKEPERC < 1),
+    in_rivpred[(dis_m3_pyr>=mincutoff) & (INLAKEPERC < 1),
                list(
                  IRESperc = (
                    .SD[dis_m3_pyr<10,
@@ -8404,19 +8803,45 @@ test_thresholdsensitivity <- function(in_gpredsdt,
 
 
 #------ tabulate_globalsummary -----
-#Example
-# gad_tabledis <- tabulate_globalsummary(in_filestructure = filestructure,
-#                                        idvars = 'gad_id_cmj',
-#                                        castvar = 'dis_m3_pyr',
-#                                        castvar_num = TRUE,
-#                                        weightvar = 'LENGTH_KM',
-#                                        valuevar = 'predbasic800cat',
-#                                        valuevar_sub = 1,
-#                                        binfunc = 'manual',
-#                                        binarg = c(0.1, 1, 10, 100, 1000, 10000, 100000),
-#                                        na.rm=T,
-#                                        tidy = FALSE)
-
+#' Tabulate global summary
+#'
+#' Create a summary table of the predicted prevalence of IRES across continuous size classes
+#' and categorical classes.
+#' 
+#' @param outp_riveratlaspred (character) full path to .csv table containing flow
+#'  intermittence predictions for global river network
+#' @param inp_riveratlas (character) full path to .csv. table containing attributes
+#'  for global river network
+#' @param inp_riveratlas_legends (character) full path to .xlsx table containing 
+#' metadata on river atlas attributes (meaning of category acronyms and codes e.g., for land cover)
+#' @param idvars (character) name of the variable (usually categorical) whose 
+#' categories to use for producing summary statistics of flow prevalence (e.g., climate or country)
+#' @param interthresh (numeric) flow intermittence probability threshold above which
+#'  to classify records as non-perennial.
+#' @param castvar (character) name of the column that will be used to define bins/table columns (e.g., discharge) —
+#' the equivalent of \code{binvar} in \link{bin_dt}.
+#' @param castvar_num (boolean) whether casting column (castvar) is a numeric (used for sorting properly).
+#' @param weightvar (character) variable to weigh proportion by (e.g. river reach length).
+#' @param valuevar (character) variable to summarize (e.g. intermittency class).
+#' @param valuevarsub (character) value of \code{valuevar} to summarize (e.g. '1' for intermittent rivers)
+#' @param binfunc (character) binning approach. One of 'manual', 'equal_length', 'equal_freq'. See \link{bin_dt}.
+#' @param binarg  (numeric) binning argument, depends on binning approach. See \link{bin_dt}.
+#' @param bintrans (character or numeric) transformation of \code{binvar}, default is NULL.
+#' @param na.rm (logical) whether to include NAs.
+#' @param tidy (boolean) whether to keep in tidy long form (TRUE) or to cast into
+#' formatted shape (FALSE; i.e., idvars as rows and castvar as columns + a world row)
+#' @param nolake (boolean) whether to include sections of river reaches that intersect lakes (FALSE) or not (TRUE)
+#' @param mincutoff (numeric) smallest river reaches to include in computation, in terms of long-term mean annual flow (m3/s; e.g., 0.1)
+#' 
+#' @details this function is used to produce Table 1 in Main Text, Extended Data Figure 1c, and 
+#' Supplementary Data tables from Messager et al. (2021). 
+#' 
+#' bintrans can either be 'log' (for natural log) or a numeric exponent to transform
+#' according to x^bintrans.
+#' 
+#' @return data.table
+#'
+#' @export
 tabulate_globalsummary <- function(outp_riveratlaspred,
                                    inp_riveratlas,
                                    inp_riveratlas_legends,
@@ -8562,8 +8987,26 @@ tabulate_globalsummary <- function(outp_riveratlaspred,
 }
 
 #------ extend_globalsummary ---------
-extend_globalsummary_clz <- function(
-  in_IRESextra, in_globaltable, inp_riveratlas_legends) {
+#' Extend global summary
+#'
+#' Add statistics for extrapolated discharge size class to table of summary statistics
+#' on global prevalence
+#' 
+#' @param in_IRESextra estimate of prevalence of flow intermittence in global river 
+#' network for river reaches with 0.01 < MAF 0.099 
+#' @param in_globaltable summary data.table of the predicted prevalence of IRES 
+#' across discharge size classes and climate zones
+#' @param inp_riveratlas_legends (character) full path to .xlsx table containing 
+#' metadata on river atlas attributes (meaning of category acronyms and codes e.g., for land cover)  
+#' 
+#' @details this function is used to produce Table 1 in Main Text, Extended Data Figure 1c, and 
+#' Supplementary Data tables from Messager et al. (2021). 
+#' 
+#' @return data.table
+#'
+#' @export
+extend_globalsummary_clz <- function(in_IRESextra, in_globaltable, 
+                                     inp_riveratlas_legends) {
   
   in_IRESextra <- in_IRESextra$preds
   
@@ -8623,6 +9066,27 @@ extend_globalsummary_clz <- function(
 }
 
 #------ compare_fr --------------------------------------
+#' Compare model estimates for France
+#'
+#' Compare model estimates generated for mainland France by this study to model
+#' estimates generated by Snelder et al. (2013) by producing comparative histograms
+#' and statistics.
+#' 
+#' @param inp_frdir (character) full path to directory containing formatted
+#'  network and basins for France. 
+#' @param in_rivpred data.table of model predictions for global river network. Here, output from \link{netpredformat}.
+#' @param predcol (character) name of the column for the predicted probability 
+#' of flow intermittence generated by this study (Messager et al. 2021).
+#' @param binarg  (numeric) limits of the mean annual flow bins across which to compare estimates (and for plotting histogram). See \link{bin_dt}.
+#' @param mincutoff (numeric) smallest river reaches to include in comparison, in terms of long-term mean annual flow (m3/s; e.g., 0.1)
+#' 
+#' @details this function is used to produce Extended Data Figure 5 in Main Text from Messager et al. (2021). 
+#' 
+#' @return list with two elements:
+#' *"plot": histogram comparing estimated prevalence of flow intermittence and 
+#' total river length across discharge size classes.
+#' *"data": summary comparison statistics.
+#' @export
 compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
                        mincutoff) {
   in_netpath <- file.path(inp_frdir, 'network')
@@ -8685,6 +9149,33 @@ compare_fr <- function(inp_frdir, in_rivpred, predcol, binarg,
 }
 
 #------ compare_us ----------------
+#' Compare model estimates for the U.S.
+#'
+#' Compare model estimates generated for the contiguous U.S. by this study to the
+#' prevalence of intermittence as depicted in the National Hydrography Dataset
+#' Plus (NHDPlus) medium-resolution (100k) by producing comparative histograms
+#' and statistics.
+#' 
+#' @param inp_usresdir (character) full path to directory containing formatted
+#'  network and basins data for the U.S. 
+#'  @param inp_usdatdir (character) full path to directory containing raw data
+#'  for the U.S.
+#' @param in_rivpred data.table of model predictions for global river network. Here, output from \link{netpredformat}.
+#' @param predcol (character) name of the column for the predicted probability 
+#' of flow intermittence generated by this study (Messager et al. 2021).
+#' @param binarg  (numeric) limits of the mean annual flow bins across which to compare estimates (and for plotting histogram). See \link{bin_dt}.
+#' @param mincutoff (numeric) smallest river reaches to include in comparison, in terms of long-term mean annual flow (m3/s; e.g., 0.1)
+#' 
+#' @details this function is used to produce Extended Data Figure 5 in Main Text from Messager et al. (2021). 
+#' 
+#' @return list with two elements:
+#' *"plot": histogram comparing estimated prevalence of flow intermittence and 
+#' total river length across discharge size classes.
+#' *"data_all": summary comparison statistics assuming that line segments in the 
+#' NHDPlus classified as "Artificial path" are all perennial.
+#' *"data_noartificial": summary comparison statistics excluding line segments 
+#' classified as "Artificial path" are all perennial.
+#' @export
 compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
                        binarg, mincutoff) {
   in_netpath_hr <- file.path(inp_usdatdir,  'NHDhr_attris.csv')
@@ -8954,6 +9445,27 @@ compare_us <- function(inp_usresdir, inp_usdatdir, in_rivpred, predcol,
 
 
 #------ compare_au ----------------
+#' Compare model estimates for Australia
+#'
+#' Compare model estimates generated for Australia by this study to model
+#' estimates in the Australian National Geofabric by producing comparative histograms
+#' and statistics.
+#' 
+#' @param inp_resdir (character) full path to directory containing formatted
+#'  network and basins data for Australia. 
+#' @param in_rivpred data.table of model predictions for global river network. Here, output from \link{netpredformat}.
+#' @param predcol (character) name of the column for the predicted probability 
+#' of flow intermittence generated by this study (Messager et al. 2021).
+#' @param binarg  (numeric) limits of the mean annual flow bins across which to compare estimates (and for plotting histogram). See \link{bin_dt}.
+#' 
+#' @details this function is used to produce Extended Data Figure 5 in Main Text from Messager et al. (2021). 
+#' Only rivers and stream segments with a drainage area >= 10 km2 are included in the comparison.
+#' 
+#' @return list with two elements:
+#' *"plot": histogram comparing estimated prevalence of flow intermittence and 
+#' total river length across discharge size classes.
+#' *"data": summary comparison statistics.
+#' @export
 compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
   valuevarsub <- "1"
   
@@ -9024,6 +9536,33 @@ compare_au <- function(inp_resdir, in_rivpred, predcol, binarg) {
 }
 
 #------ qc_pnw ------------
+#' Quality check model estimates in U.S. Pacific Northwest
+#'
+#' Analyze performance of model predictions of flow intermittence against PROSPER field
+#' observations of flow state across the U.S. Pacific Northwest.
+#' 
+#' @param inp_pnwresdir (character) full path to directory containing formatted
+#'  data for Pacific Northwest. 
+#' @param in_rivpred data.table of model predictions for global river network. Here, output from \link{netpredformat}.
+#' @param predcol (character) name of the column for the predicted probability 
+#' of flow intermittence generated by this study (Messager et al. 2021).
+#' @param interthresh (numeric) flow intermittence probability threshold above which
+#'  to classify records as non-perennial.
+#' @param mincutoff (numeric) smallest river reaches to include in comparison, in terms of long-term mean annual flow (m3/s; e.g., 0.1)
+
+#' 
+#' @details this function is used to format data used in producing Extended Data Figure 6.
+#' A side effect of this function is the writing of a .gpkg of river reaches for
+#' which there are flow observations in the U.S. Pacific Northwest with quality-checking
+#' attributes.
+#' 
+#' @return list with two elements:
+#' *"plot": scatterplots analyzing Intermittence Prediction Residuals (IPR) as a function of
+#'  modeled mean annual flow, the position of the field observation along the RiverATLAS river reach,
+#'  the number of field observations at the site, and the population density in the entire upstream area
+#'  of the corresponding reach.
+#' *"stats": summary comparison statistics.
+#' @export
 qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
                    interthresh=0.5, mincutoff = 0) {
   in_refpts <- file.path(inp_pnwresdir, 'StreamflowPermObs_final')
@@ -9200,6 +9739,39 @@ qc_pnw <- function(inp_pnwresdir, in_rivpred, predcol,
 }
 
 #------ qc_onde ------
+#' Quality check model estimates in France
+#'
+#' Analyze performance of model predictions of flow intermittence against ONDE field
+#' observations of flow state across mainland France.
+#' 
+#' @param inp_ondedatdir (character) full path to directory containing raw
+#'  data for France.
+#' @param inp_onderesdir (character) full path to directory containing formatted
+#'  data for France.
+#' @param inp_riveratlas (character) full path to .csv. table containing attributes
+#'  for global river network
+#' @param in_rivpred data.table of model predictions for global river network. Here, output from \link{netpredformat}.
+#' @param predcol (character) name of the column for the predicted probability 
+#' of flow intermittence generated by this study (Messager et al. 2021).
+#' @param interthresh (numeric) flow intermittence probability threshold above which
+#'  to classify records as non-perennial.
+#' @param mincutoff (numeric) smallest river reaches to include in comparison, in terms of long-term mean annual flow (m3/s; e.g., 0.1)
+#' 
+#' @details this function is used to format data used in producing Extended Data Figure 6.
+#' A side effect of this function is the writing of a .gpkg of river reaches for
+#' which there are flow observations in France with quality-checking
+#' attributes.
+#' 
+#' @return list with two elements:
+#' *"plot": scatterplots analyzing Intermittence Prediction Residuals (IPR) as a function of
+#'  modeled mean annual flow, the position of the field observation along the RiverATLAS river reach,
+#'  the ratio of the drainage area of the watercourse at the location of the field 
+#'  observation to that for the pourpoint of the corresponding RiverATLAS river reach,
+#'  the percentage of field observations that are either no-flow or dry,
+#'  the number of field observations at the site, and the population density in the entire upstream area
+#'  of the corresponding reach.
+#' *"stats": summary comparison statistics.
+#' @export
 qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
                     in_rivpred, predcol, interthresh=0.5, mincutoff=0) {
   in_refpts <- file.path(inp_onderesdir, 'obs_finalwgs')
@@ -9402,4 +9974,4 @@ qc_onde <- function(inp_ondedatdir, inp_onderesdir, inp_riveratlas,
 
 
 
-########## END #############
+#################################### END #######################################
