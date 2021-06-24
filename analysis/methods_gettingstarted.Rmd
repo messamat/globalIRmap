@@ -14,23 +14,37 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Install the R package
+The overall workflow of the project is detailed in the Workflow tab of this website. The documentation that follows is specifically for the portions of the analysis conducted in R, which encompasses all statistical analysis and figure-making (aside from maps).
 
-[![Build Status]()]()
+**To reproduce this analysis, please contact mathis.messager@mail.mcgill.ca to obtain the required raw and pre-processed data, which represent about anywhere between 60 and 500GB depending on how comprehensive of a re-production is wanted**
 
-This repository is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. 
-Note that this package has been written explicitly for this project and may not be suitable for general use. 
+## R analysis framework
+This analysis relies as much as possible on [good enough practices in scientific computing](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1005510), which users are encouraged to read.
 
-This project is setup with a [drake workflow](https://github.com/ropensci/drake), ensuring reproducibility.
-Intermediate targets/objects will be stored in a hidden `.drake` directory.
+**Structure**: the overall project directory is structured with the following sub-directories:  
+|-- bin (compiled code/external packages)  
+|-- data (raw data, not to be altered)  
+|-- results (results of the analysis, mostly reproduceable through code executiong but also includes manually modified results)  
+|-- src (code written for the project)  
+All scripts rely on this structure.
 
-The R library of this project is managed by [renv](https://rstudio.github.io/renv/articles/renv.html).
+**Documentation**: this project is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. Note that this package has been written explicitly for this project and may not be suitable for general use. See guidelines below to install the package.
+
+**R Workflow**: this project is setup with a [drake workflow](https://github.com/ropensci/drake), ensuring reproducibility.
+In the `drake` philosophy, every action is a function, and every R object is a "target" with dependencies.
+Intermediate targets/objects are stored in a `.drake` directory. 
+
+**Dependency management**: the R library of this project is managed by [renv](https://rstudio.github.io/renv/articles/renv.html).
 This makes sure that the exact same package versions are used when recreating the project.
-When calling `renv::restore()`, all required packages will be installed with their specific version.
-
+When calling `renv::restore()`, all required packages will be installed with their specific version. 
 Please note that this project was built with R version 4.0.3 on a Windows 10 operating system.
 The renv packages from this project **are not compatible with R versions prior to version 3.6.0.**
 
+**Syntax**: this analysis relies on the [data.table](https://rdatatable.gitlab.io/data.table/) syntax, which provides a high-performance version of data.frame. It is concise, faster, and more memory efficient than conventional data.frames and the tidyverse syntax.
+
+**Machine learning model development**: for random forest model development, this project relies on the [mlr3](https://mlr3.mlr-org.com/) package and ecosystem (see the [mlr3 book](https://mlr3book.mlr-org.com/introduction.html) for learning its usage), which provides an object-oriented framework for machine learning.
+
+## Download the repository
 **To copy (i.e., clone) this repository to your local machine (for Windows only, please contact author for guidance on other platforms).**  
 In Git Bash, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap :
 ```{r, engine = 'bash', eval = FALSE}
@@ -40,6 +54,10 @@ Mathis@DESKTOP MINGW64 /c
 $ mkdir test_globalIRmap
 Mathis@DESKTOP MINGW64 /c
 $ cd /c/test_globalIRmap
+Mathis@DESKTOP MINGW64 /c
+$ mkdir /c/test_globalIRmap/src
+Mathis@DESKTOP MINGW64 /c
+$ cd /c/test_globalIRmap/src
 Mathis@DESKTOP MINGW64 /c/test_globalIRmap
 $ git clone https://github.com/messamat/globalIRmap.git
 Cloning into 'globalIRmap'...
@@ -60,27 +78,23 @@ In R Studio for Windows, the following procedure can be used:
 * In the next window, fill the fields as follows:  
   * Repository URL: https://github.com/messamat/globalIRmap  
   * Project directory name: [will autofill as “globalIRmap”]  
-  * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap]  
+  * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap//src]  
 * Tick “Open in new session” and then click “Create project”.  
 
+## Get started in R
 **Then open this project in R and run:**  
 ```{r README-4, eval = FALSE}
-renv::restore() # restores all R packages with their specific version
+renv::restore() # respond y, restores all R packages with their specific version
+remotes::install_github('messamat/globalIRmap') #install project package so that the help documentation can be accessed for project functions (e.g., ?format_gaugestats)
+library(drake)
 r_make() # recreates the analysis
+
+#If you were provided intermediate targets (i.e., a /.drake directory)
+#you can load individual targets in the environment even if they are expired
+loadd(globaltables_gad_id_cmj)
+print(globaltables_gad_id_cmj)
 ```
 
-# Structure of the analysis
-
-In the `drake` philosophy, every R object is a "target" with dependencies.
-This repository contains more targets than actually needed to replicate the associated publication.
-**Future task: create a simplified workflow to strictly reproduce main results**
-
-If you want to replicate the publication, you need to build the following targets:
-  -
-  -
-  -
-  -
-  
 #### Other practical notes
 
 # Notes and resources 

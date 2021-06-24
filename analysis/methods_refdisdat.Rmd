@@ -14,10 +14,10 @@ In this section, we describe the reference streamflow data used in training our 
 To access computing scripts associated with this part of our project, see the following repositories:  
 - [globalIRmap_py](https://github.com/messamat/globalIRmap_py): Python code to download GSIM and spatially format the datasets of gauging stations (among other tasks).  
 - [globalIRmap](https://github.com/messamat/globalIRmap): R code for QA/QCing and formatting gauging stations discharge records (among other tasks).  
-The specific scripts involved in the processing of gauging stations are mentioned more specifically throughout this section. 
+The specific scripts involved in the processing of gauging stations are mentioned more specifically throughout this section. See the Getting started and Workflow pages of this website for more information on project management.
 
 # Source datasets  
-## Summary
+### Summary
 Two streamflow gauging station datasets were used as the source of training and cross-validation data for models — the World Meteorological Organization Global Runoff Data Centre (GRDC) database (n ≈ 10,000) and a complementary subset of the Global Streamflow Indices and Metadata archive (GSIM, n ≈ 31,000), a compilation of twelve free-to-access national and international streamflow gauging station databases.  
 Whereas the GRDC offers daily river discharge values for most stations, GSIM only contains time series summary indices computed at the yearly, seasonal and monthly resolution (calculated from daily records whose open-access release is restricted for some of the compiled data sources). Therefore, we used the GRDC database as the core of our training/testing set and complemented it with a subset of streamflow gauging stations from GSIM.
 
@@ -31,10 +31,14 @@ A GSIM station was included only if:
     -	was located on an IRES or,  
     - was located in a river basin which did not already contain a selected GRDC station (based on HydroBASINS Pfafstetter level 5 sub-basins, average area globally = 2.9 x 10^4 km2). 
     
-## Obtaining source data
+### Obtaining source data
+Subsets of the GRDC dataset can now be downloaded through their [interactive platform](https://portal.grdc.bafg.de/applications/public.html?publicuser=PublicUser).
+To download data for all stations globally, however, one make a written request to grdc(at)bafg.de
+
+GSIM can be manually downloaded from the [pangaea repositories](https://doi.pangaea.de/10.1594/PANGAEA.887477) or by running [download_GSIM.py](https://github.com/messamat/globalIRmap_py/blob/master/download_GSIM.py).
 
 # Processing and selecting gauging stations data
-## Assignment of river network location
+### Assignment of river network location
 We first linked the Global Runoff Data Center (GRDC) hydrometric dataset to the RiverATLAS global river network. We then complemented the GRDC dataset with a subset of Global Streamflow Indices and Metadata Archive (GSIM) gauging stations (Do et al., 2018; Gudmundsson et al., 2018). 
 
 The linkage of GRDC stations to RiverATLAS followed a three-step process:
@@ -61,7 +65,9 @@ All GSIM stations had already been associated with the HydroSHEDS flow accumulat
 
 Following this spatial pre-processing, we also removed 160 stations located on the same RiverATLAS river reach as another station (keeping the station with the smallest difference in reported drainage area compared to that computed in RiverATLAS for the reach’s pour point). There was no instance of stations with different flow intermittence classes being associated with the same RiverATLAS reach. We also removed 632 stations whose degree of flow regulation (DOR) by upstream reservoirs (Lehner et al., 2011) exceeded 50%. The resulting dataset at this point contained 6,240 stations.
 
-## Quality-checking of discharge information
+*Script for assignment of river network location*: [format_stations.py](https://github.com/messamat/globalIRmap_py/blob/master/format_stations.py)
+
+### Quality-checking of discharge information
 A custom procedure was developed to ensure the quality of the streamflow time series (rather than the spatial location) associated with the gauging stations. The focus of this quality-checking procedure was to ensure the validity of zero-flow readings and the flow intermittence class assigned to each gauge (i.e., perennial or non-perennial). Zero-flow readings at streamflow gauging stations can stem from multiple circumstances. Usually, these readings reflect true river drying due to various natural or anthropogenic processes. However, river freezing, flow reversal (e.g., due to tidal influence), instrument malfunctioning, and data entry or processing errors are also common events that can result in zero-flow readings in spite of the continued flow of water in the channel (Zimmer et al., 2020). Reported time series data may contain ambiguity between zero-flow and no-data entries, leading to potential underestimation of zero-flow (if masked as no-data). In addition, river diversions and reservoirs associated with dams can modify the flow intermittence of a monitored river reach from perennial to non-perennial (e.g., interrupting water flow as a single event during the initial filling of the reservoir; periodic to permanent dewatering of the downstream channel due to water diversion) and vice versa (e.g., keeping a constant flow of water for hydroelectricity production). Ideally, each streamflow record would be accompanied by detailed information and flags describing the quality of individual daily values. However, this information is typically unavailable or difficult to access. Notably, the GRDC has stopped providing data quality flags in recent updates, and both the GRDC and the European Water Association (EWA) recommend users not to rely on existing quality flags (Gudmundsson et al., 2018).
 
 For GSIM stations, a statistical quality-checking procedure was already performed by Gudmundsson et al. (2018) to flag suspect daily values and remove them prior to computing hydrological indices. For databases that provided reliable quality (QA/QC) flags, all flagging typologies were translated to a common framework (see Table 1 in Gudmundsson et al., 2018) and suspect values were removed.
@@ -80,6 +86,8 @@ Due to a pre-processing artefact in the production of GSIM by Gudmundsson et al.
 An additional level of caution was used for stations on river reaches undergoing flow cessation exclusively in winter and for stations in the vicinity of a marine coastline, as instrument freeze-up and tidal flow reversal are both documented sources of anomalous zero-flow values (Zimmer et al., 2020). “Winter-only” non-perennial gauging stations were defined as those whose stream record contained less than one zero-flow day per year on average during months with long-term mean air temperature over 10°C (averaged across the local catchment immediately draining to the river reach, according to WorldClim 2, Fick & Hijmans, 2017). In other words, “winter-only” non-perennial gauging stations were those which would not have qualified as non-perennial according to our criterion if only non-winter months were taken into account. “Marine” stations were defined as those within 3 km of a coastline. For GSIM stations with visually suspect anomalous records (e.g., abrupt shift down to 0 m3 s-1 that may be driven by station freezing), we attempted to obtain original daily streamflow records from the original agencies whose data was used to produce GSIM if they were freely available online (e.g., from HYDAT in Canada or USGS in the United States).
 
 Following this statistical outlier detection and manual time series inspection, we excluded 625 suspicious gauging stations and conducted the rest of the analysis with 5,615 gauging stations for model training and cross-validation, which represented a wide range of river types found on Earth (except Antarctica, see Extended Data Fig. 8 in Main Text for details on their environmental distribution).
+
+*Script for QA/QCing*: [globalIRmap repository](https://github.com/messamat/globalIRmap), see Getting Started and Workflow tab of this website for more information.
 
 # Map of gauging stations included or exluded from the analysis
 ### Loading of the map can take several minutes, please wait and read the instructions below
@@ -110,6 +118,6 @@ On this map are shown all global gauging stations that were reliably matched to 
 knitr::include_app("https://messamat.shinyapps.io/globalIRmap_gaugesel",
                    height = "800px")
 ```
-
+*[Source code for the app](https://github.com/messamat/globalIRmap/tree/master/shinyapp/globalIRmap_gaugesel)*
 
 
