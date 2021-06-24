@@ -3,3 +3,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
 ^R/IRmapping_plan\.R$
+^R/IRmapping_plan_trimmed\.R$
+^analysis/methods_workflow\.Rmd$
+^archived/\.*$
+^figtabres\.Rmd$
