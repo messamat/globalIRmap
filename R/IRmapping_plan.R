@@ -669,42 +669,42 @@ plan_runsimplemodels_branches_30d <- lapply(
   do.call(bind_plans, .)
 
 ############################## DID NOT WORK WITH PACKAGE BUILDING - UNCOMMENT TO USE ######################
-# plan_getoutputs_30d <- branch_plan(
-#   plan = plan_getoutputs_2,
-#   branch_suffix = '_mdur30',
-#   external_arguments_to_modify = c('gpredsdt',
-#                                    'rfpreds_gauges',
-#                                    'rfpreds_network'),
-#   verbose = FALSE) %>%
-#   as.data.table(.) %>%
-#   .[substr(target, 1, 12) == 'globaltables',
-#     command :=
-#       lapply(command, function(call) {
-#         rlang::call_modify(.call=call,
-#                            valuevar = "predbasic800_mdur30")
-#       })] %>%
-#   .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
-#     command := lapply(command, function(call) {
-#       rlang::call_modify(.call=call,
-#                          valuevar = "predbasic800_mdur30cat")
-#     })] %>%
-#   as_tibble
-# 
-# plan_compareresults_30d <- branch_plan(
-#   plan = plan_compareresults,
-#   branch_suffix = '_mdur30',
-#   external_arguments_to_modify = 'rivpred',
-#   verbose = FALSE
-# ) %>%
-#   as.data.table(.) %>%
-#   .[,
-#     command :=
-#       lapply(command, function(call) {
-#         rlang::call_modify(.call=call,
-#                            predcol = "predbasic800_mdur30cat")
-#       })] %>%
-#   as_tibble
-##################################################################################
+plan_getoutputs_30d <- branch_plan(
+  plan = plan_getoutputs_2,
+  branch_suffix = '_mdur30',
+  external_arguments_to_modify = c('gpredsdt',
+                                   'rfpreds_gauges',
+                                   'rfpreds_network'),
+  verbose = FALSE) %>%
+  as.data.table(.) %>%
+  .[substr(target, 1, 12) == 'globaltables',
+    command :=
+      lapply(command, function(call) {
+        rlang::call_modify(.call=call,
+                           valuevar = "predbasic800_mdur30")
+      })] %>%
+  .[target %in% c('IRESextra_mdur30', 'IRpop_mdur30'),
+    command := lapply(command, function(call) {
+      rlang::call_modify(.call=call,
+                         valuevar = "predbasic800_mdur30cat")
+    })] %>%
+  as_tibble
+
+plan_compareresults_30d <- branch_plan(
+  plan = plan_compareresults,
+  branch_suffix = '_mdur30',
+  external_arguments_to_modify = 'rivpred',
+  verbose = FALSE
+) %>%
+  as.data.table(.) %>%
+  .[,
+    command :=
+      lapply(command, function(call) {
+        rlang::call_modify(.call=call,
+                           predcol = "predbasic800_mdur30cat")
+      })] %>%
+  as_tibble
+################################################################################
 
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,
@@ -714,7 +714,7 @@ plan <- bind_plans(plan_preprocess,
                    plan_getpreds_30d,
                    plan_getoutputs_1,
                    plan_getoutputs_2,
-                   #plan_getoutputs_30d,
+                   plan_getoutputs_30d,
                    plan_compareresults,
-                   #plan_compareresults_30d
+                   plan_compareresults_30d
 )
