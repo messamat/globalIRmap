@@ -26,67 +26,11 @@ Global Reference Evapotranspiration (Global-PET) datasets. Finally, we updated t
 
 We derived a third set of variables by combining multiple variables already included in the model through algebraic operations. These metrics included the runoff coefficient (that is, the ratio of MAF and mean annual precipitation), specific discharge (that is, MAF per unit drainage area), and various temporal (for example, minimum annual/ maximum annual discharge) and spatial (for example, mean elevation in local reach catchment/mean elevation in upstream drainage area) ratios.
 
-# Pre-formatting of spatial data
-One main github repository was used to pre-format spatial data for this analysis:
-[globalIRmap_HydroATLAS_py](https://github.com/messamat/globalIRmap_HydroATLAS_py), which contains Python code used for pre-processing hydro-environmental data.
+# Pre-formatting of data
+One main github repository was used to pre-format hydro-environmental attribute data for the global river network in this analysis:
+[globalIRmap_HydroATLAS_py](https://github.com/messamat/globalIRmap_HydroATLAS_py).
 The output of this pre-processing is available and compiled as the attributes in the global river network and streamflow gauging stations datasets (available in the [figshare data repository](https://doi.org/10.6084/m9.figshare.14633022.v1)).
 
+Note that, although several attributes initially included in RiverATLAS version 1.0 have been updated for this study, the dataset provided here is not an established new version of RiverATLAS.
+
 See the Getting started and Workflow pages of this website for more information on folder structure used in this project and broader guidance on workflow.
-
-Here, we briefly explain how this code was used, but additional data (~100GB) not currently available publicly are needed to fully reproduce the analysis. Please contact mathis.messager@mail.mcgill.ca and/or bernhard.lehner@mcgill.ca for additional information should you want to re-produce the results from this study. In addition please note that processing these data takes weeks of continuous computing on a normal workstation.
-
-# Github repository structure
-### Set-up
-[utility_functions.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/utility_functions.py):  
- - import key modules.     
- - defines utility functions used throughout the analysis.    
- - defines the basic folder structure of the analysis.    
-
-[runUplandWeighting.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runUplandWeighting.py):  
- - define functions for routing data on river network
-
-
-### Download data
-Downloading data requires the creation of a file called "configs.json" with login information for [earthdata](https://urs.earthdata.nasa.gov/) and [alos](https://www.eorc.jaxa.jp/ALOS/en/aw3d30/registration.htm).
-For guidance on formatting the json configuration file, see  [here](https://martin-thoma.com/configuration-files-in-python/).
-
-- [download_GAIv2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_GAIv2.py): 
-download Global Aridity Index and Potential Evapotranspiration ET0 Climate Database v2.    
-- [download_GLADpickens2019.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_GLADpickens2019.py): download the Global Land Analysis and Discovery global inland water dynamics 1999-2019 dataset.   
-- [download_WorldClimv2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_WorldClimv2.py): download WorldClim version 2.  
-- [download_alosdem.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_alosdem.py): download the Advanced Land Observing Satellite (ALOS) global digital elevation model (this can take days and requires hundreds of GB).  
-- [download_hydrolakes](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_hydrolakes.py): download HydroLAKES polygons.  
-- [download_mod44w.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_mod44w.py):
-download MODIS global ocean masks.  
-- [download_soilgrids250v2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_soilgrids250v2.py): download SoilGrids250 version 2.   
-- [download_worldpop.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_worldpop.py): download 2020 WorldPop data at 100 m by country
-
-### Pre-format data
-- [format_HydroSHEDS.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_HydroSHEDS.py): create 
-    - a coastal band raster (~ 10 pixels inland at ~450 m resolution)
-    - HydroSHEDS regions of contiguous land surfaces in raster and polygon format  
-- [format_MODISmosaic.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_MODISmosaic.py): extract and mosaic MODIS ocean mask.  
-- [format_GLAD.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_GLAD.py): format surface water dynamics dataset, removing ocean pixels and aggregating data from 30 m resolution to 15 sec (~450 m) resolution (i.e., computing statistics of e.g. percentage area of seasonal surface water).   
-- [format_WorldClim2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_WorldClim2.py): resample WorldClim2 rasters (30 sec native resolution) to HydroSHEDS resolution (15 sec) and fill gaps.  
-- [format_GAIandCMIv2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_GAIandCMIv2.py):  
-  - compute Climate Moisture Index (based on WorldClimv2 precipitation and GAIv2 potential evapotranspiration data)
-  - resample GAI and CMI rasters to HydroSHEDS resolution (15 sec)  
-- [format_SoilGrids250m.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_SoilGrids250m.py): mosaic tiles, compute aggregate texture values for (0-100  cm), reproject and aggregate rasters (250 m) to HydroSHEDS resolution (15 sec).  
-- [format_worldpop.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_worldpop.py): aggregate (from 3 sec to 15 sec resolution)and mosaick country population rasters, associate each population pixel to a river reach (with long-term mean annual flow > 0.1 m3/s), and compute population that is closest to each reach.  
-
-
-### Associate hydro-environmental attributes to RiverATLAS river reaches
-- [runUplandWeighting_batch.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runUplandWeighting_batch.py): route hydro-environmental characteristics along the global river network to yield rasters of the average value of a given hydro-environmental characteristic (e.g., global aridity index) across the entire upstream area of each pixel. Compute rasters for worldclim, GAI, CMI, soilgrids textures from 0 to 100 cm, and surface water dynamics.   
-- [runHydroATLASStatistics.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runHydroATLASStatistics.py): create statistics tables of hydro-environmental attributes for every river reach in RiverATLAS. This code requires a fair amount of manual adjustment of local paths and must direct to a local master spreadsheet with the parameters of all statistics to compute. Please contact mathis.messager@mail.mcgill.ca for more information and for an example of such a table.
-
-
-# Workflow
-Execute:  
-1. scripts for downloading data in any order  
-2. format_MODISmosaic.py  
-3. format_HydroSHEDS.py  
-4. format_WorldClim2.py  
-5. other formatting scripts in any order  
-6. runUplandWeighting_batch.py  
-7. runHydroATLASStatistics.py  
-

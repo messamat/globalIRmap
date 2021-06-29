@@ -15,13 +15,21 @@
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<link href="site_libs/bootstrap-3.3.5/css/flatly.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
+<style>h1 {font-size: 34px;}
+       h1.title {font-size: 38px;}
+       h2 {font-size: 30px;}
+       h3 {font-size: 24px;}
+       h4 {font-size: 18px;}
+       h5 {font-size: 16px;}
+       h6 {font-size: 12px;}
+       code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
+       pre:not([class]) { background-color: white }</style>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
-<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
-<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/accessible-code-block-0.0.1/empty-anchor.js"></script>
 
 <link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
 <!-- Add a small amount of space between sections. -->
@@ -31,50 +39,19 @@ div.section {
 }
 </style>
 
-<style type="text/css">code{white-space: pre;}</style>
 <style type="text/css">
-  pre:not([class]) {
-    background-color: white;
-  }
-</style>
-<script type="text/javascript">
-if (window.hljs) {
-  hljs.configure({languages: []});
-  hljs.initHighlightingOnLoad();
-  if (document.readyState && document.readyState === "complete") {
-    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
-  }
-}
-</script>
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
 
 
 
-<style type="text/css">
-h1 {
-  font-size: 34px;
-}
-h1.title {
-  font-size: 38px;
-}
-h2 {
-  font-size: 30px;
-}
-h3 {
-  font-size: 24px;
-}
-h4 {
-  font-size: 18px;
-}
-h5 {
-  font-size: 16px;
-}
-h6 {
-  font-size: 12px;
-}
-.table th:not([align]) {
-  text-align: left;
-}
-</style>
+
+
 
 
 
@@ -84,10 +61,6 @@ h6 {
   max-width: 940px;
   margin-left: auto;
   margin-right: auto;
-}
-code {
-  color: inherit;
-  background-color: rgba(0, 0, 0, 0.04);
 }
 img {
   max-width:100%;
@@ -104,40 +77,13 @@ button.code-folding-btn:focus {
 summary {
   display: list-item;
 }
+pre code {
+  padding: 0;
+}
 </style>
 
 
 <style type="text/css">
-/* padding for bootstrap navbar */
-body {
-  padding-top: 51px;
-  padding-bottom: 40px;
-}
-/* offset scroll position for anchor links (for fixed navbar)  */
-.section h1 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h2 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h3 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h4 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h5 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
-.section h6 {
-  padding-top: 56px;
-  margin-top: -56px;
-}
 .dropdown-submenu {
   position: relative;
 }
@@ -165,7 +111,7 @@ body {
   margin-right: -10px;
 }
 .dropdown-submenu:hover>a:after {
-  border-left-color: #ffffff;
+  border-left-color: #adb5bd;
 }
 .dropdown-submenu.pull-left {
   float: none;
@@ -177,7 +123,7 @@ body {
 }
 </style>
 
-<script>
+<script type="text/javascript">
 // manage active state of menu based on current page
 $(document).ready(function () {
   // active menu anchor
@@ -188,10 +134,23 @@ $(document).ready(function () {
   var menuAnchor = $('a[href="' + href + '"]');
 
   // mark it active
-  menuAnchor.parent().addClass('active');
+  menuAnchor.tab('show');
 
   // if it's got a parent navbar menu mark it active as well
   menuAnchor.closest('li.dropdown').addClass('active');
+
+  // Navbar adjustments
+  var navHeight = $(".navbar").first().height() + 15;
+  var style = document.createElement('style');
+  var pt = "padding-top: " + navHeight + "px; ";
+  var mt = "margin-top: -" + navHeight + "px; ";
+  var css = "";
+  // offset scroll position for anchor links (for fixed navbar)
+  for (var i = 1; i <= 6; i++) {
+    css += ".section h" + i + "{ " + pt + mt + "}\n";
+  }
+  style.innerHTML = "body {" + pt + "padding-bottom: 40px; }\n" + css;
+  document.head.appendChild(style);
 });
 </script>
 
@@ -203,7 +162,6 @@ $(document).ready(function () {
   max-height: 500px;
   min-height: 44px;
   overflow-y: auto;
-  background: white;
   border: 1px solid #ddd;
   border-radius: 4px;
 }
@@ -326,7 +284,7 @@ $(document).ready(function () {
   </div><!--/.container -->
 </div><!--/.navbar -->
 
-<div class="fluid-row" id="header">
+<div id="header">
 
 
 
@@ -337,7 +295,7 @@ $(document).ready(function () {
 
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
-<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
 </button>
 </p>
 <div id="workflowr-report" class="collapse">
@@ -346,7 +304,7 @@ $(document).ready(function () {
 <a data-toggle="tab" href="#summary">Summary</a>
 </li>
 <li>
-<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> </a>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
 </li>
 <li>
 <a data-toggle="tab" href="#versions">Past versions</a>
@@ -355,10 +313,10 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-06-14
+<strong>Last updated:</strong> 2021-06-29
 </p>
 <p>
-<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 2 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 1 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
 </p>
 <p>
 <strong>Knit directory:</strong> <code>globalIRmap/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
@@ -374,28 +332,28 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
 </p>
 </div>
-<div id="strongRMarkdownfilestronguptodate" class="panel-collapse collapse">
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
 <div class="panel-body">
-<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+<p>The R Markdown file has unstaged changes. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
 </div>
 </div>
 </div>
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5e433c3ef84dfa28b022b3741c570f7372b31e1ctargetblank5e433c3a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/5e433c3ef84dfa28b022b3741c570f7372b31e1c" target="_blank">5e433c3</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree025ac83d8554b3427bd30cf63dbbe1f557f5e703targetblank025ac83a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/025ac83d8554b3427bd30cf63dbbe1f557f5e703" target="_blank">025ac83</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5e433c3ef84dfa28b022b3741c570f7372b31e1ctargetblank5e433c3a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree025ac83d8554b3427bd30cf63dbbe1f557f5e703targetblank025ac83a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/5e433c3ef84dfa28b022b3741c570f7372b31e1c" target="_blank">5e433c3</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/025ac83d8554b3427bd30cf63dbbe1f557f5e703" target="_blank">025ac83</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -410,30 +368,18 @@ Ignored files:
     Ignored:    renv/staging/
 
 Untracked files:
-    Untracked:  .Rbuildignore
     Untracked:  .drake/
     Untracked:  .gitignore
-    Untracked:  Compare_models_20201026.Rmd
-    Untracked:  Rplots.pdf
-    Untracked:  assets/
     Untracked:  figtabres.docx
-    Untracked:  figtabres_20201220_1.docx
-    Untracked:  figtabres_20210216.docx
-    Untracked:  log/
     Untracked:  schema.ini
-    Untracked:  tabs_quick.Rmd
-    Untracked:  tabs_quick.docx
-    Untracked:  tabs_quick.html
-    Untracked:  test.html
 
 Unstaged changes:
-    Modified:   .Rprofile
-    Modified:   R/IRmapping_plan.R
-    Modified:   analysis/_site.yml
-    Deleted:    analysis/results_diagnostics.Rmd
-    Modified:   figtabres.Rmd
-    Modified:   interactive.R
-    Modified:   workflowr_commands.R
+    Modified:   analysis/methods_gettingstarted.Rmd
+    Modified:   analysis/methods_refdisdat.Rmd
+    Modified:   analysis/methods_riveratlas.Rmd
+    Modified:   analysis/methods_workflow.Rmd
+    Modified:   log/drake.log
+    Deleted:    output/README.md
 
 </code></pre>
 <p>
@@ -472,6 +418,23 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/6e12f7100ca434d6ab76b8070007981050d71a70/docs/methods_workflow.html" target="_blank">6e12f71</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-14
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -547,14 +510,183 @@ Start building up workflowr website, start incorporating mandrake (but wait as v
 </div>
 </div>
 </div>
-<div id="r-load-stuff-echofalse-messagefalse-warningfalse-libraryrprojroot-rootdir---find_roothas_diranalysis-set-root-working-directory-setwdrootdir-sourcerirmapping_packages.r-sourcerirmapping_plan.r" class="section level1">
-<h1><code>{r load stuff, echo=FALSE, message=FALSE, warning=FALSE} # library(rprojroot) # rootdir &lt;- find_root(has_dir('analysis')) #Set root working directory # setwd(rootdir) # source('R/IRmapping_packages.R') # source('R/IRmapping_plan.R') #</code></h1>
+<div id="overall-workflow" class="section level1">
+<h1>Overall workflow</h1>
+<p>This study leverages the respective strengths of R (for data wrangling, statistics, and figure-making) and Python (for spatial analysis and mapping). As a result, re-producing it requires going back and forth between these two languages and platforms. At the broadest level, the main steps of this analysis were the following:<br />
+1. <em>Python</em> — Pre-process and format global river network environmental attributes: for more information, see <a href="https://messamat.github.io/globalIRmap/methods_riveratlas.html">this tab</a> on this website and the corresponding <a href="https://github.com/messamat/globalIRmap_HydroATLAS_py">Github repository</a>.<br />
+2. <em>Python</em> — Compile and pre-process global river network; download and spatially pre-process streamflow gauging stations (reference data for model training and testing, for more information, see <a href="https://messamat.github.io/globalIRmap/methods_refdisdat.html">this tab</a>), national hydrographic datasets, and on-the-ground visual observations of flow intermittence: <a href="https://github.com/messamat/globalIRmap_py">globalIRmap_py</a> Github repository.<br />
+3. <em>R</em> — QA/QC streamflow gauging station records; develop and validate random forest models, compare predictions to hydrographic datasets and on-the-ground observations, generate tables, make non-spatial figures and generate tabular predictions: <a href="https://github.com/messamat/globalIRmap">globalIRmap</a> Github repository.<br />
+4. <em>Python</em> — Join tabular predictions of flow intermittence to global river network, join predictions to on-the-ground observations of flow intermittence: <a href="https://github.com/messamat/globalIRmap_py">globalIRmap_py</a> Github repository.<br />
+5. <em>ArcMap</em> — Create maps.</p>
+<p>Below, we briefly explain how each of these steps was implemented, but additional data not currently available publicly are needed to fully reproduce the analysis. Please contact <a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a> and/or bernhard.lehner(at)mcgill.ca for additional information should you want to re-produce the results from this study. In addition please note that processing these data takes weeks of continuous computing on a normal workstation.</p>
 </div>
-<div id="section" class="section level1">
-<h1></h1>
+<div id="pre-processing-and-formatting-global-river-network-environmental-attributes" class="section level1">
+<h1>1. Pre-processing and formatting global river network environmental attributes</h1>
+<div id="github-repository-structure-for-globalirmap_hydroatlas_py" class="section level3">
+<h3>Github repository structure for <a href="https://github.com/messamat/globalIRmap_HydroATLAS_py">globalIRmap_HydroATLAS_py</a></h3>
+<div id="set-up" class="section level4">
+<h4>Set-up</h4>
+<p><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/utility_functions.py">utility_functions.py</a>:<br />
+- import key modules.<br />
+- defines utility functions used throughout the analysis.<br />
+- defines the basic folder structure of the analysis.</p>
+<p><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runUplandWeighting.py">runUplandWeighting.py</a>:<br />
+- define functions for routing data on river network</p>
 </div>
-<div id="r-graph-echofalse-messagefalse-warningfalse-drakevis_drake_graphplan-targets_only-t" class="section level1">
-<h1><code>{r graph, echo=FALSE, message=FALSE, warning=FALSE} # drake::vis_drake_graph(plan, targets_only = T) #</code></h1>
+<div id="download-data" class="section level4">
+<h4>Download data</h4>
+<p>Downloading data requires the creation of a file called “configs.json” with login information for <a href="https://urs.earthdata.nasa.gov/">earthdata</a> and <a href="https://www.eorc.jaxa.jp/ALOS/en/aw3d30/registration.htm">alos</a>. For guidance on formatting the json configuration file, see <a href="https://martin-thoma.com/configuration-files-in-python/">here</a>.</p>
+<ul>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_GAIv2.py">download_GAIv2.py</a>: download Global Aridity Index and Potential Evapotranspiration ET0 Climate Database v2.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_GLADpickens2019.py">download_GLADpickens2019.py</a>: download the Global Land Analysis and Discovery global inland water dynamics 1999-2019 dataset.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_WorldClimv2.py">download_WorldClimv2.py</a>: download WorldClim version 2.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_alosdem.py">download_alosdem.py</a>: download the Advanced Land Observing Satellite (ALOS) global digital elevation model (this can take days and requires hundreds of GB).<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_hydrolakes.py">download_hydrolakes</a>: download HydroLAKES polygons.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_mod44w.py">download_mod44w.py</a>: download MODIS global ocean masks.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_soilgrids250v2.py">download_soilgrids250v2.py</a>: download SoilGrids250 version 2.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_worldpop.py">download_worldpop.py</a>: download 2020 WorldPop data at 100 m by country</li>
+</ul>
+</div>
+<div id="pre-format-data" class="section level4">
+<h4>Pre-format data</h4>
+<ul>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_HydroSHEDS.py">format_HydroSHEDS.py</a>: create
+<ul>
+<li>a coastal band raster (~ 10 pixels inland at ~450 m resolution)</li>
+<li>HydroSHEDS regions of contiguous land surfaces in raster and polygon format<br />
+</li>
+</ul></li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_MODISmosaic.py">format_MODISmosaic.py</a>: extract and mosaic MODIS ocean mask.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_GLAD.py">format_GLAD.py</a>: format surface water dynamics dataset, removing ocean pixels and aggregating data from 30 m resolution to 15 sec (~450 m) resolution (i.e., computing statistics of e.g. percentage area of seasonal surface water).<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_WorldClim2.py">format_WorldClim2.py</a>: resample WorldClim2 rasters (30 sec native resolution) to HydroSHEDS resolution (15 sec) and fill gaps.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_GAIandCMIv2.py">format_GAIandCMIv2.py</a>:
+<ul>
+<li>compute Climate Moisture Index (based on WorldClimv2 precipitation and GAIv2 potential evapotranspiration data)</li>
+<li>resample GAI and CMI rasters to HydroSHEDS resolution (15 sec)<br />
+</li>
+</ul></li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_SoilGrids250m.py">format_SoilGrids250m.py</a>: mosaic tiles, compute aggregate texture values for (0-100 cm), reproject and aggregate rasters (250 m) to HydroSHEDS resolution (15 sec).<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_worldpop.py">format_worldpop.py</a>: aggregate (from 3 sec to 15 sec resolution)and mosaick country population rasters, associate each population pixel to a river reach (with long-term mean annual flow &gt; 0.1 m3/s), and compute population that is closest to each reach.</li>
+</ul>
+</div>
+<div id="associate-hydro-environmental-attributes-to-riveratlas-river-reaches" class="section level4">
+<h4>Associate hydro-environmental attributes to RiverATLAS river reaches</h4>
+<ul>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runUplandWeighting_batch.py">runUplandWeighting_batch.py</a>: route hydro-environmental characteristics along the global river network to yield rasters of the average value of a given hydro-environmental characteristic (e.g., global aridity index) across the entire upstream area of each pixel. Compute rasters for worldclim, GAI, CMI, soilgrids textures from 0 to 100 cm, and surface water dynamics.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runHydroATLASStatistics.py">runHydroATLASStatistics.py</a>: create statistics tables of hydro-environmental attributes for every river reach in RiverATLAS. This code requires a fair amount of manual adjustment of local paths and must direct to a local master spreadsheet with the parameters of all statistics to compute. Please contact <a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a> for more information and for an example of such a table.</li>
+</ul>
+</div>
+</div>
+<div id="workflow-summary" class="section level3">
+<h3>Workflow summary</h3>
+<p>Execute:<br />
+1. scripts for downloading data in any order<br />
+2. format_MODISmosaic.py<br />
+3. format_HydroSHEDS.py<br />
+4. format_WorldClim2.py<br />
+5. other formatting scripts in any order<br />
+6. runUplandWeighting_batch.py<br />
+7. runHydroATLASStatistics.py</p>
+</div>
+</div>
+<div id="pre-processing-and-formatting-spatial-datasets-aside-from-hydro-environmental-attributes" class="section level1">
+<h1>2. Pre-processing and formatting spatial datasets aside from hydro-environmental attributes</h1>
+<div id="github-repository-structure-for-globalirmap_py" class="section level3">
+<h3>Github repository structure for <a href="https://github.com/messamat/globalIRmap_py">globalIRmap_py</a></h3>
+<div id="set-up-1" class="section level4">
+<h4>Set-up</h4>
+<p><a href="https://github.com/messamat/globalIRmap_py/blob/master/utility_functions.py">utility_functions.py</a>:<br />
+- imports key modules.<br />
+- defines utility functions used throughout the analysis.<br />
+- defines the basic folder structure of the analysis.<br />
+</p>
+<p><a href="https://github.com/messamat/globalIRmap_py/blob/master/setup_localIRformatting.py">setup_localIRformatting.py</a>: - defines folder structure for formatting data to compare modeled estimates of global flow intermittence to national hydrographic datasets (Comparison_databases) and to in-situ/field-based observations of flow intermittence (Insitu_databases). - defines functions used in formatting data for the comparisons</p>
+</div>
+<div id="download-data-1" class="section level4">
+<h4>Download data</h4>
+<ul>
+<li><a href="https://github.com/messamat/globalIRmap_py/blob/master/download_GSIM.py">download_GSIM.py</a>: download Global Streamflow Indices and Metadata (GSIM) archive from pangaea repositories.<br />
+</li>
+<li><a href="https://github.com/messamat/globalIRmap_py/blob/master/download_format_IRdata.py">download_format_IRdata.py</a>: Download and format national hydrographic datasets and download on-the-ground observation of river intermittence.
+<ul>
+<li>U.S.A.: download National Hydrography Plus (NHDPlus) medium and high resolution, add attributes (drainage area, mean annual flow), export attribute table for analysis in R, divide datasets into subsets by drainage area and discharge size classes, subselect HydroATLAS basins that overlap the NHDPlus.<br />
+</li>
+<li>France (data were given by Ton Snelder): divide dataset into subsets by drainage area and stream order size classes, subselect HydroATLAS basins that overlap France.<br />
+</li>
+<li>Brazil: download national hydrographic dataset, identify first order streams through network analysis.<br />
+</li>
+<li>Australia: download Australian Geofabric, divide dataset into subsets by drainage area size classes, subselect HydroATLAS basins that overlap Australia.</li>
+<li>Observatoire National Des Etiages (ONDE, France): download ONDE dataset for 2012-2019, download French “Carthage” hydrographic network for formatting.</li>
+<li>Pacific Northwest PROSPER: download PROSPER dataset of flow state observations, download continuous parameter grids (CPG) of topography data in the Pacific Northwest for formatting.</li>
+</ul></li>
+</ul>
+</div>
+<div id="format-data" class="section level4">
+<h4>Format data</h4>
+<ul>
+<li><a href="https://github.com/messamat/globalIRmap_py/blob/master/format_RiverATLAS.py">format_RiverATLAS.py</a>: format RiverATLAS river network.
+<ul>
+<li>Intersect RiverATLAS reaches with lakes<br />
+</li>
+<li>Spatially associate RiverATLAS reaches with HydroBASINS level 05</li>
+<li>Export attribute table of RiverATLAS including those included in River ATLAS 1.0 and new hydro-environmental attributes computed for this study.<br />
+</li>
+</ul></li>
+<li><a href="https://github.com/messamat/globalIRmap_py/blob/master/format_stations.py">format_stations.py</a>: subselect, format, and spatially join gauging stations with RiverATLAS river network.
+<ul>
+<li>Join GRDC stations to nearest river reach in RiverATLAS.<br />
+</li>
+<li>Manually check and correct the location of all those GRDC stations that are more than 50 meters or whose reported drainage area differs byh more than 10% from associated river reach.</li>
+<li>Subset GSIM stations according to the criteria outlined in <a href="https://messamat.github.io/globalIRmap/methods_refdisdat.html">this website’s tab</a> and the article’s supplementary information.</li>
+<li>Snap GSIM stations to nearest RiverATLAS river reache within 200 m<br />
+</li>
+<li>Manually and correct the location of every GSIM station.</li>
+<li>Flag all GRDC and GSIM stations within 3 km from a coastline<br />
+</li>
+</ul></li>
+<li><a href="https://github.com/messamat/globalIRmap_py/blob/master/format_FROndeEaudata.py">format_FROndeEaudata.py</a>: format on-the-ground visual observations of flow intermittence from the Observatoire National Des Etiages (ONDE) across mainland France (for more explanations of the processing approach, see Section VIB in the Supplementary Information of the article).
+<ul>
+<li>Spatially join every point (site) in the ONDE network to the nearest river reach in the Carthage river network</li>
+<li>Manually check and correct the location of all sites (based on site name, ID attribute, initial location)</li>
+<li>Automatically join river reaches in the Carthage network with ONDE sites to RiverATLAS river network (see detailed process in Supplementary Information of the article)</li>
+<li>Manually check and correct the location of each ONDE site/association between ONDE sites and RiverATLAS network.</li>
+<li>Extract site attributes: how far down the RiverATLAS reach the site is as a percentage of the reach length, drainage area and discharge at the ONDE site and at the pourpoint (downstream end) of the corresponding RiverATLAS reach.<br />
+</li>
+</ul></li>
+<li><a href="https://github.com/messamat/globalIRmap_py/blob/master/format_PNWdata.py">format_PNWdata.py</a>:
+<ul>
+<li>Subset points to keep the same as those used by Jaeger et al. (2019) to which we added valid observations before 2004.</li>
+<li>Spatially join observation points to NHDplus high resolution</li>
+<li>Extract drainage area for each observation point</li>
+<li>Spatially join points to closest RiverATLAS river reaches</li>
+<li>Remove those that are over 500 m away from a RiverATLAS reach, with a drainage area &lt; 10 km2, or that considerably differ in drainage area with nearest river reach.</li>
+<li>Mannualy check and correct the location of most sites (see criteria in Supplementary Information).</li>
+<li>Extract site attributes: how far down the RiverATLAS reach the site is as a percentage of the reach length, drainage area and discharge at the site and at the pourpoint (downstream end) of the corresponding RiverATLAS reach.</li>
+</ul></li>
+</ul>
+</div>
+</div>
+<div id="workflow-summary-1" class="section level3">
+<h3>Workflow summary</h3>
+<p>Execute:<br />
+1. scripts for downloading data in any order<br />
+2. format_RiverATLAS.py<br />
+3. format_stations.py<br />
+4. format_FROndeEaudata.py<br />
+5. format_PNWdata.py</p>
+</div>
 </div>
 
 
@@ -578,7 +710,7 @@ footer is added to webpages before the MathJax javascript. -->
 
 // add bootstrap table styles to pandoc tables
 function bootstrapStylePandocTables() {
-  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+  $('tr.odd').parent('tbody').parent('table').addClass('table table-condensed');
 }
 $(document).ready(function () {
   bootstrapStylePandocTables();
@@ -596,7 +728,7 @@ $(document).ready(function () {
 
 $(document).ready(function () {
   $('.tabset-dropdown > .nav-tabs > li').click(function () {
-    $(this).parent().toggleClass('nav-tabs-open')
+    $(this).parent().toggleClass('nav-tabs-open');
   });
 });
 </script>

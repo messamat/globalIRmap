@@ -668,7 +668,6 @@ plan_runsimplemodels_branches_30d <- lapply(
 ) %>%
   do.call(bind_plans, .)
 
-############################## DID NOT WORK WITH PACKAGE BUILDING - UNCOMMENT TO USE ######################
 plan_getoutputs_30d <- branch_plan(
   plan = plan_getoutputs_2,
   branch_suffix = '_mdur30',
@@ -704,7 +703,7 @@ plan_compareresults_30d <- branch_plan(
                            predcol = "predbasic800_mdur30cat")
       })] %>%
   as_tibble
-################################################################################
+
 
 plan <- bind_plans(plan_preprocess,
                    plan_setupdata,

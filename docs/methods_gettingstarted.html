@@ -389,7 +389,7 @@ $(document).ready(function () {
 
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
-<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
 </button>
 </p>
 <div id="workflowr-report" class="collapse">
@@ -398,7 +398,7 @@ $(document).ready(function () {
 <a data-toggle="tab" href="#summary">Summary</a>
 </li>
 <li>
-<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> </a>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
 </li>
 <li>
 <a data-toggle="tab" href="#versions">Past versions</a>
@@ -407,10 +407,10 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-06-24
+<strong>Last updated:</strong> 2021-06-29
 </p>
 <p>
-<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
 </p>
 <p>
 <strong>Knit directory:</strong> <code>globalIRmap/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
@@ -426,12 +426,12 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
 </p>
 </div>
-<div id="strongRMarkdownfilestronguptodate" class="panel-collapse collapse">
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
 <div class="panel-body">
-<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+<p>The R Markdown file has unstaged changes. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
 </div>
 </div>
 </div>
@@ -498,16 +498,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree0e7263870ee35056a8e19d5c22b160bbeb46b427targetblank0e72638a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/0e7263870ee35056a8e19d5c22b160bbeb46b427" target="_blank">0e72638</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree025ac83d8554b3427bd30cf63dbbe1f557f5e703targetblank025ac83a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/025ac83d8554b3427bd30cf63dbbe1f557f5e703" target="_blank">025ac83</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree0e7263870ee35056a8e19d5c22b160bbeb46b427targetblank0e72638a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree025ac83d8554b3427bd30cf63dbbe1f557f5e703targetblank025ac83a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/0e7263870ee35056a8e19d5c22b160bbeb46b427" target="_blank">0e72638</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/025ac83d8554b3427bd30cf63dbbe1f557f5e703" target="_blank">025ac83</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -528,6 +528,10 @@ Untracked files:
     Untracked:  schema.ini
 
 Unstaged changes:
+    Modified:   analysis/methods_gettingstarted.Rmd
+    Modified:   analysis/methods_refdisdat.Rmd
+    Modified:   analysis/methods_riveratlas.Rmd
+    Modified:   analysis/methods_workflow.Rmd
     Modified:   log/drake.log
     Deleted:    output/README.md
 
@@ -568,6 +572,23 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/a030df5797ef21603b979dbe88c416364b851c05/docs/methods_gettingstarted.html" target="_blank">a030df5</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-24
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -626,46 +647,72 @@ Publish new pages
 </div>
 </div>
 </div>
-<p>The overall workflow of the project is detailed in the Workflow tab of this website. The documentation that follows is specifically for the portions of the analysis conducted in R, which encompasses all statistical analysis and figure-making (aside from maps).</p>
-<p><strong>To reproduce this analysis, please contact <a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a> to obtain the required raw and pre-processed data, which represent about anywhere between 60 and 500GB depending on how comprehensive of a re-production is wanted</strong></p>
-<div id="r-analysis-framework" class="section level2">
-<h2>R analysis framework</h2>
+<p>The overall workflow of the project is detailed in the Workflow tab of this website.</p>
+<p><strong>To reproduce this analysis, please contact <a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a> to obtain the required raw and pre-processed data, which represent between 60 and 500GB depending on how comprehensive of a re-production is wanted.</strong></p>
 <p>This analysis relies as much as possible on <a href="https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1005510">good enough practices in scientific computing</a>, which users are encouraged to read.</p>
 <p><strong>Structure</strong>: the overall project directory is structured with the following sub-directories:<br />
-|– bin (compiled code/external packages)<br />
-|– data (raw data, not to be altered)<br />
-|– results (results of the analysis, mostly reproduceable through code executiong but also includes manually modified results)<br />
-|– src (code written for the project)<br />
++– bin (compiled code/external packages)<br />
++– data (raw data, not to be altered)<br />
++– results (results of the analysis, mostly reproduceable through code executiong but also includes manually modified results)<br />
++– src (code written for the project)<br />
+| +—- globalIRmap (source code for analysis in R)<br />
+| +—- globalIRmap_HydroATLAS_py (source code for formatting of global river network environmental attributes)<br />
+| +—- globalIRmap_py (source code for formatting of spatial data in Python)<br />
 All scripts rely on this structure.</p>
+<div id="python-analysis" class="section level1">
+<h1>Python analysis</h1>
+<p>The documentation that follows is specifically for the portions of the analysis conducted in Python, which encompass all spatial formatting and analyses.</p>
+<p><strong>Prerequisites</strong> All GIS analyses in this study require an ESRI ArcGIS license including the Spatial Analyst extension, which itself requires a Windows OS. We used the Python Arcpy module associated with ArcGIS 10.7 in Python 2.7 with 64-bit background processing.</p>
+<div id="download-a-repository-for-python" class="section level3">
+<h3>Download a repository for Python</h3>
+<p>In <a href="https://git-scm.com/">Git Bash</a>, the following commands illustrate the procedure to make a local copy (i.e. clone) of the Github repository in a newly created directory at C://test_globalIRmap/src :</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 ~</span>
+<span id="cb1-2"><a href="#cb1-2"></a>$ <span class="bu">cd</span> /c/</span>
+<span id="cb1-3"><a href="#cb1-3"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
+<span id="cb1-4"><a href="#cb1-4"></a>$ <span class="fu">mkdir</span> test_globalIRmap</span>
+<span id="cb1-5"><a href="#cb1-5"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
+<span id="cb1-6"><a href="#cb1-6"></a>$ <span class="fu">mkdir</span> /c/test_globalIRmap/src</span>
+<span id="cb1-7"><a href="#cb1-7"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
+<span id="cb1-8"><a href="#cb1-8"></a>$ <span class="bu">cd</span> /c/test_globalIRmap/src</span>
+<span id="cb1-9"><a href="#cb1-9"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c/test_globalIRmap/src</span>
+<span id="cb1-10"><a href="#cb1-10"></a>$ <span class="fu">git</span> clone https://github.com/messamat/globalIRmap_py.git</span>
+<span id="cb1-11"><a href="#cb1-11"></a><span class="ex">Cloning</span> into <span class="st">&#39;globalIRmap_py&#39;</span>...</span>
+<span id="cb1-12"><a href="#cb1-12"></a><span class="ex">remote</span>: Enumerating objects: 164, done.</span>
+<span id="cb1-13"><a href="#cb1-13"></a><span class="ex">remote</span>: Counting objects: 100% (164/164), <span class="kw">done</span><span class="ex">.</span></span>
+<span id="cb1-14"><a href="#cb1-14"></a><span class="ex">remote</span>: Compressing objects: 100% (108/108), <span class="kw">done</span><span class="ex">.</span></span>
+<span id="cb1-15"><a href="#cb1-15"></a><span class="ex">Receiving</span> obremote: Total 164 (delta 97), <span class="ex">reused</span> 118 (delta 53), <span class="ex">pack-reused</span> 0</span>
+<span id="cb1-16"><a href="#cb1-16"></a><span class="ex">Receiving</span> objects: 100% (164/164), <span class="ex">116.62</span> KiB <span class="kw">|</span> <span class="ex">1003.00</span> KiB/s, done.</span>
+<span id="cb1-17"><a href="#cb1-17"></a><span class="ex">Resolving</span> deltas: 100% (97/97), <span class="kw">done</span><span class="ex">.</span></span></code></pre></div>
+</div>
+<div id="notes-and-resources" class="section level3">
+<h3>Notes and resources</h3>
+<ul>
+<li>The <a href="https://github.com/messamat/globalIRmap_py/issues">issues tracker</a> is the place to report problems or ask questions<br />
+</li>
+<li>See the repository <a href="https://github.com/messamat/globalIRmap_py/commits/master">history</a> for a fine-grained view of progress and changes.</li>
+</ul>
+</div>
+</div>
+<div id="r-analysis" class="section level1">
+<h1>R analysis</h1>
+<p>The documentation that follows is specifically for the portions of the analysis conducted in R, which encompass all statistical analyses and figure-making (aside from maps).</p>
 <p><strong>Documentation</strong>: this project is organized as an R package, providing documented functions to reproduce and extend the analysis reported in the publication. Note that this package has been written explicitly for this project and may not be suitable for general use. See guidelines below to install the package.</p>
 <p><strong>R Workflow</strong>: this project is setup with a <a href="https://github.com/ropensci/drake">drake workflow</a>, ensuring reproducibility. In the <code>drake</code> philosophy, every action is a function, and every R object is a “target” with dependencies. Intermediate targets/objects are stored in a <code>.drake</code> directory.</p>
 <p><strong>Dependency management</strong>: the R library of this project is managed by <a href="https://rstudio.github.io/renv/articles/renv.html">renv</a>. This makes sure that the exact same package versions are used when recreating the project. When calling <code>renv::restore()</code>, all required packages will be installed with their specific version. Please note that this project was built with R version 4.0.3 on a Windows 10 operating system. The renv packages from this project <strong>are not compatible with R versions prior to version 3.6.0.</strong></p>
 <p><strong>Syntax</strong>: this analysis relies on the <a href="https://rdatatable.gitlab.io/data.table/">data.table</a> syntax, which provides a high-performance version of data.frame. It is concise, faster, and more memory efficient than conventional data.frames and the tidyverse syntax.</p>
 <p><strong>Machine learning model development</strong>: for random forest model development, this project relies on the <a href="https://mlr3.mlr-org.com/">mlr3</a> package and ecosystem (see the <a href="https://mlr3book.mlr-org.com/introduction.html">mlr3 book</a> for learning its usage), which provides an object-oriented framework for machine learning.</p>
-</div>
-<div id="download-the-repository" class="section level2">
-<h2>Download the repository</h2>
-<p><strong>To copy (i.e., clone) this repository to your local machine (for Windows only, please contact author for guidance on other platforms).</strong><br />
-In Git Bash, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap :</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c/temp</span>
-<span id="cb1-2"><a href="#cb1-2"></a>$ <span class="bu">cd</span> /c/</span>
-<span id="cb1-3"><a href="#cb1-3"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
-<span id="cb1-4"><a href="#cb1-4"></a>$ <span class="fu">mkdir</span> test_globalIRmap</span>
-<span id="cb1-5"><a href="#cb1-5"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
-<span id="cb1-6"><a href="#cb1-6"></a>$ <span class="bu">cd</span> /c/test_globalIRmap</span>
-<span id="cb1-7"><a href="#cb1-7"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
-<span id="cb1-8"><a href="#cb1-8"></a>$ <span class="fu">mkdir</span> /c/test_globalIRmap/src</span>
-<span id="cb1-9"><a href="#cb1-9"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c</span>
-<span id="cb1-10"><a href="#cb1-10"></a>$ <span class="bu">cd</span> /c/test_globalIRmap/src</span>
-<span id="cb1-11"><a href="#cb1-11"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c/test_globalIRmap</span>
-<span id="cb1-12"><a href="#cb1-12"></a>$ <span class="fu">git</span> clone https://github.com/messamat/globalIRmap.git</span>
-<span id="cb1-13"><a href="#cb1-13"></a><span class="ex">Cloning</span> into <span class="st">&#39;globalIRmap&#39;</span>...</span>
-<span id="cb1-14"><a href="#cb1-14"></a><span class="ex">remote</span>: Enumerating objects: 116, done.</span>
-<span id="cb1-15"><a href="#cb1-15"></a><span class="ex">remote</span>: Counting objects: 100% (116/116), <span class="kw">done</span><span class="ex">.</span></span>
-<span id="cb1-16"><a href="#cb1-16"></a><span class="ex">remote</span>: Compressing objects: 100% (89/89), <span class="kw">done</span><span class="ex">.</span></span>
-<span id="cb1-17"><a href="#cb1-17"></a><span class="ex">remote</span>: Total 7363 (delta 48), <span class="ex">reused</span> 75 (delta 19), <span class="ex">pack-reused</span> 7247</span>
-<span id="cb1-18"><a href="#cb1-18"></a><span class="ex">Receiving</span> objects: 100% (7363/7363), <span class="ex">1.91</span> GiB <span class="kw">|</span> <span class="ex">3.78</span> MiB/s, done.</span>
-<span id="cb1-19"><a href="#cb1-19"></a><span class="ex">Resolving</span> deltas: 100% (925/925), <span class="kw">done</span><span class="ex">.</span></span></code></pre></div>
+<div id="download-the-repository-for-r" class="section level3">
+<h3>Download the repository for R</h3>
+<p>In Git Bash, continuing from the previous example for downloading the Github repository of the Python analysis, the following commands illustrate the procedure to make a local copy of the Github repository in a newly created directory at C://test_globalIRmap/src :</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1"></a><span class="ex">Mathis@DESKTOP</span> MINGW64 /c/test_globalIRmap/src</span>
+<span id="cb2-2"><a href="#cb2-2"></a>$ <span class="fu">git</span> clone https://github.com/messamat/globalIRmap.git</span>
+<span id="cb2-3"><a href="#cb2-3"></a><span class="ex">Cloning</span> into <span class="st">&#39;globalIRmap&#39;</span>...</span>
+<span id="cb2-4"><a href="#cb2-4"></a><span class="ex">remote</span>: Enumerating objects: 116, done.</span>
+<span id="cb2-5"><a href="#cb2-5"></a><span class="ex">remote</span>: Counting objects: 100% (116/116), <span class="kw">done</span><span class="ex">.</span></span>
+<span id="cb2-6"><a href="#cb2-6"></a><span class="ex">remote</span>: Compressing objects: 100% (89/89), <span class="kw">done</span><span class="ex">.</span></span>
+<span id="cb2-7"><a href="#cb2-7"></a><span class="ex">remote</span>: Total 7363 (delta 48), <span class="ex">reused</span> 75 (delta 19), <span class="ex">pack-reused</span> 7247</span>
+<span id="cb2-8"><a href="#cb2-8"></a><span class="ex">Receiving</span> objects: 100% (7363/7363), <span class="ex">1.91</span> GiB <span class="kw">|</span> <span class="ex">3.78</span> MiB/s, done.</span>
+<span id="cb2-9"><a href="#cb2-9"></a><span class="ex">Resolving</span> deltas: 100% (925/925), <span class="kw">done</span><span class="ex">.</span></span></code></pre></div>
 <p>In R Studio for Windows, the following procedure can be used:</p>
 <ul>
 <li>Click on “File” in the menu ribbon<br />
@@ -686,24 +733,21 @@ In Git Bash, the following commands illustrate the procedure to make a local cop
 <li>Tick “Open in new session” and then click “Create project”.</li>
 </ul>
 </div>
-<div id="get-started-in-r" class="section level2">
-<h2>Get started in R</h2>
+<div id="get-started-in-r" class="section level3">
+<h3>Get started in R</h3>
 <p><strong>Then open this project in R and run:</strong></p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a>renv<span class="op">::</span><span class="kw">restore</span>() <span class="co"># respond y, restores all R packages with their specific version</span></span>
-<span id="cb2-2"><a href="#cb2-2"></a>remotes<span class="op">::</span><span class="kw">install_github</span>(<span class="st">&#39;messamat/globalIRmap&#39;</span>) <span class="co">#install project package so that the help documentation can be accessed for project functions (e.g., ?format_gaugestats)</span></span>
-<span id="cb2-3"><a href="#cb2-3"></a><span class="kw">library</span>(drake)</span>
-<span id="cb2-4"><a href="#cb2-4"></a><span class="kw">r_make</span>() <span class="co"># recreates the analysis</span></span>
-<span id="cb2-5"><a href="#cb2-5"></a></span>
-<span id="cb2-6"><a href="#cb2-6"></a><span class="co">#If you were provided intermediate targets (i.e., a /.drake directory)</span></span>
-<span id="cb2-7"><a href="#cb2-7"></a><span class="co">#you can load individual targets in the environment even if they are expired</span></span>
-<span id="cb2-8"><a href="#cb2-8"></a><span class="kw">loadd</span>(globaltables_gad_id_cmj)</span>
-<span id="cb2-9"><a href="#cb2-9"></a><span class="kw">print</span>(globaltables_gad_id_cmj)</span></code></pre></div>
-<div id="other-practical-notes" class="section level4">
-<h4>Other practical notes</h4>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a>renv<span class="op">::</span><span class="kw">restore</span>() <span class="co"># respond y, restores all R packages with their specific version</span></span>
+<span id="cb3-2"><a href="#cb3-2"></a>remotes<span class="op">::</span><span class="kw">install_github</span>(<span class="st">&#39;messamat/globalIRmap&#39;</span>) <span class="co">#install project package so that the help documentation can be accessed for project functions (e.g., ?format_gaugestats)</span></span>
+<span id="cb3-3"><a href="#cb3-3"></a><span class="kw">library</span>(drake)</span>
+<span id="cb3-4"><a href="#cb3-4"></a><span class="kw">r_make</span>() <span class="co"># recreates the analysis</span></span>
+<span id="cb3-5"><a href="#cb3-5"></a></span>
+<span id="cb3-6"><a href="#cb3-6"></a><span class="co">#If you were provided intermediate targets (i.e., a /.drake directory)</span></span>
+<span id="cb3-7"><a href="#cb3-7"></a><span class="co">#you can load individual targets in the environment even if they are expired</span></span>
+<span id="cb3-8"><a href="#cb3-8"></a><span class="kw">loadd</span>(globaltables_gad_id_cmj)</span>
+<span id="cb3-9"><a href="#cb3-9"></a><span class="kw">print</span>(globaltables_gad_id_cmj)</span></code></pre></div>
 </div>
-</div>
-<div id="notes-and-resources" class="section level1">
-<h1>Notes and resources</h1>
+<div id="notes-and-resources-1" class="section level3">
+<h3>Notes and resources</h3>
 <ul>
 <li><p>The <a href="https://github.com/messamat/globalIRmap/issues">issues tracker</a> is the place to report problems or ask questions</p></li>
 <li><p>See the repository <a href="https://github.com/messamat/globalIRmap/commits/master">history</a> for a fine-grained view of progress and changes.</p></li>
@@ -715,7 +759,7 @@ In Git Bash, the following commands illustrate the procedure to make a local cop
 </button>
 </p>
 <div id="workflowr-sessioninfo" class="collapse">
-<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1"></a><span class="kw">sessionInfo</span>()</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1"></a><span class="kw">sessionInfo</span>()</span></code></pre></div>
 <pre><code>R version 4.0.2 (2020-06-22)
 Platform: x86_64-w64-mingw32/x64 (64-bit)
 Running under: Windows 10 x64 (build 19042)
@@ -745,6 +789,7 @@ loaded via a namespace (and not attached):
 [25] fs_1.5.0         glue_1.4.0       evaluate_0.14    rmarkdown_2.7   
 [29] stringi_1.4.6    compiler_4.0.2   pillar_1.6.1     backports_1.1.10
 [33] httpuv_1.5.4     renv_0.9.3       pkgconfig_2.0.3 </code></pre>
+</div>
 </div>
 </div>
 

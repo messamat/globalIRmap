@@ -7,3 +7,4 @@
 ^analysis/methods_workflow\.Rmd$
 ^archived/\.*$
 ^figtabres\.Rmd$
+^IRmapping_plan\.R$

@@ -15,7 +15,7 @@
 
 <script src="site_libs/jquery-1.11.3/jquery.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link href="site_libs/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<link href="site_libs/bootstrap-3.3.5/css/flatly.min.css" rel="stylesheet" />
 <script src="site_libs/bootstrap-3.3.5/js/bootstrap.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
 <script src="site_libs/bootstrap-3.3.5/shim/respond.min.js"></script>
@@ -29,8 +29,7 @@
        code {color: inherit; background-color: rgba(0, 0, 0, 0.04);}
        pre:not([class]) { background-color: white }</style>
 <script src="site_libs/navigation-1.1/tabsets.js"></script>
-<link href="site_libs/highlightjs-9.12.0/default.css" rel="stylesheet" />
-<script src="site_libs/highlightjs-9.12.0/highlight.js"></script>
+<script src="site_libs/accessible-code-block-0.0.1/empty-anchor.js"></script>
 
 <link rel="icon" href="https://github.com/workflowr/workflowr-assets/raw/master/img/reproducible.png">
 <!-- Add a small amount of space between sections. -->
@@ -49,17 +48,101 @@ div.section {
   ul.task-list{list-style: none;}
     </style>
 
-<style type="text/css">code{white-space: pre;}</style>
-<script type="text/javascript">
-if (window.hljs) {
-  hljs.configure({languages: []});
-  hljs.initHighlightingOnLoad();
-  if (document.readyState && document.readyState === "complete") {
-    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
-  }
-}
-</script>
 
+<style type="text/css">
+  code {
+    white-space: pre;
+  }
+  .sourceCode {
+    overflow: visible;
+  }
+</style>
+<style type="text/css" data-origin="pandoc">
+code.sourceCode > span { display: inline-block; line-height: 1.25; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode { white-space: pre; position: relative; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+code.sourceCode { white-space: pre-wrap; }
+code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    background-color: #2a211c;
+    color: #bdae9d;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #bdae9d;  padding-left: 4px; }
+div.sourceCode
+  { color: #bdae9d; background-color: #2a211c; }
+@media screen {
+code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ffff00; } /* Alert */
+code span.an { color: #0066ff; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { } /* Attribute */
+code span.bn { color: #44aa43; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #43a8ed; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #049b0a; } /* Char */
+code span.cn { } /* Constant */
+code span.co { color: #0066ff; font-weight: bold; font-style: italic; } /* Comment */
+code span.do { color: #0066ff; font-style: italic; } /* Documentation */
+code span.dt { text-decoration: underline; } /* DataType */
+code span.dv { color: #44aa43; } /* DecVal */
+code span.er { color: #ffff00; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #44aa43; } /* Float */
+code span.fu { color: #ff9358; font-weight: bold; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #0066ff; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #43a8ed; font-weight: bold; } /* Keyword */
+code span.op { } /* Operator */
+code span.pp { font-weight: bold; } /* Preprocessor */
+code span.sc { color: #049b0a; } /* SpecialChar */
+code span.ss { color: #049b0a; } /* SpecialString */
+code span.st { color: #049b0a; } /* String */
+code span.va { } /* Variable */
+code span.vs { color: #049b0a; } /* VerbatimString */
+code span.wa { color: #ffff00; font-weight: bold; } /* Warning */
+
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    for (var j = 0; j < rules.length; j++) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
 
 
 
@@ -306,7 +389,7 @@ $(document).ready(function () {
 
 <p>
 <button type="button" class="btn btn-default btn-workflowr btn-workflowr-report" data-toggle="collapse" data-target="#workflowr-report">
-<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span>
+<span class="glyphicon glyphicon-list" aria-hidden="true"></span> workflowr <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span>
 </button>
 </p>
 <div id="workflowr-report" class="collapse">
@@ -315,7 +398,7 @@ $(document).ready(function () {
 <a data-toggle="tab" href="#summary">Summary</a>
 </li>
 <li>
-<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> </a>
+<a data-toggle="tab" href="#checks"> Checks <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> </a>
 </li>
 <li>
 <a data-toggle="tab" href="#versions">Past versions</a>
@@ -324,10 +407,10 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-06-24
+<strong>Last updated:</strong> 2021-06-29
 </p>
 <p>
-<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 7 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
+<strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 6 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 1
 </p>
 <p>
 <strong>Knit directory:</strong> <code>globalIRmap/</code> <span class="glyphicon glyphicon-question-sign" aria-hidden="true" title="This is the local directory in which the code in this file was executed."> </span>
@@ -343,12 +426,12 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguptodate"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>R Markdown file:</strong> up-to-date </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRMarkdownfilestronguncommittedchanges"> <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> <strong>R Markdown file:</strong> uncommitted changes </a>
 </p>
 </div>
-<div id="strongRMarkdownfilestronguptodate" class="panel-collapse collapse">
+<div id="strongRMarkdownfilestronguncommittedchanges" class="panel-collapse collapse">
 <div class="panel-body">
-<p>Great! Since the R Markdown file has been committed to the Git repository, you know the exact version of the code that produced these results.</p>
+<p>The R Markdown file has unstaged changes. To know which version of the R Markdown file created these results, you’ll want to first commit it to the Git repo. If you’re still working on the analysis, you can ignore this warning. When you’re finished, you can run <code>wflow_publish</code> to commit the R Markdown file and build the HTML.</p>
 </div>
 </div>
 </div>
@@ -415,16 +498,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree0e7263870ee35056a8e19d5c22b160bbeb46b427targetblank0e72638a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/0e7263870ee35056a8e19d5c22b160bbeb46b427" target="_blank">0e72638</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree025ac83d8554b3427bd30cf63dbbe1f557f5e703targetblank025ac83a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/025ac83d8554b3427bd30cf63dbbe1f557f5e703" target="_blank">025ac83</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree0e7263870ee35056a8e19d5c22b160bbeb46b427targetblank0e72638a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree025ac83d8554b3427bd30cf63dbbe1f557f5e703targetblank025ac83a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/0e7263870ee35056a8e19d5c22b160bbeb46b427" target="_blank">0e72638</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/025ac83d8554b3427bd30cf63dbbe1f557f5e703" target="_blank">025ac83</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -445,6 +528,10 @@ Untracked files:
     Untracked:  schema.ini
 
 Unstaged changes:
+    Modified:   analysis/methods_gettingstarted.Rmd
+    Modified:   analysis/methods_refdisdat.Rmd
+    Modified:   analysis/methods_riveratlas.Rmd
+    Modified:   analysis/methods_workflow.Rmd
     Modified:   log/drake.log
     Deleted:    output/README.md
 
@@ -485,6 +572,23 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/a030df5797ef21603b979dbe88c416364b851c05/docs/methods_refdisdat.html" target="_blank">a030df5</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-24
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 Rmd
@@ -948,8 +1052,8 @@ Whereas the GRDC offers daily river discharge values for most stations, GSIM onl
 <p>For station records originating from databases that did not provide quality flags (or that recommended not to use them, i.e., EWA and GRDC), a statistical procedure was applied by Gudmundsson et al. (2018) to flag and remove suspect values with the following characteristics: * Days with negative recorded discharge.<br />
 * Daily values with more than 10 consecutive equal discharge values larger than zero. This rule is motivated by the fact that many days with consecutive streamflow values often occur due to instrument failure (e.g., damaged sensors, ice jams) or flow regulations. * Daily streamflow values (Q) if log (Q+0.01) was larger or smaller than the mean value of log (Q+0.01) plus or minus 6 times the standard deviation of log (Q+0.01) computed for that calendar day for the entire length of the series. The mean and standard deviation are computed for a 5-day window centred on the calendar day to ensure that enough data are considered. See Gudmundsson et al. (2018), Gudmundsson &amp; Seneviratne (2016), and Klein Tank et al. (2009) for the rationale behind these criteria.</p>
 <p>We used the same criteria to automatically flag individual daily streamflow values in the streamflow records of the GRDC gauging stations. However, rather than directly removing flagged daily streamflow values, as was done for GSIM by Gudmundsson et al. (2018), the values that we flagged as being suspect were further investigated through a visual inspection of the gauges’ streamflow records. Prior to visual inspection, we removed all stations for which only integer streamflow values were available, as any daily discharge value &lt; 0.5 m3 s-1 is reported as zero by the data provider at these stations.</p>
-<p>When a station exhibited a flow regime that we suspected was caused by a flow regulating structure (e.g., a dam or reservoir), we inspected satellite and topographic imagery for the presence of a regulating structure upstream of the station and excluded the station if one was present. Indicators of flow regulation included abrupt changes in seasonality or decreases in the magnitude of peak- or low-flows, signs of hydropeaking (i.e., short duration, high flow events at regular intervals), sometimes following a temporary dip in discharge (due to reservoir filling). See our online research compendium (<a href="https://messamat.github.io/globalIRmap/" class="uri">https://messamat.github.io/globalIRmap/</a>) for an interactive visualization of processing information for every gauging station that was removed, including the reason for its removal and associated time-series plots.</p>
-<p>Due to a pre-processing artefact in the production of GSIM by Gudmundsson et al. (2018), daily streamflow values for stations located in the U.S. had been rounded to two decimals, leading to very low discharge values (&lt; 0.005 m3 s-1) being rounded to 0. Therefore, we made sure of the validity of zero-flow values for all U.S. stations which, according to GSIM records, had at least one zero-flow day per year on average (i.e., would be considered non-perennial in the subsequent analysis): we downloaded and computed flow intermittence statistics directly from the original daily discharge data provided by the United States Geological Survey (USGS). All stations with ≥ 1 zero-flow day per year according to GSIM but &lt; 1 zero-flow day per year according to USGS data were excluded from further analysis.</p>
+<p>When a station exhibited a flow regime that we suspected was caused by a flow regulating structure (e.g., a dam or reservoir), we inspected satellite and topographic imagery for the presence of a regulating structure upstream of the station and excluded the station if one was present. Indicators of flow regulation included abrupt changes in seasonality or decreases in the magnitude of peak- or low-flows, signs of hydropeaking (i.e., short duration, high flow events at regular intervals), sometimes following a temporary dip in discharge (due to reservoir filling). See the interactive visualization at the end of this page for processing information for every gauging station that was removed, including the reason for its removal and associated time-series plots.</p>
+<p>Due to a pre-processing artifact in the production of GSIM by Gudmundsson et al. (2018), daily streamflow values for stations located in the U.S. had been rounded to two decimals, leading to very low discharge values (&lt; 0.005 m3 s-1) being rounded to 0. Therefore, we made sure of the validity of zero-flow values for all U.S. stations which, according to GSIM records, had at least one zero-flow day per year on average (i.e., would be considered non-perennial in the subsequent analysis): we downloaded and computed flow intermittence statistics directly from the original daily discharge data provided by the United States Geological Survey (USGS). All stations with ≥ 1 zero-flow day per year according to GSIM but &lt; 1 zero-flow day per year according to USGS data were excluded from further analysis.</p>
 <p>An additional level of caution was used for stations on river reaches undergoing flow cessation exclusively in winter and for stations in the vicinity of a marine coastline, as instrument freeze-up and tidal flow reversal are both documented sources of anomalous zero-flow values (Zimmer et al., 2020). “Winter-only” non-perennial gauging stations were defined as those whose stream record contained less than one zero-flow day per year on average during months with long-term mean air temperature over 10°C (averaged across the local catchment immediately draining to the river reach, according to WorldClim 2, Fick &amp; Hijmans, 2017). In other words, “winter-only” non-perennial gauging stations were those which would not have qualified as non-perennial according to our criterion if only non-winter months were taken into account. “Marine” stations were defined as those within 3 km of a coastline. For GSIM stations with visually suspect anomalous records (e.g., abrupt shift down to 0 m3 s-1 that may be driven by station freezing), we attempted to obtain original daily streamflow records from the original agencies whose data was used to produce GSIM if they were freely available online (e.g., from HYDAT in Canada or USGS in the United States).</p>
 <p>Following this statistical outlier detection and manual time series inspection, we excluded 625 suspicious gauging stations and conducted the rest of the analysis with 5,615 gauging stations for model training and cross-validation, which represented a wide range of river types found on Earth (except Antarctica, see Extended Data Fig. 8 in Main Text for details on their environmental distribution).</p>
 <p><em>Script for QA/QCing</em>: <a href="https://github.com/messamat/globalIRmap">globalIRmap repository</a>, see Getting Started and Workflow tab of this website for more information.</p>
@@ -1006,7 +1110,7 @@ Whereas the GRDC offers daily river discharge values for most stations, GSIM onl
 </button>
 </p>
 <div id="workflowr-sessioninfo" class="collapse">
-<pre class="r"><code>sessionInfo()</code></pre>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="kw">sessionInfo</span>()</span></code></pre></div>
 <pre><code>R version 4.0.2 (2020-06-22)
 Platform: x86_64-w64-mingw32/x64 (64-bit)
 Running under: Windows 10 x64 (build 19042)

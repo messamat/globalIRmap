@@ -2,18 +2,157 @@
 title: "Analysis workflow"
 output:
   workflowr::wflow_html:
+    toc: false
+    theme: flatly
+    highlight: espresso
 editor_options:
   chunk_output_type: console
 ---
 
-# ```{r load stuff, echo=FALSE, message=FALSE, warning=FALSE}
-# library(rprojroot)
-# rootdir <- find_root(has_dir('analysis')) #Set root working directory
-# setwd(rootdir)
-# source('R/IRmapping_packages.R')
-# source('R/IRmapping_plan.R')
-# ```
-# 
-# ```{r graph, echo=FALSE, message=FALSE, warning=FALSE}
-# drake::vis_drake_graph(plan, targets_only = T)
-# ```
+# Overall workflow
+This study leverages the respective strengths of R (for data wrangling, statistics, and figure-making) and Python (for spatial analysis and mapping). As a result, re-producing it requires going back and forth between these two languages and platforms. At the broadest level, the main steps of this analysis were the following:  
+  1. *Python* — Pre-process and format global river network environmental attributes: for more information, see [this tab](https://messamat.github.io/globalIRmap/methods_riveratlas.html) on this website and the corresponding [Github repository](https://github.com/messamat/globalIRmap_HydroATLAS_py).  
+  2. *Python* — Compile and pre-process global river network; download and spatially pre-process streamflow gauging stations (reference data for model training and testing, for more information, see [this tab](https://messamat.github.io/globalIRmap/methods_refdisdat.html)), national hydrographic datasets, and on-the-ground visual observations of flow intermittence: [globalIRmap_py](https://github.com/messamat/globalIRmap_py) Github repository.   
+  3. *R* — QA/QC streamflow gauging station records; develop and validate random forest models, compare predictions to hydrographic datasets and on-the-ground observations, generate tables, make non-spatial figures and generate tabular predictions: [globalIRmap](https://github.com/messamat/globalIRmap) Github repository.   
+  4. *Python* — Join tabular predictions of flow intermittence to global river network, join predictions to on-the-ground observations of flow intermittence: [globalIRmap_py](https://github.com/messamat/globalIRmap_py) Github repository.      
+  5. *ArcMap* — Create maps.
+  
+  
+Below, we briefly explain how each of these steps was implemented, but additional data not currently available publicly are needed to fully reproduce the analysis. Please contact mathis.messager@mail.mcgill.ca and/or bernhard.lehner(at)mcgill.ca for additional information should you want to re-produce the results from this study. In addition please note that processing these data takes weeks of continuous computing on a normal workstation.
+
+# 1. Pre-processing and formatting global river network environmental attributes
+### Github repository structure for [globalIRmap_HydroATLAS_py](https://github.com/messamat/globalIRmap_HydroATLAS_py)
+#### Set-up
+[utility_functions.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/utility_functions.py):  
+ - import key modules.     
+ - defines utility functions used throughout the analysis.    
+ - defines the basic folder structure of the analysis.    
+
+[runUplandWeighting.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runUplandWeighting.py):  
+ - define functions for routing data on river network
+
+
+#### Download data
+Downloading data requires the creation of a file called "configs.json" with login information for [earthdata](https://urs.earthdata.nasa.gov/) and [alos](https://www.eorc.jaxa.jp/ALOS/en/aw3d30/registration.htm).
+For guidance on formatting the json configuration file, see  [here](https://martin-thoma.com/configuration-files-in-python/).
+
+- [download_GAIv2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_GAIv2.py): 
+download Global Aridity Index and Potential Evapotranspiration ET0 Climate Database v2.    
+- [download_GLADpickens2019.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_GLADpickens2019.py): download the Global Land Analysis and Discovery global inland water dynamics 1999-2019 dataset.   
+- [download_WorldClimv2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_WorldClimv2.py): download WorldClim version 2.  
+- [download_alosdem.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_alosdem.py): download the Advanced Land Observing Satellite (ALOS) global digital elevation model (this can take days and requires hundreds of GB).  
+- [download_hydrolakes](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_hydrolakes.py): download HydroLAKES polygons.  
+- [download_mod44w.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_mod44w.py):
+download MODIS global ocean masks.  
+- [download_soilgrids250v2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_soilgrids250v2.py): download SoilGrids250 version 2.   
+- [download_worldpop.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/download_worldpop.py): download 2020 WorldPop data at 100 m by country
+
+#### Pre-format data
+- [format_HydroSHEDS.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_HydroSHEDS.py): create 
+    - a coastal band raster (~ 10 pixels inland at ~450 m resolution)
+    - HydroSHEDS regions of contiguous land surfaces in raster and polygon format  
+- [format_MODISmosaic.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_MODISmosaic.py): extract and mosaic MODIS ocean mask.  
+- [format_GLAD.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_GLAD.py): format surface water dynamics dataset, removing ocean pixels and aggregating data from 30 m resolution to 15 sec (~450 m) resolution (i.e., computing statistics of e.g. percentage area of seasonal surface water).   
+- [format_WorldClim2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_WorldClim2.py): resample WorldClim2 rasters (30 sec native resolution) to HydroSHEDS resolution (15 sec) and fill gaps.  
+- [format_GAIandCMIv2.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_GAIandCMIv2.py):  
+  - compute Climate Moisture Index (based on WorldClimv2 precipitation and GAIv2 potential evapotranspiration data)
+  - resample GAI and CMI rasters to HydroSHEDS resolution (15 sec)  
+- [format_SoilGrids250m.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_SoilGrids250m.py): mosaic tiles, compute aggregate texture values for (0-100  cm), reproject and aggregate rasters (250 m) to HydroSHEDS resolution (15 sec).  
+- [format_worldpop.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/format_worldpop.py): aggregate (from 3 sec to 15 sec resolution)and mosaick country population rasters, associate each population pixel to a river reach (with long-term mean annual flow > 0.1 m3/s), and compute population that is closest to each reach.  
+
+
+#### Associate hydro-environmental attributes to RiverATLAS river reaches
+- [runUplandWeighting_batch.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runUplandWeighting_batch.py): route hydro-environmental characteristics along the global river network to yield rasters of the average value of a given hydro-environmental characteristic (e.g., global aridity index) across the entire upstream area of each pixel. Compute rasters for worldclim, GAI, CMI, soilgrids textures from 0 to 100 cm, and surface water dynamics.   
+- [runHydroATLASStatistics.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/runHydroATLASStatistics.py): create statistics tables of hydro-environmental attributes for every river reach in RiverATLAS. This code requires a fair amount of manual adjustment of local paths and must direct to a local master spreadsheet with the parameters of all statistics to compute. Please contact mathis.messager@mail.mcgill.ca for more information and for an example of such a table.
+
+
+### Workflow summary
+Execute:  
+1. scripts for downloading data in any order  
+2. format_MODISmosaic.py  
+3. format_HydroSHEDS.py  
+4. format_WorldClim2.py  
+5. other formatting scripts in any order  
+6. runUplandWeighting_batch.py  
+7. runHydroATLASStatistics.py  
+
+# 2. Pre-processing and formatting spatial datasets aside from hydro-environmental attributes
+### Github repository structure for [globalIRmap_py](https://github.com/messamat/globalIRmap_py)
+
+#### Set-up
+[utility_functions.py](https://github.com/messamat/globalIRmap_py/blob/master/utility_functions.py):  
+ - imports key modules.     
+ - defines utility functions used throughout the analysis.    
+ - defines the basic folder structure of the analysis.\
+ 
+[setup_localIRformatting.py](https://github.com/messamat/globalIRmap_py/blob/master/setup_localIRformatting.py):
+ - defines folder structure for formatting data to compare modeled estimates of global flow intermittence to national
+   hydrographic datasets (Comparison_databases) and to in-situ/field-based observations of flow intermittence (Insitu_databases).
+ - defines functions used in formatting data for the comparisons
+
+#### Download data
+- [download_GSIM.py](https://github.com/messamat/globalIRmap_py/blob/master/download_GSIM.py): download Global Streamflow Indices and Metadata (GSIM) archive from pangaea repositories.  
+- [download_format_IRdata.py](https://github.com/messamat/globalIRmap_py/blob/master/download_format_IRdata.py): Download and format national hydrographic datasets and download on-the-ground observation of river intermittence.  
+    - U.S.A.: download National Hydrography Plus (NHDPlus) medium and high resolution, add attributes (drainage area, mean annual flow), export attribute table for analysis in R, divide datasets into subsets by drainage area and discharge size classes, subselect HydroATLAS basins that overlap the NHDPlus.  
+    - France (data were given by Ton Snelder): divide dataset into subsets by drainage area and stream order size classes, subselect HydroATLAS basins that overlap France.  
+    - Brazil: download national hydrographic dataset, identify first order streams through network analysis.  
+    - Australia: download Australian Geofabric, divide dataset into subsets by drainage area size classes, subselect HydroATLAS basins that overlap Australia.
+    - Observatoire National Des Etiages (ONDE, France): download ONDE dataset for 2012-2019, download French "Carthage" hydrographic network for formatting.
+    - Pacific Northwest PROSPER: download PROSPER dataset of flow state observations, download continuous parameter grids (CPG) of topography data in the Pacific Northwest for formatting.
+
+#### Format data
+- [format_RiverATLAS.py](https://github.com/messamat/globalIRmap_py/blob/master/format_RiverATLAS.py): format RiverATLAS river network.
+  - Intersect RiverATLAS reaches with lakes  
+  - Spatially associate RiverATLAS reaches with HydroBASINS level 05
+  - Export attribute table of RiverATLAS including those included in River ATLAS 1.0 and new hydro-environmental attributes computed for this study.  
+- [format_stations.py](https://github.com/messamat/globalIRmap_py/blob/master/format_stations.py): subselect, format, and spatially join gauging stations with RiverATLAS river network. 
+  - Join GRDC stations to nearest river reach in RiverATLAS.  
+  - Manually check and correct the location of all those GRDC stations that are more than 50 meters or whose reported drainage area differs byh more than 10% from associated river reach.
+  - Subset GSIM stations according to the criteria outlined in [this website's tab](https://messamat.github.io/globalIRmap/methods_refdisdat.html) and the article's supplementary information.
+  - Snap GSIM stations to nearest RiverATLAS river reache within 200 m  
+  - Manually and correct the location of every GSIM station.
+  - Flag all GRDC and GSIM stations within 3 km from a coastline  
+- [format_FROndeEaudata.py](https://github.com/messamat/globalIRmap_py/blob/master/format_FROndeEaudata.py): format on-the-ground visual observations of flow intermittence from the Observatoire National Des Etiages (ONDE) across mainland France (for more explanations of the processing approach, see Section VIB in the Supplementary Information of the article).  
+  - Spatially join every point (site) in the ONDE network to the nearest river reach  in the Carthage river network
+  - Manually check and correct the location of all sites (based on site name, ID attribute, initial location)
+  - Automatically join river reaches in the Carthage network with ONDE sites to RiverATLAS river network (see detailed process in Supplementary Information of the article)
+  - Manually check and correct the location of each ONDE site/association between ONDE sites and RiverATLAS network. 
+  - Extract site attributes: how far down the RiverATLAS reach the site is as a percentage of the reach length, drainage area and discharge at the ONDE site and at the pourpoint (downstream end) of the corresponding RiverATLAS reach.   
+- [format_PNWdata.py](https://github.com/messamat/globalIRmap_py/blob/master/format_PNWdata.py):  
+  - Subset points to keep the same as those used by Jaeger et al. (2019) to which we added valid observations before 2004.
+  - Spatially join observation points to NHDplus high resolution
+  - Extract drainage area for each observation point
+  - Spatially join points to closest RiverATLAS river reaches
+  - Remove those that are over 500 m away from a RiverATLAS reach, with a drainage area < 10 km2, or that considerably differ in drainage area with nearest river reach.
+  - Mannualy check and correct the location of most sites (see criteria in Supplementary Information).
+  - Extract site attributes: how far down the RiverATLAS reach the site is as a percentage of the reach length, drainage area and discharge at the site and at the pourpoint (downstream end) of the corresponding RiverATLAS reach.
+  
+### Workflow summary
+Execute:  
+1. scripts for downloading data in any order  
+2. format_RiverATLAS.py  
+3. format_stations.py  
+4. format_FROndeEaudata.py  
+5. format_PNWdata.py  
+
+# 3. R analysis
+### Github repository structure for [globalIRmap](https://github.com/messamat/globalIRmap)
+The structure of the Github repository results from the fact that it is formatted as an R package, relies on drake for organizing the analysis workflow, renv for dependency management, and includes all documents used for this workflowr website.
+
+- **R/** — directory containing the core of the analysis (based on [the recommended project structure for drake](https://books.ropensci.org/drake/projects.html)).  
+  - *IRmapping_functions.R*
+  - *IRmapping_packages.R*
+  - *IRmapping_plan.R*
+  - *IRmapping_plan_trimmed.R*
+  - *planutil_functions.R*
+- **analysis/**
+- **archived/**
+- **assets/**
+- **docts/**
+- **log/**
+- **man/**
+- **renv/**
+- **shinyapp/globalIRmap_gaugesel/**
+- 
+
+
