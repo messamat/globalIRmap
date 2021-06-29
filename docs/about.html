@@ -313,7 +313,7 @@ $(document).ready(function () {
 <div class="tab-content">
 <div id="summary" class="tab-pane fade in active">
 <p>
-<strong>Last updated:</strong> 2021-06-24
+<strong>Last updated:</strong> 2021-06-29
 </p>
 <p>
 <strong>Checks:</strong> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> 2 <span class="glyphicon glyphicon-exclamation-sign text-danger" aria-hidden="true"></span> 0
@@ -344,16 +344,16 @@ This reproducible <a href="http://rmarkdown.rstudio.com">R Markdown</a> analysis
 <div class="panel panel-default">
 <div class="panel-heading">
 <p class="panel-title">
-<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree0e7263870ee35056a8e19d5c22b160bbeb46b427targetblank0e72638a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/0e7263870ee35056a8e19d5c22b160bbeb46b427" target="_blank">0e72638</a> </a>
+<a data-toggle="collapse" data-parent="#workflowr-checks" href="#strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5eed8f5eca7a7539708202a2acd970fbd044ce33targetblank5eed8f5a"> <span class="glyphicon glyphicon-ok text-success" aria-hidden="true"></span> <strong>Repository version:</strong> <a href="https://github.com/messamat/globalIRmap/tree/5eed8f5eca7a7539708202a2acd970fbd044ce33" target="_blank">5eed8f5</a> </a>
 </p>
 </div>
-<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree0e7263870ee35056a8e19d5c22b160bbeb46b427targetblank0e72638a" class="panel-collapse collapse">
+<div id="strongRepositoryversionstrongahrefhttpsgithubcommessamatglobalIRmaptree5eed8f5eca7a7539708202a2acd970fbd044ce33targetblank5eed8f5a" class="panel-collapse collapse">
 <div class="panel-body">
 <p>
 Great! You are using Git for version control. Tracking code development and connecting the code version to the results is critical for reproducibility.
 </p>
 <p>
-The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/0e7263870ee35056a8e19d5c22b160bbeb46b427" target="_blank">0e72638</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
+The results in this page were generated with repository version <a href="https://github.com/messamat/globalIRmap/tree/5eed8f5eca7a7539708202a2acd970fbd044ce33" target="_blank">5eed8f5</a>. See the <em>Past versions</em> tab to see a history of the changes made to the R Markdown and HTML files.
 </p>
 <p>
 Note that you need to be careful to ensure that all relevant files for the analysis have been committed to Git prior to generating the results (you can use <code>wflow_publish</code> or <code>wflow_git_commit</code>). workflowr only checks the R Markdown file, but you know if there are other scripts or data files that it depends on. Below is the status of the Git repository when the results were generated:
@@ -364,6 +364,7 @@ Ignored files:
     Ignored:    .Rproj.user/
     Ignored:    R/.Rhistory
     Ignored:    analysis/.Rhistory
+    Ignored:    globalIRmap_rep/
     Ignored:    renv/library/
     Ignored:    renv/staging/
 
@@ -372,10 +373,6 @@ Untracked files:
     Untracked:  .gitignore
     Untracked:  figtabres.docx
     Untracked:  schema.ini
-
-Unstaged changes:
-    Modified:   log/drake.log
-    Deleted:    output/README.md
 
 </code></pre>
 <p>
@@ -414,6 +411,40 @@ Message
 </tr>
 </thead>
 <tbody>
+<tr>
+<td>
+Rmd
+</td>
+<td>
+<a href="https://github.com/messamat/globalIRmap/blob/5eed8f5eca7a7539708202a2acd970fbd044ce33/analysis/about.Rmd" target="_blank">5eed8f5</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-29
+</td>
+<td>
+wflow_publish(c(“analysis/about.Rmd”, “analysis/index.Rmd”, “analysis/methods_gettingstarted.Rmd”,
+</td>
+</tr>
+<tr>
+<td>
+html
+</td>
+<td>
+<a href="https://rawcdn.githack.com/messamat/globalIRmap/a030df5797ef21603b979dbe88c416364b851c05/docs/about.html" target="_blank">a030df5</a>
+</td>
+<td>
+messamat
+</td>
+<td>
+2021-06-24
+</td>
+<td>
+Build site.
+</td>
+</tr>
 <tr>
 <td>
 html
@@ -741,8 +772,10 @@ Start workflowr project.
 <li>a digital representation of the global river network (RiverATLAS)</li>
 <li>streamflow gauging station records at 5615 locations globally</li>
 </ul>
-<p>The <a href="https://messamat.github.io/globalIRmap/workflow.html">Workflow tab</a> explains the requirements and analytical steps involved in the analysis for this study.</p>
-<p>All of the source code that generated the datasets, statistical results and figures contained in the manuscript is on two GitHub repositories: <a href="https://github.com/messamat/globalIRmap_py">one for Python code</a> used in spatial analysis, and <a href="https://github.com/messamat/globalIRmap">one for R code</a> used for statistical analysis and figure productions.</p>
+<p>The <a href="https://messamat.github.io/globalIRmap/workflow.html">Workflow tab</a> explains the requirements and analytical steps and provides guidelines to reproduce/understand the analysis for this study.</p>
+<p>All of the source code that generated the datasets, statistical results and figures contained in the manuscript is on three GitHub repositories: <a href="https://github.com/messamat/globalIRmap_HydroATLAS_py">1. <strong>globalIRmap_HydroATLAS_py</strong>: Python code used in computing new global river network hydro-environmental attributes</a>.<br />
+<a href="https://github.com/messamat/globalIRmap_py">2. <strong>globalIRmap_py</strong>: Python code used in processing all spatial data aside from global river network hydro-environmental attributes</a>.<br />
+<a href="https://github.com/messamat/globalIRmap">3. <strong>globalIRmap</strong>: R code used in statistical analysis, reporting, and figure production</a>.</p>
 </div>
 <div id="acknowledgements" class="section level1">
 <h1>Acknowledgements</h1>
@@ -755,7 +788,7 @@ Start workflowr project.
 </div>
 <div id="comments-and-issues" class="section level1">
 <h1>Comments and issues</h1>
-<p>To report any problem or ask questions on this website or the code, please use the Github <a href="https://github.com/messamat/globalIRmap/issues">issues tracker</a>.<br />
+<p>To report any problem or ask questions on this website, please use the Github <a href="https://github.com/messamat/globalIRmap/issues">issues tracker</a>.<br />
 For other inquiries on the article or the data, please email <a href="mailto:mathis.messager@mail.mcgill.ca" class="email">mathis.messager@mail.mcgill.ca</a></p>
 </div>
 
