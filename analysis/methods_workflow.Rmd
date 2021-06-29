@@ -11,16 +11,18 @@ editor_options:
 
 # Overall workflow
 This study leverages the respective strengths of R (for data wrangling, statistics, and figure-making) and Python (for spatial analysis and mapping). As a result, re-producing it requires going back and forth between these two languages and platforms. At the broadest level, the main steps of this analysis were the following:  
-  1. *Python* — Pre-process and format global river network environmental attributes: for more information, see [this tab](https://messamat.github.io/globalIRmap/methods_riveratlas.html) on this website and the corresponding [Github repository](https://github.com/messamat/globalIRmap_HydroATLAS_py).  
-  2. *Python* — Compile and pre-process global river network; download and spatially pre-process streamflow gauging stations (reference data for model training and testing, for more information, see [this tab](https://messamat.github.io/globalIRmap/methods_refdisdat.html)), national hydrographic datasets, and on-the-ground visual observations of flow intermittence: [globalIRmap_py](https://github.com/messamat/globalIRmap_py) Github repository.   
-  3. *R* — QA/QC streamflow gauging station records; develop and validate random forest models, compare predictions to hydrographic datasets and on-the-ground observations, generate tables, make non-spatial figures and generate tabular predictions: [globalIRmap](https://github.com/messamat/globalIRmap) Github repository.   
-  4. *Python* — Join tabular predictions of flow intermittence to global river network, join predictions to on-the-ground observations of flow intermittence: [globalIRmap_py](https://github.com/messamat/globalIRmap_py) Github repository.      
-  5. *ArcMap* — Create maps.
+  [1. Pre-processing and formatting global river network environmental attributes][1. Pre-processing and formatting global river network environmental attributes] in *Python*.  
+  [2. Pre-processing and formatting spatial datasets aside from hydro-environmental attributes][ 2. Pre-processing and formatting spatial datasets aside from hydro-environmental attributes] in *Python*.   
+  [3. R analysis][3. R analysis] in *R*.  
+  [4. Final formatting of analysis outputs for mapping][4. Final formatting of analysis outputs for mapping] in *Python*.   
+  [5. Map results and comparisons][5. Map results and comparisons] in *ArcMap*.
   
   
 Below, we briefly explain how each of these steps was implemented, but additional data not currently available publicly are needed to fully reproduce the analysis. Please contact mathis.messager@mail.mcgill.ca and/or bernhard.lehner(at)mcgill.ca for additional information should you want to re-produce the results from this study. In addition please note that processing these data takes weeks of continuous computing on a normal workstation.
 
 # 1. Pre-processing and formatting global river network environmental attributes
+Main purpose: download and compute additional hydro-environmental attributes for the global river network than those already included in RiverATLAS. 
+
 ### Github repository structure for [globalIRmap_HydroATLAS_py](https://github.com/messamat/globalIRmap_HydroATLAS_py)
 #### Set-up
 [utility_functions.py](https://github.com/messamat/globalIRmap_HydroATLAS_py/blob/master/utility_functions.py):  
@@ -77,6 +79,8 @@ Execute:
 7. runHydroATLASStatistics.py  
 
 # 2. Pre-processing and formatting spatial datasets aside from hydro-environmental attributes
+Main purpose: compile and pre-process global river network; download and spatially pre-process streamflow gauging stations (reference data for model training and testing), national hydrographic datasets, and on-the-ground visual observations of flow intermittence.
+
 ### Github repository structure for [globalIRmap_py](https://github.com/messamat/globalIRmap_py)
 
 #### Set-up
@@ -136,23 +140,84 @@ Execute:
 5. format_PNWdata.py  
 
 # 3. R analysis
+Main purpose: QA/QC streamflow gauging station records; develop and validate random forest models, compare predictions to hydrographic datasets and on-the-ground observations, generate tables, make non-spatial figures and generate tabular predictions for global river network and spatial data for other mapping.
+
 ### Github repository structure for [globalIRmap](https://github.com/messamat/globalIRmap)
-The structure of the Github repository results from the fact that it is formatted as an R package, relies on drake for organizing the analysis workflow, renv for dependency management, and includes all documents used for this workflowr website.
+The structure of the Github repository stems from the fact that this project is formatted as an R package, relies on drake for organizing the analysis workflow, renv for dependency management, and includes all documents used for this workflowr website. All files and directories whose role is mainly structural (and therefore whose content can be ignored for the analysis) are marked with a X; directories are in **bold**, files are in *italic*. 
 
-- **R/** — directory containing the core of the analysis (based on [the recommended project structure for drake](https://books.ropensci.org/drake/projects.html)).  
-  - *IRmapping_functions.R*
-  - *IRmapping_packages.R*
-  - *IRmapping_plan.R*
-  - *IRmapping_plan_trimmed.R*
-  - *planutil_functions.R*
-- **analysis/**
-- **archived/**
-- **assets/**
-- **docts/**
-- **log/**
-- **man/**
-- **renv/**
-- **shinyapp/globalIRmap_gaugesel/**
-- 
+- [**R/**](https://github.com/messamat/globalIRmap/tree/master/R) — core of the analysis (based on [the recommended project structure for drake](https://books.ropensci.org/drake/projects.html)).  
+  - [*IRmapping_functions.R*](https://github.com/messamat/globalIRmap/blob/master/R/IRmapping_functions.R) - all custom functions used in the data formatting, analysis, and visualization workflow. 
+  - [*IRmapping_packages.R*](https://github.com/messamat/globalIRmap/blob/master/R/IRmapping_packages.R) - all packages used in the workflow.
+  - [*IRmapping_plan.R*](https://github.com/messamat/globalIRmap/blob/master/R/IRmapping_plan.R) - entire analysis plan (workflow/pipeline of steps).
+  - [*IRmapping_plan_trimmed.R*](https://github.com/messamat/globalIRmap/blob/master/R/IRmapping_plan_trimmed.R) - subset of analysis plan for quick processing.
+  - [*planutil_functions.R*](https://github.com/messamat/globalIRmap/blob/master/R/planutil_functions.R) - custom utility functions for manipulating drake workflow.
+- [**analysis/**](https://github.com/messamat/globalIRmap/tree/master/analysis) X — Rmarkdown files used in building this website.
+- [**archived/**](https://github.com/messamat/globalIRmap/tree/master/archived) X — legacy scripts not used in final workflow.
+- [**assets/**](https://github.com/messamat/globalIRmap/tree/master/assets) X — files used for website (e.g., map in home tab).
+- [**docs/**](https://github.com/messamat/globalIRmap/tree/master/docs) X — HTML rendering of Rmarkdown files from analysis/ folder, used in building this website.
+- [**log/**](https://github.com/messamat/globalIRmap/tree/master/log) X — log file for drake.
+- [**man/**](https://github.com/messamat/globalIRmap/tree/master/man) X — Rmarkdown rendering of function documentations for package (automatically built with [roxygen2](https://roxygen2.r-lib.org/)).
+- [**renv/**](https://github.com/messamat/globalIRmap/tree/master/renv) X — files necessary for local dependency management by [renv](https://rstudio.github.io/renv/articles/renv.html) (including the project package library when restored).
+- [**shinyapp/globalIRmap_gaugesel/**](https://github.com/messamat/globalIRmap/tree/master/shinyapp/globalIRmap_gaugesel) X — Shiny app for this website.
+- [*.Rbuildignore*](https://github.com/messamat/globalIRmap/blob/master/.Rbuildignore) X — files and directories to exclude from package building.
+- [*.Rprofile*](https://github.com/messamat/globalIRmap/blob/master/.Rprofile) X — used to activate renv and workflowr for new R sessions launched in the project.
+- [*.gitattributes*](https://github.com/messamat/globalIRmap/blob/master/.gitattributes) X — Github internal file.
+- [*DESCRIPTION*](https://github.com/messamat/globalIRmap/blob/master/DESCRIPTION) X - Package description.
+- [*LICENSE*](https://github.com/messamat/globalIRmap/blob/master/LICENSE) - Package license.
+- [*NAMESPACE*](https://github.com/messamat/globalIRmap/blob/master/NAMESPACE) X - Specifies which functions are available outside of your package.
+- [*README.md*](https://github.com/messamat/globalIRmap/blob/master/README.md) X — README for Github.
+- [*\_drake.R*](https://github.com/messamat/globalIRmap/blob/master/_drake.R) — configuration script for drake workflow, this specific file name is required by the drake package.
+- [*\_workflowr.yml*](https://github.com/messamat/globalIRmap/blob/master/_workflowr.yml) X — workflowr-specific configuration file (for website building).
+- [*drake_cache.csv*](https://github.com/messamat/globalIRmap/blob/master/drake_cache.csv) X  — CSV cache log file for drake targets.
+- [*figtabres.Rmd*](https://github.com/messamat/globalIRmap/blob/master/figtabres.Rmd) — Rmarkdown report of study results; create plots for manuscript.
+- [*globalIRmap.Rproj*](https://github.com/messamat/globalIRmap/blob/master/globalIRmap.Rproj) X — R project file.
+- [*interactive.R*](https://github.com/messamat/globalIRmap/blob/master/interactive.R) — script for user to manually run (!most importantly! containg r_make() statement to launch drake workflow/build targets in separate, clean R session (for reproduceability).
+- [*renv.lock*](https://github.com/messamat/globalIRmap/blob/master/renv.lock) X — renv lockfile, describing the state of the project’s library (installed packages and their version).
 
+#### Set-up
+After downloading the project from Github (see [Getting started](https://messamat.github.io/globalIRmap/methods_gettingstarted.html)), launch the R project (`globalIRmap.Rproj`) and execute the following lines:
+```{r README-4, eval = FALSE}
+renv::restore() # respond y, restores all R packages with their specific version
+remotes::install_github('messamat/globalIRmap') #install project package so that the help documentation can be accessed for project functions (e.g., ?format_gaugestats)
+```
 
+To check the steps of the analysis, see [*R/IRmapping_plan.R*](https://github.com/messamat/globalIRmap/blob/master/R/IRmapping_plan.R), which contains the drake "plan", the high-level catalog of all the steps in the workflow (see the corresponding chapter in the [drake user manual](https://books.ropensci.org/drake/plans.html)). This plan defines the order of functions to use, their inputs and outputs (usually, targets), and the relationship among targets and steps. The R object for a plan is a data.frame with columns named `target` and `command`; each row represents a step in the workflow; each command.Each command is a concise expression that makes use of our functions, and each target is the return value of the command (the `target` column has the names of the targets, not the values). In this analysis, functions from  [*planutil_functions.R*](https://github.com/messamat/globalIRmap/blob/master/R/planutil_functions.R) were used to create complex branches in the plan (re-running the entire model and result formatting pipeline but when defining non-perennial watercourses as those that cease to flow at least 30 days per year, rather than 1 day per year).
+
+To get information on a function, simply type `?function` in the R console. For instance, `?comp_GRDCqstats`.
+
+#### Running the analysis
+Provided that your were given the necessary data, the entire analysis can simply be re-run with the following code found in [`interactive.R`](https://github.com/messamat/globalIRmap/blob/master/interactive.R):
+```{r rmake, eval = FALSE}
+library(drake)
+r_make() # recreates the analysis
+```
+`r_make()` is the central, most important function of the drake approach. It runs all the steps of the workflow in the correct order, skipping any work that is already up to date. Because of how drake tracks global functions and objects as dependencies of targets, the use of `r_make()`  is needed to run the analysis pipeline in a clean reproducible environment. If all targets are up to date in the `.drake/` directory, then nothing will be run.
+
+#### Inspecting results
+If you were provided intermediate targets (i.e., a `.drake/` directory; or once you have re-run the analysis), you can load individual targets in the environment with the following commands (even if the targets are not up to date due to e.g. a change in source path). 
+``` {r loadtarg, eval = FALSE}
+loadd(globaltables_gad_id_cmj)
+print(globaltables_gad_id_cmj)
+
+tab <- readd(globaltables_gad_id_cmj)
+print(tab)
+```
+
+To reproduce the tables and (non-map) figures in the manuscript, run the following line in the R console:
+`rmarkdown::render('figtabres.Rmd',  encoding = 'UTF-8')`. Note that nearly all figures and tables were manually adjusted for aesthetic purpose prior to inclusion in manuscript, so that the rendition of `figtabres.Rmd` will not exactly match the final format in form (but it will match in content).
+
+#### R analysis output files for subsequent analysis
+The R analysis produces a suite of outputs necessary for subsequent mapping and analysis, notably:    
+  - `RiverATLAS_predbasic800_20210216.csv`: comma-separated value table of model predictions for the RiverATLAS global river network.  
+  - `BasinATLAS_v10_lev03_errors.gpkg`: polygons of BasinATLAS level 3 subdivisions with attributes. Used to produce Figure 3 in the manuscript main text and Figure S6 in the Supplementary Information.  
+  - `GRDCstations_predbasic800.gpkg` and `GRDCstations_predbasic800_mdur30.gpkg`: points of gauging stations used in model development and validation with reference attributes and model predictions. Used to produce Extended Data Fig. 2 and  Supplementary Information Fig. S3.  
+  - `pnwobs_IPR_predbasic800cat%Y%m%d%H%M%S.shp` and `ondeobs_IPR_predbasic800cat%Y%m%d%H%M%S.shp`: on-the-ground observations of flow intermittence from ONDE (France) and PROSPER (U.S. Pacific Northwest) with reference attributes and model predictions. Used to produce Extended Data Fig. 6.  
+
+# 4. Final formatting of analysis outputs for mapping
+Run [predict_RF.py](https://github.com/messamat/globalIRmap_py/blob/master/predict_RF.py) in the [globalIRmap_py](https://github.com/messamat/globalIRmap_py) Github repository:    
+  - Format global river network attributes for mapping.  
+  - Divide and export RiverATLAS global river network (with predictions) into subsets by discharge and drainage area size classes for mapping.  
+  - Join ONDE (France) and PROSPER (U.S. Pacific Northwest) on-the-ground observations with river network for mapping (Extended Data Fig. 6).  
+  
+# 5. Map results and comparisons
+Please contact Mathis Messager for ArcGIS map packages to reproduce specific maps from the manuscript. 

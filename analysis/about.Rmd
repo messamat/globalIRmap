@@ -59,9 +59,12 @@ The [Data tab](https://messamat.github.io/globalIRmap/data.html) focuses on our 
 * a digital representation of the global river network (RiverATLAS)
 * streamflow gauging station records at 5615 locations globally
 
-The [Workflow tab](https://messamat.github.io/globalIRmap/workflow.html) explains the requirements and analytical steps involved in the analysis for this study.\cr
+The [Workflow tab](https://messamat.github.io/globalIRmap/workflow.html) explains the requirements and analytical steps and provides guidelines to reproduce/understand the analysis for this study.\cr
 
-All of the source code that generated the datasets, statistical results and figures contained in the manuscript is on two GitHub repositories: [one for Python code](https://github.com/messamat/globalIRmap_py) used in spatial analysis, and [one for R code](https://github.com/messamat/globalIRmap) used for statistical analysis and figure productions.
+All of the source code that generated the datasets, statistical results and figures contained in the manuscript is on three GitHub repositories: 
+[1. **globalIRmap_HydroATLAS_py**: Python code used in computing new global river network hydro-environmental attributes](https://github.com/messamat/globalIRmap_HydroATLAS_py).  
+[2. **globalIRmap_py**: Python code used in processing all spatial data aside from global river network hydro-environmental attributes](https://github.com/messamat/globalIRmap_py).   
+[3. **globalIRmap**: R code used in statistical analysis, reporting, and figure production](https://github.com/messamat/globalIRmap).
 
 # Acknowledgements
 * Funding for this study was provided in part by the Natural Sciences and Engineering Research Council of
@@ -77,5 +80,5 @@ University for providing us with high-performance computing resources.
 * The structure of this compendium is based on the work of [Patrick Schratz](https://github.com/pat-s), [Carl Boettiger](http://www.carlboettiger.info/), [Ben Marwick](https://github.com/benmarwick), to whom we are grateful, and the [workflowr](https://github.com/jdblischak/workflowr) package.
 
 # Comments and issues
-To report any problem or ask questions on this website or the code, please use the Github [issues tracker](https://github.com/messamat/globalIRmap/issues).  
+To report any problem or ask questions on this website, please use the Github [issues tracker](https://github.com/messamat/globalIRmap/issues).  
 For other inquiries on the article or the data, please email mathis.messager@mail.mcgill.ca

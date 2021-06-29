@@ -1,7 +1,5 @@
 ---
 title: "Global underpinning hydrography and hydro-environmental predictor variables"
-author: "Mathis Messager"
-date: "6/14/2021"
 output:
   workflowr::wflow_html:
     toc: false
@@ -33,4 +31,4 @@ The output of this pre-processing is available and compiled as the attributes in
 
 Note that, although several attributes initially included in RiverATLAS version 1.0 have been updated for this study, the dataset provided here is not an established new version of RiverATLAS.
 
-See the Getting started and Workflow pages of this website for more information on folder structure used in this project and broader guidance on workflow.
+See the [Getting started](https://messamat.github.io/globalIRmap/methods_gettingstarted.html) and [Workflow](https://messamat.github.io/globalIRmap/methods_workflow.html) pages of this website for more information on folder structure used in this project and broader guidance on workflow.

@@ -17,7 +17,7 @@ In this section, we describe the reference streamflow data used in training our 
 To access computing scripts associated with this part of our project, see the following repositories:  
 - [globalIRmap_py](https://github.com/messamat/globalIRmap_py): Python code to download GSIM and spatially format the datasets of gauging stations (among other tasks).  
 - [globalIRmap](https://github.com/messamat/globalIRmap): R code for QA/QCing and formatting gauging stations discharge records (among other tasks).  
-The specific scripts involved in the processing of gauging stations are mentioned more specifically throughout this section. See the Getting started and Workflow pages of this website for more information on project management.
+The specific scripts involved in the processing of gauging stations are mentioned more specifically throughout this section. See the [Getting started](https://messamat.github.io/globalIRmap/methods_gettingstarted.html) and [Workflow](https://messamat.github.io/globalIRmap/methods_workflow.html) pages of this website for more information on project management.
 
 # Source datasets  
 ### Summary
@@ -90,7 +90,7 @@ An additional level of caution was used for stations on river reaches undergoing
 
 Following this statistical outlier detection and manual time series inspection, we excluded 625 suspicious gauging stations and conducted the rest of the analysis with 5,615 gauging stations for model training and cross-validation, which represented a wide range of river types found on Earth (except Antarctica, see Extended Data Fig. 8 in Main Text for details on their environmental distribution).
 
-*Script for QA/QCing*: [globalIRmap repository](https://github.com/messamat/globalIRmap), see Getting Started and Workflow tab of this website for more information.
+*Script for QA/QCing*: [globalIRmap repository](https://github.com/messamat/globalIRmap), see [Getting Started](https://messamat.github.io/globalIRmap/methods_gettingstarted.html) and [Workflow](https://messamat.github.io/globalIRmap/methods_workflow.html) tabs of this website for more information.
 
 # Map of gauging stations included or exluded from the analysis
 ### Loading of the map can take several minutes, please wait and read the instructions below

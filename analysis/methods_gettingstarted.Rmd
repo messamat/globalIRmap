@@ -14,8 +14,6 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-The overall workflow of the project is detailed in the Workflow tab of this website. 
-
 **To reproduce this analysis, please contact mathis.messager@mail.mcgill.ca to obtain the required raw and pre-processed data, which represent between 60 and 500GB depending on how comprehensive of a re-production is wanted.**
 
 This analysis relies as much as possible on [good enough practices in scientific computing](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1005510), which users are encouraged to read.
@@ -31,6 +29,7 @@ src/ (code written for the project)
 
 All scripts rely on this structure.
 
+The overall workflow of the project is detailed in the [Workflow tab](https://messamat.github.io/globalIRmap/methods_workflow.html) of this website. 
 
 # Python analysis
 The documentation that follows is specifically for the portions of the analysis conducted in Python, which encompass all spatial formatting and analyses.
@@ -108,21 +107,6 @@ In R Studio for Windows, the following procedure can be used:
   * Project directory name: [will autofill as “globalIRmap”]  
   * Create project as subdirectory of: [choose the directory, e.g., C://test_globalIRmap//src]  
 * Tick “Open in new session” and then click “Create project”.  
-
-### Get started in R
-**Then open this project in R and run:**  
-```{r README-4, eval = FALSE}
-renv::restore() # respond y, restores all R packages with their specific version
-remotes::install_github('messamat/globalIRmap') #install project package so that the help documentation can be accessed for project functions (e.g., ?format_gaugestats)
-library(drake)
-r_make() # recreates the analysis
-
-#If you were provided intermediate targets (i.e., a /.drake directory)
-#you can load individual targets in the environment even if they are expired
-loadd(globaltables_gad_id_cmj)
-print(globaltables_gad_id_cmj)
-```
-
 
 ### Notes and resources 
 
